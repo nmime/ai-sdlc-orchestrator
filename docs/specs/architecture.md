@@ -6,9 +6,9 @@
 
 ## Architecture Overview
 
-The architecture has three conceptual tiers — **Ingress** (thin webhook handlers), **Core Engine** (Temporal Workflows + DSL), and **Agent Runtime** (Kata Containers microVM pods running claude-agent-sdk + MCP servers) — decomposed into five operational layers (see Architecture Layers table below).
+The architecture has three conceptual tiers — **Ingress** (thin webhook handlers), **Core Engine** (Temporal Workflows + DSL), and **Agent Runtime** (E2B sandboxes running claude-agent-sdk + MCP servers) — decomposed into five operational layers (see Architecture Layers table below). The orchestrator runs in K8s; agent sandboxes run in E2B (cloud or self-hosted).
 
-Webhooks arrive at the Ingress layer. Each platform has a thin handler (~50-100 lines) that verifies the signature, extracts event type + entity ID, and signals the corresponding Temporal Workflow. The **Core Engine** is expressed entirely as Temporal Workflows (orchestration logic) and Activities (side effects). The only significant Activity is `invokeAgent` — it creates a Kata Containers microVM pod, clones the repo inside it, and starts an agent session. The **agent does everything else**: fetches task details, gathers context, creates branches, implements code, creates MRs, pushes — all via platform MCP servers. Temporal handles all durability, retries, timeouts, and execution history.
+Webhooks arrive at the Ingress layer. Each platform has a thin handler (~50-100 lines) that verifies the signature, extracts event type + entity ID, and signals the corresponding Temporal Workflow. The **Core Engine** is expressed entirely as Temporal Workflows (orchestration logic) and Activities (side effects). The only significant Activity is `invokeAgent` — it creates an E2B sandbox (Firecracker microVM), clones the repo inside it, and starts an agent session. The **agent does everything else**: fetches task details, gathers context, creates branches, implements code, creates MRs, pushes — all via platform MCP servers. Temporal handles all durability, retries, timeouts, and execution history.
 
 ### Architecture Diagram
 
@@ -31,7 +31,7 @@ graph TB
         GC[Gate Controller<br>Temporal Signals]
     end
 
-    subgraph AgentRuntime["AGENT RUNTIME (Kata Containers microVM Pods)"]
+    subgraph AgentRuntime["AGENT RUNTIME (E2B Sandboxes — Cloud or Self-Hosted)"]
         AS[Agent Session<br>claude-agent-sdk]
         MCP[Tenant MCP Servers<br>Platform + Productivity]
     end
@@ -96,7 +96,7 @@ Adding a new platform = adding a thin webhook handler (~50-100 lines) + configur
 | **Temporal Workflow** | Orchestration only — calls activities, handles signals, gates, timers. No I/O, no business logic |
 | **Temporal Activity** | Side-effect unit. `invokeAgent` (the main one), `updateMirror`, `trackCost`, `cleanupBranch`. Idempotent |
 | **AiAgentPort** | The only port in the system — wraps `@anthropic-ai/claude-agent-sdk`. Two methods: `invoke()` and `cancel()` |
-| **Agent Sandbox** | Kata Containers microVM pod (KVM isolation) + credential proxy sidecar. Agent does all platform interaction via tenant's MCP servers. Creates branches, MRs, fetches context, transitions statuses |
+| **Agent Sandbox** | E2B sandbox (Firecracker microVM isolation, cloud or self-hosted) + credential proxy service. Agent does all platform interaction via tenant's MCP servers. Creates branches, MRs, fetches context, transitions statuses |
 
 ---
 
@@ -126,8 +126,8 @@ ai-sdlc-orchestrator/
 │   │   │   │   └── claude-code/       # @anthropic-ai/claude-agent-sdk
 │   │   │   └── shared/src/
 │   │   │       ├── port/              # AiAgentPort — single invoke() method
-│   │   │       ├── sandbox/           # K8s pod client, Kata RuntimeClass config
-│   │   │       ├── credential-proxy/  # Proxy config, protocol, sidecar setup
+│   │   │       ├── sandbox/           # E2B sandbox client, template config
+│   │   │       ├── credential-proxy/  # Proxy config, protocol, session token management
 │   │   │       └── type/              # AgentInvocation, AgentResult, AgentToolCall
 │   │   │
 │   │   ├── webhook/
@@ -172,20 +172,20 @@ ai-sdlc-orchestrator/
 │
 ├── docker/
 │   ├── Dockerfile.api
-│   ├── Dockerfile.worker              # Temporal worker + K8s client (creates Kata pods)
+│   ├── Dockerfile.worker              # Temporal worker + E2B SDK (creates sandboxes)
 │   ├── Dockerfile.agent               # Git, Node, Python, Go toolchain
-│   │                                  # OCI image for agent container in Kata pod
+│   │                                  # E2B template source for agent sandbox
 │   │                                  # Contains common MCP server runtimes (Node.js for JS-based
 │   │                                  # MCP servers). Tenant-specific command-type MCP servers
 │   │                                  # spawned from pre-installed binaries (common) or downloaded
-│   │                                  # at pod startup (custom, adds latency). url-type MCP servers
+│   │                                  # at sandbox startup (custom, adds latency). url-type MCP servers
 │   │                                  # (remote) require no local binaries
-│   ├── Dockerfile.credential-proxy    # Lightweight sidecar — injects VCS PAT + MCP
-│   │                                  # tokens into agent requests transparently
+│   ├── Dockerfile.credential-proxy    # Standalone service — injects VCS PAT + MCP
+│   │                                  # tokens into sandbox requests via authenticated HTTPS
 │   └── Dockerfile.dashboard
 │
 ├── .helm/
-├── docker-compose.dev.yml             # PostgreSQL + Temporal auto-setup + agent Docker container (local dev)
+├── docker-compose.dev.yml             # PostgreSQL + Temporal auto-setup + credential-proxy (local dev)
 ├── nx.json
 ├── tsconfig.base.json
 ├── package.json

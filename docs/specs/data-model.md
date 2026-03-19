@@ -68,7 +68,7 @@ erDiagram
         varchar lint_command
         varchar typecheck_command
         varchar build_command
-        varchar agent_image_tag
+        varchar agent_template_id
         int max_concurrent_workflows
         timestamptz created_at
     }
@@ -214,7 +214,7 @@ erDiagram
 - **`WORKFLOW_MIRROR.dsl_name` + `dsl_version` added** — required for DSL version pinning (replay safety)
 - **`WORKFLOW_MIRROR.cost_usd_reserved` added** — supports the budget reservation model (see [Deployment — Rate Limiting](deployment.md))
 - **`TENANT.monthly_cost_reserved_usd` + `monthly_cost_actual_usd` added** — split tracking for reserved vs actual spend
-- **`TENANT_REPO_CONFIG.agent_image_tag`** — references the OCI image tag for the agent container. Enables per-tenant image pinning and canary rollout (see [Sandbox & Security — Agent Image Versioning](sandbox-and-security.md))
+- **`TENANT_REPO_CONFIG.agent_template_id`** — references the E2B sandbox template ID for the agent. Enables per-tenant template pinning and canary rollout (see [Sandbox & Security — E2B Template Versioning](sandbox-and-security.md))
 - **`TENANT_API_KEY` and `TENANT_USER` added** — supports OIDC authentication, API key management, and RBAC (`admin` / `operator` / `viewer`). API keys stored hashed with bcrypt
 - **`AGENT_SESSION.step_id` + `loop_iteration` added** — links each agent session to the DSL step (`implement`, `ci_fix`, `review_fix`) and tracks which iteration of a fix loop the session belongs to
 - **`AGENT_SESSION.error_code` added** — structured error classification (`cancelled`, `cost_limit`, `turn_limit`, `infra_error`, `agent_error`) for retry strategy and analytics

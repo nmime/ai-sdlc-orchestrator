@@ -27,9 +27,9 @@
 - Workflow DSL schema (Zod) + compiler (YAML → Temporal Workflow registration). Handle `signal_wait` type separately from `auto` (compiles to `condition()`, not `executeActivity()`)
 - DSL version pinning: Workflow records `dslName + dslVersion` at start, replays use pinned version
 - DSL compiler tests: validate every step type (`auto`, `signal_wait`, `gate`, `loop`, `terminal`) compiles to valid Temporal Workflow code. Test replay determinism with version changes
-- **Agent sandbox setup:** Install Kata Containers runtime on the K8s cluster (`kata-containers` RuntimeClass). Build agent OCI image from `Dockerfile.agent` with toolchain (Git, Node, Python, Go). Build credential-proxy sidecar image from `Dockerfile.credential-proxy`. Validate sandbox with a test agent session — verify KVM isolation, credential proxy sidecar (agent container cannot access mounted secrets), K8s NetworkPolicy (egress blocked)
-- Agent image CI pipeline: `Dockerfile.agent` change → build image → push to container registry → smoke test
-- Docker fallback mode for local dev: `SANDBOX_MODE=docker` runs agent in local Docker container
+- **Agent sandbox setup:** Build E2B sandbox template from `Dockerfile.agent` with toolchain (Git, Node, Python, Go) via `e2b template build`. Deploy credential proxy service (K8s Deployment + Service + Ingress) from `Dockerfile.credential-proxy`. Validate sandbox with a test agent session — verify Firecracker isolation, credential proxy authentication (sandbox cannot access credentials without valid session token), session token scoping
+- E2B template CI pipeline: `Dockerfile.agent` change → build E2B template (`e2b template build`) → smoke test
+- Credential proxy deployment: K8s Deployment + Service + Ingress, JWT session token validation, rate limiting, audit logging
 
 ## Phase 2 — Webhook Handlers + Agent Integration (4–6 weeks)
 
@@ -38,9 +38,9 @@
 - **Tenant CRUD API** — `POST/GET/PUT /tenants` + nested CRUD for MCP servers, VCS credentials, repo configs. Zod-validated. CLI seed script for initial tenant setup
 - **Dashboard auth:** OIDC integration (Google/GitHub), API key generation per tenant, RBAC (admin/operator/viewer)
 - Claude Code integration via `@anthropic-ai/claude-agent-sdk` — implements `AiAgentPort.invoke()`
-- `invokeAgent` Activity: create Kata pod via K8s API → wait for Ready → clone repo → setup → build prompt → pass MCP servers → start agent session → heartbeat → collect `AgentResult` (including `toolCalls` for `AGENT_TOOL_CALL` table) → verify agent output (branch exists, MR exists) → delete pod
+- `invokeAgent` Activity: generate session token → create E2B sandbox via SDK → clone repo → setup → build prompt → pass MCP servers → start agent session → heartbeat → collect `AgentResult` (including `toolCalls` for `AGENT_TOOL_CALL` table) → verify agent output (branch exists, MR exists) → destroy sandbox → revoke session token
 - Agent output verification: `git ls-remote` for branch, VCS API call for MR existence after agent reports success
-- Differentiated retry strategy: retry on infra errors (pod OOM, scheduling failure). No retry on agent logic errors / cost limit / turn limit (`ApplicationFailure` with `nonRetryable: true`)
+- Differentiated retry strategy: retry on infra errors (sandbox OOM, E2B API failure). No retry on agent logic errors / cost limit / turn limit (`ApplicationFailure` with `nonRetryable: true`)
 - Agent MCP pass-through: query `TENANT_MCP_SERVER` → build MCP config → pass to Agent SDK
 - **Budget reservation:** reserve per-task cost cap from tenant's monthly budget at workflow start. Release surplus on completion. Reject new workflows when budget exhausted
 - **Per-repo concurrency:** workflow ID = `{tenant}-{provider}-{taskId}`, but check `TENANT_REPO_CONFIG.max_concurrent_workflows` before starting. Queue excess workflows
@@ -67,7 +67,7 @@
   - Cost dashboard from app DB (reserved vs actual, per-task breakdown)
   - Agent session viewer: tool calls timeline from `AGENT_TOOL_CALL` table
 - Temporal UI remains primary visibility tool — link from dashboard per workflow
-- Prometheus + Grafana dashboards: throughput, success rate, cost/task, Kata pod metrics
+- Prometheus + Grafana dashboards: throughput, success rate, cost/task, E2B sandbox metrics
 - Webhook delivery log viewer (from `WEBHOOK_DELIVERY` table)
 
 ## Phase 5 — Full Custom Dashboard (3–4 weeks)
@@ -102,13 +102,13 @@
 |---|---|---|
 | **MikroORM vs Prisma** | **MikroORM** | Unit of Work, explicit transactions, better for Activity-level DB control where you need to confirm DB write before marking Activity complete |
 | **Temporal DB: shared or dedicated PostgreSQL?** | **Dedicated** | Separate instance for isolation, independent scaling, simpler DR. SaaS with many tenants needs this |
-| **Agent container isolation** | **Kata Containers** (with caveats) | K8s-native microVM runtime. Hardware-level KVM isolation pod-to-host. Guest-kernel namespace isolation between containers within the pod (not hardware-level between agent and sidecar). CNCF project, Apache-2.0. See [Sandbox & Security](sandbox-and-security.md) for accurate isolation boundary description |
+| **Agent sandbox isolation** | **E2B sandboxes (cloud or self-hosted)** | Firecracker microVM per session — same isolation as AWS Lambda. E2B Cloud for zero-ops, self-hosted for data sovereignty. Same SDK/API in both modes. Open-source (Apache-2.0). Agent runs alone in sandbox — simpler security model than multi-container pod. See [Sandbox & Security](sandbox-and-security.md) |
 | **Agent reliability for MR creation** | **`cleanupBranch` Activity** | When workflow reaches BLOCKED, a cleanup Activity deletes the remote branch and closes any draft MR. Prevents orphaned resources |
 | **`resumeSession` semantics** | **No resume — fresh sessions** | Each invocation (implement, ci_fix, review_fix) is a fresh agent session. Previous session's `summary` + existing branch state provides continuity. No conversation history persistence needed |
-| **Credential proxy isolation** | **Multi-container pod model** (guest-kernel isolation) | Agent container and credential-proxy sidecar run in the same Kata pod. K8s provides guest-kernel namespace isolation between containers (filesystem, PID, mount namespaces) — same mechanism as Docker, running inside the Kata guest VM. Not hardware-level between containers. See [Sandbox & Security — Threat Model](sandbox-and-security.md) |
+| **Credential proxy isolation** | **External service model** (separate host) | Credential proxy runs as a standalone K8s service, not a sidecar. E2B sandbox and credential store are on completely separate hosts — stronger isolation than sidecar model. Session-scoped JWT authentication. See [Sandbox & Security — Credential Proxy](sandbox-and-security.md) |
 | **Agent output trust** | **Server-side verification** | Activity verifies branch existence (`git ls-remote`) and MR existence (VCS API) after agent reports success. Prevents silent failures from hallucinating agents |
 | **Retry strategy** | **Error-type differentiation** | Retry on infra errors (pod OOM, scheduling failure). No retry on agent logic errors, cost limit, turn limit. `ApplicationFailure` with `nonRetryable: true` |
-| **Local dev sandbox** | **Docker fallback mode** | `SANDBOX_MODE=docker` runs agent in local Docker container. Same setup sequence, weaker isolation. Never used in production (enforced by config validation) |
+| **Local dev sandbox** | **E2B sandboxes (same as production)** | E2B sandboxes (cloud or self-hosted) are API-driven and work from any environment. No fallback mode needed — same code path in development, CI, and production. `E2B_BASE_URL` switches between cloud and self-hosted |
 | **DSL compiler timeline** | **Dedicated Phase 1b (2–3 weeks)** | DSL compiler is the most complex component — version pinning, replay determinism, `patched()` hotfixes. Deserves dedicated week, not a sub-item |
 
 ### Open
@@ -120,13 +120,10 @@
 | **Elasticsearch vs OpenSearch for Temporal visibility** | Both supported by Temporal. Elasticsearch is the default. OpenSearch is fully open-source (no licensing concerns). For self-hosted SaaS, OpenSearch may be preferable | Phase 1a start |
 | **Agent conversation log storage** | `AGENT_TOOL_CALL` captures tool calls, but full conversation logs (reasoning, intermediate thoughts) could be valuable for debugging. Storage cost vs debugging value. Consider: store full logs in object storage (S3/GCS), reference from `AGENT_SESSION`, 30-day retention | Phase 2 |
 | **Multi-repo review gate UX** | Parent workflow has N child MRs. Does the reviewer approve each MR individually (N approvals) or approve the parent workflow (1 approval, auto-merges all)? Former is safer but slower | Phase 3 |
-| **Kata warm pod pool** | Cold pod creation with Kata adds 150-300ms VM startup + image pull time. For faster agent spawn, consider maintaining a pool of pre-created warm pods that are claimed per session instead of created from scratch. Trade-off: resource cost of idle pods vs latency improvement | Phase 2 |
-| **Kata + containerd configuration** | Kata Containers requires specific containerd configuration and kernel support (KVM). Need to validate target K8s distribution supports Kata RuntimeClass installation and document the setup procedure | Phase 1b — validate during sandbox setup |
-| **Pod scheduling strategy for agent workloads** | Agent pods are CPU/memory-intensive (4-8 GB RAM). Need dedicated node pool with appropriate instance types? Or mixed scheduling with priority classes? Consider node affinity/taints to isolate agent workloads from system pods | Phase 1b |
+| **E2B concurrency limits** | E2B has per-account concurrency limits for active sandboxes. With many concurrent workflows, we may hit the limit. Need to validate E2B tier limits and implement admission control if needed (queue excess sandbox creation requests) | Phase 2 |
 | **Agent model routing per task complexity** | Default cost cap $5/task. Simple tasks (typo fix) cost ~$0.50 with Opus, could use Haiku/Sonnet for 5-10x savings. Complex tasks (refactor auth module) may need $20-50. No mechanism to estimate complexity or select model. Consider: task label-based model selection, or let agent start with cheap model and escalate | v2 |
-| **Pod backpressure** | If 50 workflows start simultaneously, 50 pod creation calls hit K8s API. Temporal's `maxConcurrentActivityTaskExecutions` limits per-worker, but cluster-wide surge needs capacity planning or admission control. Consider K8s ResourceQuota per tenant namespace | Phase 2 |
-| **Hypervisor selection (QEMU vs Cloud Hypervisor)** | QEMU has larger attack surface (~1.4M LoC) but is more mature and battle-tested. Cloud Hypervisor is minimal (~100k LoC) but less proven in production. Kata supports both | Phase 1b |
-| **DNS tunneling mitigation** | K8s NetworkPolicy is L3/L4 only. L7 DNS inspection (CoreDNS RPZ or DNS proxy) needed for full exfiltration prevention. Trade-off: operational complexity vs. security completeness | Phase 2 |
+| **E2B sandbox backpressure** | If 50 workflows start simultaneously, 50 sandbox creation calls hit E2B API. Temporal's `maxConcurrentActivityTaskExecutions` limits per-worker, but cluster-wide surge needs E2B tier capacity planning. Consider queuing excess requests with exponential backoff | Phase 2 |
+| **E2B egress control** | E2B Cloud sandboxes have unrestricted outbound internet access. Self-hosted E2B allows infrastructure-level egress filtering (firewall rules). For E2B Cloud: current mitigation is zero-credential sandbox + session token scoping + prompt hardening. Consider: E2B network configuration features if available, or L7 proxy for credential proxy endpoint | Phase 2 |
 | **`@anthropic-ai/claude-agent-sdk` availability** | If not released by Phase 2, implement agent loop in-house via `@anthropic-ai/sdk` Messages API + tool use. Increases Phase 2 scope by ~1 week | Phase 2 start |
-| **Managed K8s + Kata compatibility** | Validate that target K8s provider supports nested virtualization / KVM nodes for Kata Containers. GKE supports via COS nodes, EKS requires bare-metal or .metal instances | Phase 1b |
-| **Intra-pod credential proxy authentication** | Current proxy has no auth on localhost — any process in the pod can call it. Consider mutual TLS or bearer token between agent and proxy. Trade-off: complexity vs. defense-in-depth against prompt injection | Phase 2 |
+| **E2B self-hosted deployment guide** | E2B is open-source and self-hostable. Document self-hosted E2B deployment procedure: hardware requirements (KVM-capable nodes), E2B orchestrator setup, template registry, networking with K8s cluster. Required for enterprise / regulated customers | Phase 2 |
+| **Credential proxy high availability** | Credential proxy is a critical service — if it goes down, all sandboxes lose credential access. Need at least 2 replicas with health checks. Consider: circuit breaker in sandbox GIT_ASKPASS script, credential caching (short TTL) in sandbox for resilience | Phase 2 |

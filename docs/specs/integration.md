@@ -6,7 +6,7 @@
 
 ## Agent-First Principle
 
-The agent handles **all** interaction with external platforms via MCP servers. The orchestrator has **zero** outbound *platform* SDK dependencies — no `jira.js`, no `@gitbeaker/rest`, no `octokit`, no `@linear/sdk`. The `invokeAgent` Activity performs lightweight verification calls (HTTP GET) against VCS APIs via the credential proxy after agent completion — these use a generic HTTP client, not a platform SDK.
+The agent handles **all** interaction with external platforms via MCP servers. The orchestrator has **zero** outbound *platform* SDK dependencies — no `jira.js`, no `@gitbeaker/rest`, no `octokit`, no `@linear/sdk`. The `invokeAgent` Activity performs lightweight verification calls (HTTP GET) against VCS APIs via the credential proxy service after agent completion — these use a generic HTTP client, not a platform SDK.
 
 ```
 Orchestrator code (per platform):  ~50 lines webhook handler (inbound only)
@@ -85,7 +85,7 @@ interface AgentResult {
 
 **Why no `resumeSession`:** Claude Agent SDK sessions are stateless between invocations. "Resuming" would require persisting and replaying the full conversation history (potentially hundreds of tool calls over 60 min), which is impractical and wasteful. Instead, the previous session's `summary` + the existing branch state on VCS gives the agent everything it needs to continue effectively.
 
-**`cancel()` implementation:** Deletes the Kata pod via K8s API (`kubectl delete pod`). K8s sends SIGTERM to all containers, giving the agent a 30-second grace period (`terminationGracePeriodSeconds`). The agent's system prompt includes: "On SIGTERM, commit and push any partial work immediately." After the grace period, SIGKILL. The Activity returns a partial `AgentResult` with `status: 'failure'` and `errorCode: 'cancelled'`.
+**`cancel()` implementation:** Writes a `/workspace/.shutdown-requested` sentinel file via E2B SDK, waits up to 2 minutes for graceful completion (agent commits and pushes partial work), then destroys the sandbox via E2B SDK. The Activity returns a partial `AgentResult` with `status: 'failure'` and `errorCode: 'cancelled'`.
 
 ### MCP Servers (tenant-configured)
 
@@ -143,16 +143,15 @@ The tenant can add any MCP server — Notion, Slack, custom internal tools.
 ┌──────────────────────────────────────────────────────────────────────┐
 │                         Temporal Activity                            │
 │                                                                      │
-│  1. Create Kata Containers pod via K8s API:                          │
-│     - runtimeClassName: kata-containers                               │
-│     - Agent container: OCI image with toolchain (Git, Node, Python,  │
-│       Go). No secrets mounted, no credential access                  │
-│     - Credential-proxy sidecar: K8s Secret mounted, serves           │
-│       localhost:9999                                                  │
-│     - K8s NetworkPolicy: egress allowlist per namespace/pod          │
-│     - K8s resource limits (CPU, memory, ephemeral storage)           │
-│  2. Inside agent container:                                          │
-│     a) GIT_ASKPASS configured to call credential proxy sidecar       │
+│  1. Generate session token (JWT: tenantId, sessionId, short TTL)    │
+│  2. Create E2B sandbox via SDK:                                      │
+│     - Template: agent-sandbox (Dockerfile.agent)                     │
+│     - Env: ANTHROPIC_API_KEY, SESSION_TOKEN,                        │
+│       CREDENTIAL_PROXY_URL, TRACEPARENT                             │
+│     - Timeout: startToCloseTimeout + 5-min buffer                   │
+│     - No secrets mounted, no VCS/MCP credential access               │
+│  3. Inside sandbox:                                                  │
+│     a) GIT_ASKPASS configured to call credential proxy service       │
 │     b) Clone repo to /workspace (auth via proxy)                     │
 │     c) For fix loops: checkout existing branch                       │
 │     d) Build agent prompt (task ID, repo info, CLAUDE.md)            │
@@ -169,10 +168,10 @@ The tenant can add any MCP server — Notion, Slack, custom internal tools.
 │        vii) Create MR/PR         → VCS MCP                          │
 │        viii)Transition status     → task tracker MCP                 │
 │                                                                      │
-│  3. Activity monitors pod, heartbeats to Temporal every 30s          │
-│  4. Pod completes → Activity reads AgentResult                       │
-│  5. Pod deleted (K8s garbage collection)                             │
-│  6. Return AgentResult to Temporal Workflow                          │
+│  4. Activity monitors sandbox, heartbeats to Temporal every 30s      │
+│  5. Sandbox completes → Activity reads AgentResult via E2B SDK       │
+│  6. Sandbox destroyed (E2B SDK). Session token revoked               │
+│  7. Return AgentResult to Temporal Workflow                          │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -183,50 +182,50 @@ For **fix loops** (CI fix / review fix), the `invokeAgent` Activity re-clones th
 
 ### Security Boundaries
 
-- Agent **runs in a Kata Containers microVM pod** — hardware-level VM isolation (KVM), separate kernel per pod, no shared host kernel surface
-- Agent **has zero credential access** — VCS PAT and MCP tokens are mounted only in the credential-proxy sidecar container. The agent container has no token env vars, no mounted secrets, no way to obtain credentials — K8s provides filesystem and process isolation between containers natively
-- Agent **cannot access other tenants' data** — dedicated pod per session, MCP servers scoped to tenant's project/repo, Temporal namespace isolation per tenant
-- Agent **cannot make arbitrary network calls** — K8s NetworkPolicy restricts egress to a per-namespace allowlist: platform APIs + MCP endpoints + DNS. All other outbound traffic is denied. The agent cannot modify NetworkPolicy from inside the pod
-- Agent **can run any command inside the pod** — no Bash allowlist needed; Kata VM boundary + K8s NetworkPolicy + credential proxy sidecar provides real isolation regardless of what the agent executes
+- Agent **runs in a dedicated E2B sandbox** — Firecracker microVM isolation (same as AWS Lambda), separate kernel per sandbox, no shared host kernel surface
+- Agent **has zero credential access** — VCS PATs and MCP tokens are stored in the K8s cluster and served only via the credential proxy service. The sandbox has no token env vars, no mounted secrets — credentials are on the K8s cluster, not in the sandbox VM
+- Agent **cannot access other tenants' data** — dedicated sandbox per session, session token scoped to tenant, MCP servers scoped to tenant's project/repo, Temporal namespace isolation per tenant
+- Agent **has outbound network access** — needed for Claude API, platform APIs, and MCP endpoints. With E2B Cloud, sandboxes have unrestricted internet egress. With self-hosted E2B, egress can be restricted at the infrastructure level (firewall rules). Mitigated in both modes by: zero-credential sandbox (nothing to exfiltrate), short-lived session tokens, agent prompt hardening
+- Agent **can run any command inside the sandbox** — no Bash allowlist needed; Firecracker VM boundary + zero-credential model + credential proxy service provides real isolation regardless of what the agent executes
 - Platform MCP servers provide **full read/write access** to the tenant's resources — this is intentional; the agent needs to transition statuses, add comments, and interact with CI
 
 ### Sandbox Observability
 
-Agent pod logs flow into the centralized observability stack (Loki + Grafana) for debugging and audit:
+Agent sandbox logs flow into the centralized observability stack (Loki + Grafana) for debugging and audit:
 
-1. **Agent stdout/stderr** — K8s pod log collection via Promtail/Alloy scrapes container logs natively. Logs are labeled with `workflowId` and `podName` as correlation fields and shipped to Loki automatically
-2. **Credential proxy logs** — the credential-proxy sidecar writes to stdout/stderr. Promtail/Alloy scrapes these as a separate container stream, automatically labeled with the container name
-3. **Pod lifecycle events** — pod creation time, image tag, resource limits, termination reason (completed / OOM / timeout / error) are logged by the Activity as structured events
-4. **Correlation** — all pod logs share the same `traceId` / `workflowId` / `podName`, enabling cross-component queries in Grafana: webhook → workflow → activity → pod
+1. **Agent stdout/stderr** — the `invokeAgent` Activity reads agent logs from the E2B sandbox via SDK before destroying it. Logs are labeled with `workflowId`, `sandboxId`, and `tenantId` as correlation fields and shipped to Loki
+2. **Credential proxy logs** — the credential proxy service runs as a K8s pod. Promtail/Alloy scrapes its container logs natively, automatically labeled with the pod name. Includes audit logs of every credential request (session token, endpoint, response status)
+3. **Sandbox lifecycle events** — sandbox creation time, template ID, timeout, termination reason (completed / OOM / timeout / error) are logged by the Activity as structured events
+4. **Correlation** — all logs share the same `traceId` / `workflowId` / `sandboxId`, enabling cross-component queries in Grafana: webhook → workflow → activity → sandbox
 
-Unlike manual log collection, K8s-native log scraping means logs are captured even if the Activity crashes — Promtail/Alloy operates independently at the node level.
+**Log collection resilience:** If the Activity crashes before collecting sandbox logs, the reconciliation CronJob (which terminates orphaned sandboxes) also collects and ships their logs before destruction.
 
 ### MCP Server Lifecycle Inside Agent Pod
 
 - **`command`-type MCP servers** (local process) are started by the Agent SDK automatically when the agent session begins — the SDK spawns MCP server processes based on the config passed to it
 - **`url`-type MCP servers** (remote HTTP/SSE) are connected to by the SDK — no local process management needed
 - If a local MCP server process crashes, the Agent SDK retries the tool call (built-in retry). If the server is unrecoverable, the tool becomes unavailable and the agent adapts its approach
-- The pod's entrypoint script validates MCP server availability (health check on `command`-type servers, connectivity check on `url`-type) before starting the agent session
+- The sandbox's entrypoint script validates MCP server availability (health check on `command`-type servers, connectivity check on `url`-type) before starting the agent session
 
 ### MCP Token Injection
 
-MCP servers that require authentication receive tokens via environment variables injected by a pod-level init script. The init script reads tokens from the credential-proxy sidecar (`curl localhost:9999/mcp-token/{server-name}`) during pod startup (before the agent session begins) and sets them as environment variables for the MCP server processes. This runs once at startup, not per-request. The agent process itself never sees the raw MCP tokens — they are passed directly to the MCP server processes via their environment.
+MCP servers that require authentication receive tokens via environment variables injected by a sandbox-level init script. The init script reads tokens from the credential proxy service (`curl -H "Authorization: Bearer $SESSION_TOKEN" $CREDENTIAL_PROXY_URL/mcp-token/{server-name}`) during sandbox startup (before the agent session begins) and sets them as environment variables for the MCP server processes. This runs once at startup, not per-request. The agent process itself never sees the raw MCP tokens — they are passed directly to the MCP server processes via their environment.
 
-### Activity ↔ Pod Communication Protocol
+### Activity ↔ Sandbox Communication Protocol
 
-- **Prompt injection:** The agent prompt + MCP config is passed to the pod via a K8s ConfigMap mounted as a volume at `/etc/agent/invocation.json`. The pod's entrypoint reads this file to configure the agent session
-- **Result extraction:** The agent writes `AgentResult` JSON to `/workspace/.agent-result.json` on completion. The Activity reads this file via `kubectl exec cat` after pod completion. If the file is missing (crash/OOM), the Activity constructs a failure `AgentResult` from the pod exit code and last N lines of logs
-- **Graceful shutdown:** The Activity writes a sentinel file `/workspace/.shutdown-requested` via `kubectl exec touch`. The agent's system prompt instructs: "Check for `/workspace/.shutdown-requested` between tool calls. If present, wrap up immediately"
+- **Prompt injection:** The agent prompt + MCP config is written to `/etc/agent/invocation.json` in the E2B sandbox via SDK filesystem API at creation time. The sandbox's entrypoint reads this file to configure the agent session
+- **Result extraction:** The agent writes `AgentResult` JSON to `/workspace/.agent-result.json` on completion. The Activity reads this file via E2B SDK filesystem API after sandbox completion. If the file is missing (crash/OOM), the Activity constructs a failure `AgentResult` from the sandbox exit status and collected logs
+- **Graceful shutdown:** The Activity writes a sentinel file `/workspace/.shutdown-requested` via E2B SDK filesystem API. The agent's system prompt instructs: "Check for `/workspace/.shutdown-requested` between tool calls. If present, wrap up immediately"
 
 ### Activity Heartbeating
 
 Long-running agent sessions (up to 60 min) require Temporal Activity heartbeating to detect dead workers promptly:
 
-- The `invokeAgent` Activity monitors the Kata pod and heartbeats every **30 seconds** with pod status (`Pending` / `Running` / `Succeeded` / `Failed`) and elapsed time
-- **Agent-internal phase** (`implementing`, `testing`, etc.) is **not observable from the Activity** — the agent process does not expose its internal phase via an API. Phase-level observability is available via agent container logs (the Agent SDK logs tool calls to stdout as structured JSON, scraped by Promtail). The heartbeat carries: pod phase, elapsed time, last known agent output line
+- The `invokeAgent` Activity monitors the E2B sandbox and heartbeats every **30 seconds** with sandbox status (`running` / `completed` / `failed`) and elapsed time
+- **Agent-internal phase** (`implementing`, `testing`, etc.) is **not observable from the Activity** — the agent process does not expose its internal phase via an API. Phase-level observability is available via agent logs (the Agent SDK logs tool calls to stdout as structured JSON, collected by the Activity). The heartbeat carries: sandbox status, elapsed time, last known agent output line
 - Temporal's `heartbeatTimeout` is set to **90 seconds** — if a worker dies, Temporal reschedules the Activity within 90s instead of waiting for the full 60-minute `startToCloseTimeout`
-- On rescheduling, the Activity receives the last heartbeat details. It checks if the Kata pod is still running (orphaned from previous worker). If running, it reattaches via pod name and continues monitoring. If not, it starts a fresh agent session
-- **Graceful shutdown at T-5min:** Activity tracks elapsed time. At T-5min before `startToCloseTimeout`, it writes a sentinel file `/workspace/.shutdown-requested` via `kubectl exec`. The agent's system prompt instructs: "Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit." The Activity waits up to 2 min for graceful completion before force-killing
+- On rescheduling, the Activity receives the last heartbeat details. It checks if the E2B sandbox is still running (via SDK). If running, it reattaches via sandbox ID and continues monitoring. If not (terminated by E2B timeout), it starts a fresh agent session
+- **Graceful shutdown at T-5min:** Activity tracks elapsed time. At T-5min before `startToCloseTimeout`, it writes a sentinel file `/workspace/.shutdown-requested` via E2B SDK filesystem API. The agent's system prompt instructs: "Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit." The Activity waits up to 2 min for graceful completion before destroying the sandbox
 
 ---
 
