@@ -41,8 +41,8 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 | **DSL-Driven Workflows** | Workflows defined in typed YAML DSL compiled to Temporal | Visual editor-ready; DSL is the stable contract above the execution engine |
 | **Cost-Aware** | Track and cap agent token/cost per task | No runaway API bills |
 | **Audit Everything** | Every action and cost logged with trace ID | Full accountability and debugging |
-| **Sandbox-First Isolation** | Every agent session runs in a Kata Containers microVM pod (hardware-level KVM isolation) | Real KVM boundary (pod-to-host); container-level isolation (agent-to-sidecar within pod). No Bash allowlists, no command filtering theater |
-| **Secure by Default** | Zero-credential agent, credential proxy sidecar | Agent container has no secrets mounted, no token env vars — credential-proxy sidecar injects credentials transparently |
+| **Sandbox-First Isolation** | Every agent session runs in a dedicated [E2B](https://e2b.dev) sandbox (Firecracker microVM) — E2B Cloud or self-hosted | Real VM boundary per session — same isolation as AWS Lambda. No Bash allowlists, no command filtering theater |
+| **Secure by Default** | Zero-credential sandbox, credential proxy service | Sandbox has no secrets mounted, no token env vars — credential proxy service injects credentials transparently via authenticated HTTPS |
 | **Monorepo-First** | Backend, frontend, shared libs in one Nx workspace | Atomic changes, shared types, single CI |
 
 ---
@@ -55,7 +55,7 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 | [Integration](specs/integration.md) | Agent-first integration model, agent communication, MCP servers, prompt & context strategy |
 | [Workflow Engine](specs/workflow-engine.md) | Event system, workflow DSL, state machine, multi-repo coordination |
 | [Data Model](specs/data-model.md) | ER diagram, all entities, workflow mirror reconciliation |
-| [Sandbox & Security](specs/sandbox-and-security.md) | Kata Containers microVM pods, credential proxy sidecar, security layers, tenant isolation |
+| [Sandbox & Security](specs/sandbox-and-security.md) | E2B sandboxes (Firecracker microVM, cloud or self-hosted), credential proxy service, security layers, tenant isolation |
 | [Tech Stack](specs/tech-stack.md) | Technology choices, testing strategy, dev & agent tooling |
 | [Deployment](specs/deployment.md) | Deployment topology, configuration, retry strategy, monitoring, DR, healthchecks, auth |
 | [Roadmap](specs/roadmap.md) | Implementation phases, resolved & open questions |

@@ -18,8 +18,8 @@
 | Workflow DSL | **Custom YAML DSL** (Zod + Temporal compiler) | Team-configurable, visual editor-ready |
 | AI Agent SDK | **@anthropic-ai/claude-agent-sdk** | Full agent loop, MCP-native. The only external SDK ¹ |
 | Platform Integration | **MCP servers** (tenant-configured) | Zero SDK deps — agent uses MCP for all platform interaction |
-| Agent Sandbox | **[Kata Containers](https://katacontainers.io/)** | K8s-native microVM runtime. Hardware-level KVM isolation per pod. CNCF project, Apache-2.0. Standard K8s primitives (NetworkPolicy, Secrets, resource limits). No separate infrastructure — runs as a RuntimeClass in the cluster |
-| Credential Isolation | **Credential proxy sidecar** (in Kata pod) | Agent container has zero credential access. Proxy sidecar injects VCS PAT + MCP tokens transparently. K8s provides container-level isolation natively. Pattern recommended by Anthropic's secure deployment guide |
+| Agent Sandbox | **[E2B](https://e2b.dev)** (`e2b` npm package) | Firecracker microVM per session — same isolation as AWS Lambda. Cloud or self-hosted. Purpose-built for AI agents. Custom templates from Dockerfiles. Open-source (Apache-2.0) |
+| Credential Isolation | **Credential proxy service** (K8s Deployment) | Sandbox has zero credential access. Standalone proxy service injects VCS PAT + MCP tokens via authenticated HTTPS. Credentials on K8s cluster, separate from sandbox VM — stronger isolation than sidecar model |
 | Error Handling | **neverthrow** | `Result<T, E>` / `ResultAsync<T, E>` — actively maintained (4k+ stars), native async support |
 | Secrets | **K8s Secrets** | No secrets in Workflow inputs or agent context |
 | Metrics | **Prometheus + OpenTelemetry** | Standard K8s observability |
@@ -39,14 +39,14 @@
 | **Component** | DB interactions, Temporal Activities | Jest + Testcontainers (PostgreSQL) | MikroORM entities/repos, mirror reconciliation, cost reservation, webhook dedup |
 | **Temporal Workflow** | Full workflow execution with mocked Activities | `@temporalio/testing` (TestWorkflowEnvironment) | DSL-compiled workflows: state transitions, signal handling, gate timeouts, loop limits, multi-repo coordination. Fast time-travel (no real waits) |
 | **Agent Integration** | `AiAgentPort.invoke()` with mock MCP servers | Jest + mock MCP server (local HTTP) | Agent prompt construction, `AgentResult` parsing, tool call logging, cost limit enforcement |
-| **Sandbox** | Kata pod creation, credential isolation, network restrictions | Kata on dev K8s cluster | Pod starts from image, credentials not accessible from agent container, egress blocked for unauthorized destinations |
-| **E2E** | Full flow: webhook → Temporal → Kata pod → MR | Testcontainers (PG + Temporal) + mock VCS/tracker APIs | Single-repo and multi-repo flows, CI fix loops, gate approval, cost tracking |
+| **Sandbox** | E2B sandbox creation, credential isolation | E2B sandboxes (same as production) | Sandbox starts from template, credentials not accessible from sandbox (served via credential proxy), session token scoping works correctly |
+| **E2E** | Full flow: webhook → Temporal → E2B sandbox → MR | Testcontainers (PG + Temporal) + mock VCS/tracker APIs | Single-repo and multi-repo flows, CI fix loops, gate approval, cost tracking |
 
 **Key testing principles:**
 - Temporal workflow tests use `TestWorkflowEnvironment` — runs in-memory, no Temporal server needed, time-skipping built in
 - Agent integration tests use a mock MCP server that returns canned responses — never calls real Claude API in CI
 - DSL compiler tests validate every step type (`auto`, `signal_wait`, `gate`, `loop`, `terminal`) compiles to valid Temporal Workflow code
-- Sandbox tests run against a dev K8s cluster with Kata Containers installed — validates real KVM isolation, credential proxy sidecar, and network restrictions
+- Sandbox tests run against real E2B sandboxes — validates Firecracker isolation, credential proxy authentication, and session token scoping
 
 ---
 
