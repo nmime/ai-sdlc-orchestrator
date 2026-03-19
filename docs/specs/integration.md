@@ -6,7 +6,7 @@
 
 ## Agent-First Principle
 
-The agent handles **all** interaction with external platforms via MCP servers. The orchestrator has **zero** outbound SDK dependencies — no `jira.js`, no `@gitbeaker/rest`, no `octokit`, no `@linear/sdk`.
+The agent handles **all** interaction with external platforms via MCP servers. The orchestrator has **zero** outbound *platform* SDK dependencies — no `jira.js`, no `@gitbeaker/rest`, no `octokit`, no `@linear/sdk`. The `invokeAgent` Activity performs lightweight verification calls (HTTP GET) against VCS APIs via the credential proxy after agent completion — these use a generic HTTP client, not a platform SDK.
 
 ```
 Orchestrator code (per platform):  ~50 lines webhook handler (inbound only)
@@ -72,6 +72,8 @@ interface AgentInvocation {
 interface AgentResult {
   sessionId: string;
   status: 'success' | 'failure' | 'cost_limit' | 'turn_limit';
+  errorCode?: string;                  // Structured error classification
+  errorMessage?: string;               // Human-readable error description
   summary: string;                     // Agent-generated summary of what it did
   branchName?: string;
   mrUrl?: string;
@@ -83,6 +85,8 @@ interface AgentResult {
 
 **Why no `resumeSession`:** Claude Agent SDK sessions are stateless between invocations. "Resuming" would require persisting and replaying the full conversation history (potentially hundreds of tool calls over 60 min), which is impractical and wasteful. Instead, the previous session's `summary` + the existing branch state on VCS gives the agent everything it needs to continue effectively.
 
+**`cancel()` implementation:** Deletes the Kata pod via K8s API (`kubectl delete pod`). K8s sends SIGTERM to all containers, giving the agent a 30-second grace period (`terminationGracePeriodSeconds`). The agent's system prompt includes: "On SIGTERM, commit and push any partial work immediately." After the grace period, SIGKILL. The Activity returns a partial `AgentResult` with `status: 'failure'` and `errorCode: 'cancelled'`.
+
 ### MCP Servers (tenant-configured)
 
 | Platform | MCP Server | Agent Uses For |
@@ -93,6 +97,7 @@ interface AgentResult {
 | **GitHub** | `github` MCP | PR creation/comments, CI status, file access |
 | **context7** | `context7` MCP | Up-to-date library docs |
 | **smart-tree** | `smart-tree` MCP | AI-optimized repo structure |
+| **Sequential Thinking** | `sequential-thinking` MCP | Structured reasoning for complex tasks |
 | **Custom** | Any MCP server | Tenant adds Notion, Slack, internal tools |
 
 ### Normalized Task Statuses
@@ -101,7 +106,7 @@ interface AgentResult {
 |---|---|
 | `backlog` | Not yet ready for AI |
 | `ready_for_ai` | Triaged and approved |
-| `plan_review` | Awaiting plan approval |
+| `plan_review` | Awaiting plan approval *(reserved for DSL variants with plan review gate — not used in default workflow)* |
 | `ai_in_progress` | Agent actively implementing |
 | `ai_blocked` | Failed, needs human |
 | `in_review` | MR open, CI green |
@@ -196,14 +201,32 @@ Agent pod logs flow into the centralized observability stack (Loki + Grafana) fo
 
 Unlike manual log collection, K8s-native log scraping means logs are captured even if the Activity crashes — Promtail/Alloy operates independently at the node level.
 
+### MCP Server Lifecycle Inside Agent Pod
+
+- **`command`-type MCP servers** (local process) are started by the Agent SDK automatically when the agent session begins — the SDK spawns MCP server processes based on the config passed to it
+- **`url`-type MCP servers** (remote HTTP/SSE) are connected to by the SDK — no local process management needed
+- If a local MCP server process crashes, the Agent SDK retries the tool call (built-in retry). If the server is unrecoverable, the tool becomes unavailable and the agent adapts its approach
+- The pod's entrypoint script validates MCP server availability (health check on `command`-type servers, connectivity check on `url`-type) before starting the agent session
+
+### MCP Token Injection
+
+MCP servers that require authentication receive tokens via environment variables injected by a pod-level init script. The init script reads tokens from the credential-proxy sidecar (`curl localhost:9999/mcp-token/{server-name}`) during pod startup (before the agent session begins) and sets them as environment variables for the MCP server processes. This runs once at startup, not per-request. The agent process itself never sees the raw MCP tokens — they are passed directly to the MCP server processes via their environment.
+
+### Activity ↔ Pod Communication Protocol
+
+- **Prompt injection:** The agent prompt + MCP config is passed to the pod via a K8s ConfigMap mounted as a volume at `/etc/agent/invocation.json`. The pod's entrypoint reads this file to configure the agent session
+- **Result extraction:** The agent writes `AgentResult` JSON to `/workspace/.agent-result.json` on completion. The Activity reads this file via `kubectl exec cat` after pod completion. If the file is missing (crash/OOM), the Activity constructs a failure `AgentResult` from the pod exit code and last N lines of logs
+- **Graceful shutdown:** The Activity writes a sentinel file `/workspace/.shutdown-requested` via `kubectl exec touch`. The agent's system prompt instructs: "Check for `/workspace/.shutdown-requested` between tool calls. If present, wrap up immediately"
+
 ### Activity Heartbeating
 
 Long-running agent sessions (up to 60 min) require Temporal Activity heartbeating to detect dead workers promptly:
 
-- The `invokeAgent` Activity monitors the Kata pod and heartbeats every **30 seconds** with the current agent phase (`cloning`, `implementing`, `testing`, `linting`, `building`, `pushing`, `creating_mr`)
+- The `invokeAgent` Activity monitors the Kata pod and heartbeats every **30 seconds** with pod status (`Pending` / `Running` / `Succeeded` / `Failed`) and elapsed time
+- **Agent-internal phase** (`implementing`, `testing`, etc.) is **not observable from the Activity** — the agent process does not expose its internal phase via an API. Phase-level observability is available via agent container logs (the Agent SDK logs tool calls to stdout as structured JSON, scraped by Promtail). The heartbeat carries: pod phase, elapsed time, last known agent output line
 - Temporal's `heartbeatTimeout` is set to **90 seconds** — if a worker dies, Temporal reschedules the Activity within 90s instead of waiting for the full 60-minute `startToCloseTimeout`
 - On rescheduling, the Activity receives the last heartbeat details. It checks if the Kata pod is still running (orphaned from previous worker). If running, it reattaches via pod name and continues monitoring. If not, it starts a fresh agent session
-- **Graceful shutdown at T-5min:** Activity tracks elapsed time. At T-5min before `startToCloseTimeout`, it sends a shutdown signal to the pod, giving the agent 2 minutes to commit partial work and push. This prevents hard kills at the timeout boundary
+- **Graceful shutdown at T-5min:** Activity tracks elapsed time. At T-5min before `startToCloseTimeout`, it writes a sentinel file `/workspace/.shutdown-requested` via `kubectl exec`. The agent's system prompt instructs: "Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit." The Activity waits up to 2 min for graceful completion before force-killing
 
 ---
 
@@ -219,6 +242,7 @@ The `invokeAgent` Activity builds the agent prompt from:
 2. **Task seed** — Task ID + task provider (e.g., `PROJ-123`, `jira`). Agent fetches full details via MCP
 3. **Repo info** — Cloned repo path, branch naming convention, setup/test/lint/build commands
 4. **Workflow instructions** — What the agent should do in this invocation (implement / fix CI / fix review)
+5. **Branch naming** — branch prefix from `TENANT_REPO_CONFIG.branch_prefix` (default: `ai/`), injected as `branchPrefix` in the agent prompt. Agent constructs branch name as `{branchPrefix}{taskId}` (e.g., `ai/PROJ-123`)
 
 ### Agent-Driven Context Gathering
 

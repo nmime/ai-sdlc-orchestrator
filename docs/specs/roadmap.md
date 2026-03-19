@@ -4,7 +4,9 @@
 
 ---
 
-## Phase 1a — Core Skeleton + Temporal (1 week)
+> **Timeline assumptions:** Estimates assume a single senior full-stack engineer with Temporal and K8s experience. Multiply by 0.6x for a 2-person team. Phases can overlap where dependencies allow (e.g., Phase 4 UI work can start during Phase 3 backend work).
+
+## Phase 1a — Core Skeleton + Temporal (2–3 weeks)
 
 - Nx monorepo: `orchestrator-api`, `orchestrator-worker`, `workflow-dsl`, `common/*`, `db`
 - NestJS + Fastify bootstrap with healthcheck endpoints (`/health/live`, `/health/ready`)
@@ -18,7 +20,7 @@
 - Dev tooling: CLAUDE.md, MCP config, Pino → Loki pipeline
 - Temporal namespace creation automation (one per tenant)
 
-## Phase 1b — DSL Compiler + Sandbox (1 week)
+## Phase 1b — DSL Compiler + Sandbox (2–3 weeks)
 
 > **Risk note:** The DSL compiler is the most complex component in the system — compiling typed YAML to deterministic Temporal Workflow code with version pinning, `patched()` hotfixes, and replay safety. This deserves a dedicated week, not a sub-item of Phase 1.
 
@@ -29,7 +31,7 @@
 - Agent image CI pipeline: `Dockerfile.agent` change → build image → push to container registry → smoke test
 - Docker fallback mode for local dev: `SANDBOX_MODE=docker` runs agent in local Docker container
 
-## Phase 2 — Webhook Handlers + Agent Integration (1–2 weeks)
+## Phase 2 — Webhook Handlers + Agent Integration (4–6 weeks)
 
 - Thin webhook handlers: Jira, GitLab, GitHub, Linear (~50 lines each: verify signature, extract event, normalize)
 - Webhook deduplication: delivery ID extraction + `WEBHOOK_DELIVERY` table persistence
@@ -46,7 +48,7 @@
 - `cleanupBranch` Activity: delete remote branch + close draft MR when workflow reaches BLOCKED
 - E2E single-repo: task webhook → Temporal Workflow → agent creates branch + code + MR → visible in Temporal UI
 
-## Phase 3 — CI/Review Feedback Loops + Multi-Repo (1 week)
+## Phase 3 — CI/Review Feedback Loops + Multi-Repo (2–3 weeks)
 
 - CI webhook handlers → signal running Workflow (`pipelineFailed` / `pipelineSucceeded`)
 - Review webhook handlers → signal (`changesRequested`)
@@ -56,7 +58,7 @@
 - Multi-repo: parent Temporal Workflow spawns child workflow executions. Configurable failure strategy (`wait_all` / `fail_fast`)
 - E2E: red pipeline → agent fix loop → green pipeline → review → done
 
-## Phase 4 — Gate UI + Cost Dashboard (1 week)
+## Phase 4 — Gate UI + Cost Dashboard (2–3 weeks)
 
 - Gate approval: `POST /workflows/:id/gates/:gateId/approve` → `gateApproved` signal (authenticated, RBAC-checked)
 - Minimal dashboard:
@@ -68,7 +70,7 @@
 - Prometheus + Grafana dashboards: throughput, success rate, cost/task, Kata pod metrics
 - Webhook delivery log viewer (from `WEBHOOK_DELIVERY` table)
 
-## Phase 5 — Full Custom Dashboard (1–2 weeks)
+## Phase 5 — Full Custom Dashboard (3–4 weeks)
 
 - Workflow list: all workflows with status badges, filters — from `workflow_mirror` via Elasticsearch-backed Temporal queries
 - Workflow detail: timeline from `workflow_event`, agent session panel (tool calls, summary), cost breakdown, link to Temporal UI
@@ -100,14 +102,14 @@
 |---|---|---|
 | **MikroORM vs Prisma** | **MikroORM** | Unit of Work, explicit transactions, better for Activity-level DB control where you need to confirm DB write before marking Activity complete |
 | **Temporal DB: shared or dedicated PostgreSQL?** | **Dedicated** | Separate instance for isolation, independent scaling, simpler DR. SaaS with many tenants needs this |
-| **Agent container isolation** | **Kata Containers** | K8s-native microVM runtime. Hardware-level KVM isolation per pod. CNCF project, Apache-2.0. Standard K8s primitives (NetworkPolicy, Secrets, resource limits). No separate infrastructure — runs as a RuntimeClass in the cluster |
+| **Agent container isolation** | **Kata Containers** (with caveats) | K8s-native microVM runtime. Hardware-level KVM isolation pod-to-host. Guest-kernel namespace isolation between containers within the pod (not hardware-level between agent and sidecar). CNCF project, Apache-2.0. See [Sandbox & Security](sandbox-and-security.md) for accurate isolation boundary description |
 | **Agent reliability for MR creation** | **`cleanupBranch` Activity** | When workflow reaches BLOCKED, a cleanup Activity deletes the remote branch and closes any draft MR. Prevents orphaned resources |
 | **`resumeSession` semantics** | **No resume — fresh sessions** | Each invocation (implement, ci_fix, review_fix) is a fresh agent session. Previous session's `summary` + existing branch state provides continuity. No conversation history persistence needed |
-| **Credential proxy isolation** | **Multi-container pod model** | Agent container and credential-proxy sidecar run in the same Kata pod. K8s provides filesystem and process isolation between containers natively. No uid/hidepid workarounds needed |
+| **Credential proxy isolation** | **Multi-container pod model** (guest-kernel isolation) | Agent container and credential-proxy sidecar run in the same Kata pod. K8s provides guest-kernel namespace isolation between containers (filesystem, PID, mount namespaces) — same mechanism as Docker, running inside the Kata guest VM. Not hardware-level between containers. See [Sandbox & Security — Threat Model](sandbox-and-security.md) |
 | **Agent output trust** | **Server-side verification** | Activity verifies branch existence (`git ls-remote`) and MR existence (VCS API) after agent reports success. Prevents silent failures from hallucinating agents |
 | **Retry strategy** | **Error-type differentiation** | Retry on infra errors (pod OOM, scheduling failure). No retry on agent logic errors, cost limit, turn limit. `ApplicationFailure` with `nonRetryable: true` |
 | **Local dev sandbox** | **Docker fallback mode** | `SANDBOX_MODE=docker` runs agent in local Docker container. Same setup sequence, weaker isolation. Never used in production (enforced by config validation) |
-| **DSL compiler timeline** | **Dedicated Phase 1b (1 week)** | DSL compiler is the most complex component — version pinning, replay determinism, `patched()` hotfixes. Deserves dedicated week, not a sub-item |
+| **DSL compiler timeline** | **Dedicated Phase 1b (2–3 weeks)** | DSL compiler is the most complex component — version pinning, replay determinism, `patched()` hotfixes. Deserves dedicated week, not a sub-item |
 
 ### Open
 
@@ -123,3 +125,8 @@
 | **Pod scheduling strategy for agent workloads** | Agent pods are CPU/memory-intensive (4-8 GB RAM). Need dedicated node pool with appropriate instance types? Or mixed scheduling with priority classes? Consider node affinity/taints to isolate agent workloads from system pods | Phase 1b |
 | **Agent model routing per task complexity** | Default cost cap $5/task. Simple tasks (typo fix) cost ~$0.50 with Opus, could use Haiku/Sonnet for 5-10x savings. Complex tasks (refactor auth module) may need $20-50. No mechanism to estimate complexity or select model. Consider: task label-based model selection, or let agent start with cheap model and escalate | v2 |
 | **Pod backpressure** | If 50 workflows start simultaneously, 50 pod creation calls hit K8s API. Temporal's `maxConcurrentActivityTaskExecutions` limits per-worker, but cluster-wide surge needs capacity planning or admission control. Consider K8s ResourceQuota per tenant namespace | Phase 2 |
+| **Hypervisor selection (QEMU vs Cloud Hypervisor)** | QEMU has larger attack surface (~1.4M LoC) but is more mature and battle-tested. Cloud Hypervisor is minimal (~100k LoC) but less proven in production. Kata supports both | Phase 1b |
+| **DNS tunneling mitigation** | K8s NetworkPolicy is L3/L4 only. L7 DNS inspection (CoreDNS RPZ or DNS proxy) needed for full exfiltration prevention. Trade-off: operational complexity vs. security completeness | Phase 2 |
+| **`@anthropic-ai/claude-agent-sdk` availability** | If not released by Phase 2, implement agent loop in-house via `@anthropic-ai/sdk` Messages API + tool use. Increases Phase 2 scope by ~1 week | Phase 2 start |
+| **Managed K8s + Kata compatibility** | Validate that target K8s provider supports nested virtualization / KVM nodes for Kata Containers. GKE supports via COS nodes, EKS requires bare-metal or .metal instances | Phase 1b |
+| **Intra-pod credential proxy authentication** | Current proxy has no auth on localhost — any process in the pod can call it. Consider mutual TLS or bearer token between agent and proxy. Trade-off: complexity vs. defense-in-depth against prompt injection | Phase 2 |
