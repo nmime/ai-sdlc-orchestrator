@@ -6,9 +6,9 @@
 
 ## Architecture Overview
 
-The architecture has three conceptual tiers — **Ingress** (thin webhook handlers), **Core Engine** (Temporal Workflows + DSL), and **Agent Runtime** (E2B sandboxes running claude-agent-sdk + MCP servers) — decomposed into five operational layers (see Architecture Layers table below). The orchestrator runs in K8s; agent sandboxes run in E2B (cloud or self-hosted).
+The architecture has three conceptual tiers — **Ingress** (thin webhook handlers), **Core Engine** (Temporal Workflows + DSL), and **Agent Runtime** (sandboxes running claude-agent-sdk + MCP servers) — decomposed into five operational layers (see Architecture Layers table below). The orchestrator runs in K8s; agent sandboxes run in one of two backends selected per deployment model: **E2B** (Cloud or BYOC) for SaaS deployments, or **K8s Agent Sandbox + Kata Containers** for regulated/banking/on-prem deployments. All sandbox interaction goes through a `SandboxPort` abstraction — the orchestrator core is backend-agnostic.
 
-Webhooks arrive at the Ingress layer. Each platform has a thin handler (~50-100 lines) that verifies the signature, extracts event type + entity ID, and signals the corresponding Temporal Workflow. The **Core Engine** is expressed entirely as Temporal Workflows (orchestration logic) and Activities (side effects). The only significant Activity is `invokeAgent` — it creates an E2B sandbox (Firecracker microVM), clones the repo inside it, and starts an agent session. The **agent does everything else**: fetches task details, gathers context, creates branches, implements code, creates MRs, pushes — all via platform MCP servers. Temporal handles all durability, retries, timeouts, and execution history.
+Webhooks arrive at the Ingress layer. Each platform has a thin handler (~50-100 lines) that verifies the signature, extracts event type + entity ID, and signals the corresponding Temporal Workflow. The **Core Engine** is expressed entirely as Temporal Workflows (orchestration logic) and Activities (side effects). The only significant Activity is `invokeAgent` — it creates a sandbox (Firecracker/KVM microVM) via `SandboxPort`, clones the repo inside it, and starts an agent session. The **agent does everything else**: fetches task details, gathers context, creates branches, implements code, creates MRs, pushes — all via platform MCP servers. Temporal handles all durability, retries, timeouts, and execution history.
 
 ### Architecture Diagram
 
@@ -20,6 +20,7 @@ graph TB
         GHH[GitHub Handler<br><i>verify + extract</i>]
         LH[Linear Handler<br><i>verify + extract</i>]
         API[Dashboard REST API]
+        POLL[Polling Schedule]
     end
 
     subgraph Core["CORE ENGINE"]
@@ -31,8 +32,9 @@ graph TB
         GC[Gate Controller<br>Temporal Signals]
     end
 
-    subgraph AgentRuntime["AGENT RUNTIME (E2B Sandboxes — Cloud or Self-Hosted)"]
-        AS[Agent Session<br>claude-agent-sdk]
+    subgraph AgentRuntime["AGENT RUNTIME (via SandboxPort)"]
+        SP[SandboxPort<br>E2bSandboxAdapter | K8sSandboxAdapter]
+        AS[Agent Session<br>Provider: Claude · OpenHands · Aider]
         MCP[Tenant MCP Servers<br>Platform + Productivity]
     end
 
@@ -48,19 +50,21 @@ graph TB
     end
 
     subgraph AppDB["APPLICATION DB"]
-        PG[(PostgreSQL<br>Tenants · Costs · Configs · DSL)]
+        PG[(PostgreSQL + RLS<br>Tenants · Costs · Configs · DSL)]
     end
 
     JH --> EN
     GLH --> EN
     GHH --> EN
     LH --> EN
+    POLL --> EN
     API --> Core
 
     EN --> TW
     DSL --> TW
     TW --> TA
-    TA --> AS
+    TA --> SP
+    SP --> AS
 
     AS --> MCP
     MCP -->|MCP| JiraAPI
@@ -83,7 +87,7 @@ Adding a new platform = adding a thin webhook handler (~50-100 lines) + configur
 | Task Trackers | Jira Cloud + DC, Linear | YouTrack, ClickUp, GitHub Issues |
 | VCS | GitLab CE/EE, GitHub | Bitbucket |
 | CI Providers | GitLab CI, GitHub Actions | Jenkins, CircleCI |
-| AI Agents | Claude Code (Agent SDK) | OpenHands, Aider |
+| AI Agents | Claude via `ClaudeAgentAdapter` (`AiAgentPort` abstraction ready from v1) | OpenHands, Aider |
 | Workflow Visibility | Temporal UI (self-hosted) | Custom SaaS dashboard |
 
 ---
@@ -95,8 +99,37 @@ Adding a new platform = adding a thin webhook handler (~50-100 lines) + configur
 | **Webhook Handler** | Verify signature, extract event type + entity ID, normalize to `OrchestratorEvent`. ~50 lines per platform |
 | **Temporal Workflow** | Orchestration only — calls activities, handles signals, gates, timers. No I/O, no business logic |
 | **Temporal Activity** | Side-effect unit. `invokeAgent` (the main one), `updateMirror`, `trackCost`, `cleanupBranch`. Idempotent |
-| **AiAgentPort** | The only port in the system — wraps `@anthropic-ai/claude-agent-sdk`. Two methods: `invoke()` and `cancel()` |
-| **Agent Sandbox** | E2B sandbox (Firecracker microVM isolation, cloud or self-hosted) + credential proxy service. Agent does all platform interaction via tenant's MCP servers. Creates branches, MRs, fetches context, transitions statuses |
+| **AiAgentPort** | Provider-agnostic abstraction — `AgentProviderRegistry` resolves the correct adapter at runtime based on repo config → tenant config → system default. Two methods: `invoke()` and `cancel()` |
+| **SandboxPort** | Sandbox abstraction — two implementations: `E2bSandboxAdapter` (E2B Cloud/BYOC) and `K8sSandboxAdapter` (Agent Sandbox + Kata). Backend selected per deployment model |
+| **Agent Sandbox** | Dedicated microVM per session (Firecracker via E2B, or Kata Containers via K8s Agent Sandbox) + credential proxy service. Agent does all platform interaction via tenant's MCP servers. Creates branches, MRs, fetches context, transitions statuses |
+| **Webhook Resilience** | Durable ingestion (write-first), polling fallback via Temporal Schedule, periodic reconciliation job |
+
+---
+
+## Agent Provider Abstraction
+
+The orchestrator supports multiple AI agent providers through a registry pattern:
+
+**`AgentProviderRegistry`** — resolves the correct `AiAgentPort` implementation at runtime. Resolution chain:
+1. `TENANT_REPO_CONFIG.agent_provider` (per-repo override)
+2. `TENANT.default_agent_provider` (tenant default)
+3. System default (`'claude'`)
+
+**Provider adapters** — each provider implements `AiAgentPort` + `PromptFormatter`:
+
+| Provider | Adapter | Status | Notes |
+|---|---|---|---|
+| Claude | `ClaudeAgentAdapter` | v1 | Uses `@anthropic-ai/claude-agent-sdk` |
+| OpenHands | `OpenHandsAdapter` | v2+ | Open-source agent framework |
+| Aider | `AiderAdapter` | v2+ | Git-focused coding assistant |
+
+Adding a new provider requires:
+1. Implement `AiAgentPort` — sandbox setup, agent invocation, result collection
+2. Implement `PromptFormatter` — transform canonical `AgentPromptData` to provider-specific format
+3. Register in `AgentProviderRegistry`
+4. Create/extend E2B template with provider runtime (see [Sandbox & Security](sandbox-and-security.md))
+
+All providers share the same sandbox infrastructure (E2B), credential proxy, MCP servers, and quality verification pipeline. The abstraction boundary is at prompt formatting and agent invocation only.
 
 ---
 
@@ -122,13 +155,15 @@ ai-sdlc-orchestrator/
 │   │   │   └── shared/src/
 │   │   │
 │   │   ├── agent/
-│   │   │   ├── main/src/module/
-│   │   │   │   └── claude-code/       # @anthropic-ai/claude-agent-sdk
-│   │   │   └── shared/src/
-│   │   │       ├── port/              # AiAgentPort — single invoke() method
-│   │   │       ├── sandbox/           # E2B sandbox client, template config
-│   │   │       ├── credential-proxy/  # Proxy config, protocol, session token management
-│   │   │       └── type/              # AgentInvocation, AgentResult, AgentToolCall
+│   │   │   ├── registry/              # AgentProviderRegistry
+│   │   │   ├── claude-code/           # ClaudeAgentAdapter (v1)
+│   │   │   ├── openhands/             # OpenHandsAdapter (v2+)
+│   │   │   ├── aider/                 # AiderAdapter (v2+)
+│   │   │   ├── shared/
+│   │   │   │   └── prompt/            # PromptFormatter, AgentPromptData
+│   │   │   ├── sandbox/               # E2B sandbox management
+│   │   │   ├── credential-proxy/      # Credential proxy client
+│   │   │   └── types/                 # Shared agent types
 │   │   │
 │   │   ├── webhook/
 │   │   │   └── main/src/module/
@@ -172,9 +207,11 @@ ai-sdlc-orchestrator/
 │
 ├── docker/
 │   ├── Dockerfile.api
-│   ├── Dockerfile.worker              # Temporal worker + E2B SDK (creates sandboxes)
+│   ├── Dockerfile.worker              # Temporal worker + SandboxPort (E2B SDK or K8s client)
 │   ├── Dockerfile.agent               # Git, Node, Python, Go toolchain
-│   │                                  # E2B template source for agent sandbox
+│   │                                  # Shared source for both backends:
+│   │                                  #   E2B: `e2b template build` → E2B template registry
+│   │                                  #   Agent Sandbox: `docker build` → OCI registry (ECR/GCR/private)
 │   │                                  # Contains common MCP server runtimes (Node.js for JS-based
 │   │                                  # MCP servers). Tenant-specific command-type MCP servers
 │   │                                  # spawned from pre-installed binaries (common) or downloaded

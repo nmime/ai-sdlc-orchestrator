@@ -16,18 +16,22 @@
 | DB Connection Pool | **PgBouncer** (sidecar per pod) | Multiple API + worker pods → single PG instance. Transaction pooling mode. Prevents connection exhaustion under load |
 | ORM | **MikroORM** | Unit of Work, explicit transactions, identity map |
 | Workflow DSL | **Custom YAML DSL** (Zod + Temporal compiler) | Team-configurable, visual editor-ready |
-| AI Agent SDK | **@anthropic-ai/claude-agent-sdk** | Full agent loop, MCP-native. The only external SDK ¹ |
+| AI Agent | **AiAgentPort** with provider-specific adapters | Provider-agnostic abstraction. v1: `ClaudeAgentAdapter` (via `@anthropic-ai/claude-agent-sdk`). v2+: `OpenHandsAdapter`, `AiderAdapter`. Adding a provider = implement `AiAgentPort` + `PromptFormatter` ¹ |
 | Platform Integration | **MCP servers** (tenant-configured) | Zero SDK deps — agent uses MCP for all platform interaction |
-| Agent Sandbox | **[E2B](https://e2b.dev)** (`e2b` npm package) | Firecracker microVM per session — same isolation as AWS Lambda. Cloud or self-hosted. Purpose-built for AI agents. Custom templates from Dockerfiles. Open-source (Apache-2.0) |
+| Agent Sandbox | **Multi-backend via `SandboxPort`** | Two implementations selected per deployment model. See [Sandbox & Security](sandbox-and-security.md) |
+| ↳ E2B backend | **[E2B](https://e2b.dev)** (`e2b` npm package) | Firecracker microVM per session. Cloud (SaaS) or BYOC (enterprise, AWS). Purpose-built for AI agents. Custom templates from Dockerfiles |
+| ↳ Agent Sandbox + Kata backend | **[K8s Agent Sandbox](https://github.com/kubernetes-sigs/agent-sandbox)** + **[Kata Containers](https://katacontainers.io)** | K8s-native CRDs with Kata KVM microVM isolation. For regulated/banking/on-prem. Runs in same K8s cluster. NetworkPolicy per template |
 | Credential Isolation | **Credential proxy service** (K8s Deployment) | Sandbox has zero credential access. Standalone proxy service injects VCS PAT + MCP tokens via authenticated HTTPS. Credentials on K8s cluster, separate from sandbox VM — stronger isolation than sidecar model |
 | Error Handling | **neverthrow** | `Result<T, E>` / `ResultAsync<T, E>` — actively maintained (4k+ stars), native async support |
 | Secrets | **K8s Secrets** | No secrets in Workflow inputs or agent context |
 | Metrics | **Prometheus + OpenTelemetry** | Standard K8s observability |
 | Logging | **Pino** → **Grafana Loki** | Structured JSON → centralized log aggregation. Queried via Grafana alongside metrics. Correlation IDs link logs across API, worker, and Temporal |
+| Tenant Data Isolation | **PostgreSQL RLS** (Row-Level Security) | Per-tenant data isolation at database level. All queries scoped by `tenant_id` via RLS policies. Defense-in-depth alongside application-level tenant filtering |
 | Temporal Visibility | **Elasticsearch 8** (or OpenSearch) | Advanced Workflow queries in Temporal UI (by tenant, status, date range, custom search attributes). Default DB-based visibility doesn't support complex queries |
+| Workflow DSL Validation | **Zod schema** (published as `@ai-sdlc/workflow-dsl-schema` npm package) | Used by CLI validator (`dsl validate`), dashboard DSL editor, and runtime DSL compiler. Single source of truth for DSL shape |
 | Testing | **Jest 30** + **Testcontainers** + **@temporalio/testing** | Unit + component + Temporal workflow tests |
 
-> ¹ `@anthropic-ai/claude-agent-sdk` refers to the anticipated Agent SDK package. If unavailable at implementation time, the integration will use `@anthropic-ai/sdk` with the agent loop implemented in-house via the Messages API + tool use. See [Open Questions](roadmap.md).
+> ¹ v1 ships with `ClaudeAgentAdapter` using `@anthropic-ai/claude-agent-sdk` (or `@anthropic-ai/sdk` fallback). The `AiAgentPort` + `PromptFormatter` abstraction is in place from v1, so adding OpenHands or Aider requires no changes to the orchestrator core — only a new adapter implementation. See [Architecture — Agent Provider Abstraction](architecture.md).
 
 ---
 
@@ -38,15 +42,17 @@
 | **Unit** | Individual services, DSL compiler, event normalizer | Jest 30, mock MikroORM repos | Business logic, DSL YAML → Temporal mapping, webhook signature verification |
 | **Component** | DB interactions, Temporal Activities | Jest + Testcontainers (PostgreSQL) | MikroORM entities/repos, mirror reconciliation, cost reservation, webhook dedup |
 | **Temporal Workflow** | Full workflow execution with mocked Activities | `@temporalio/testing` (TestWorkflowEnvironment) | DSL-compiled workflows: state transitions, signal handling, gate timeouts, loop limits, multi-repo coordination. Fast time-travel (no real waits) |
-| **Agent Integration** | `AiAgentPort.invoke()` with mock MCP servers | Jest + mock MCP server (local HTTP) | Agent prompt construction, `AgentResult` parsing, tool call logging, cost limit enforcement |
-| **Sandbox** | E2B sandbox creation, credential isolation | E2B sandboxes (same as production) | Sandbox starts from template, credentials not accessible from sandbox (served via credential proxy), session token scoping works correctly |
-| **E2E** | Full flow: webhook → Temporal → E2B sandbox → MR | Testcontainers (PG + Temporal) + mock VCS/tracker APIs | Single-repo and multi-repo flows, CI fix loops, gate approval, cost tracking |
+| **Agent Integration** | `AiAgentPort.invoke()` with mock MCP servers | Jest + mock MCP server (local HTTP) | Per-provider test suites: agent prompt construction via `PromptFormatter`, `AgentResult` parsing, tool call logging, cost limit enforcement. Each provider adapter has its own test suite with provider-specific prompt validation |
+| **RLS Policy** | Cross-tenant isolation verification | Jest + Testcontainers (PostgreSQL) | Verify RLS policies block cross-tenant queries, ensure queries without tenant context are rejected, test tenant-scoped CRUD operations |
+| **Sandbox** | Sandbox creation, credential isolation (both backends) | E2B sandboxes (CI default) + Agent Sandbox + Kata (staging with KVM nodes) | `SandboxPort` interface tests with both adapters. Sandbox starts from template, credentials not accessible from sandbox (served via credential proxy), session token scoping works correctly |
+| **E2E** | Full flow: webhook → Temporal → sandbox → MR | Testcontainers (PG + Temporal) + mock VCS/tracker APIs | Single-repo and multi-repo flows, CI fix loops, gate approval, cost tracking. E2B backend in CI, both backends in staging |
 
 **Key testing principles:**
 - Temporal workflow tests use `TestWorkflowEnvironment` — runs in-memory, no Temporal server needed, time-skipping built in
-- Agent integration tests use a mock MCP server that returns canned responses — never calls real Claude API in CI
+- Agent integration tests use a mock MCP server that returns canned responses — never calls real AI provider APIs in CI
 - DSL compiler tests validate every step type (`auto`, `signal_wait`, `gate`, `loop`, `terminal`) compiles to valid Temporal Workflow code
-- Sandbox tests run against real E2B sandboxes — validates Firecracker isolation, credential proxy authentication, and session token scoping
+- Sandbox tests: `SandboxPort` interface is tested with mock implementations in unit tests, real E2B sandboxes in CI (no KVM requirement), and both E2B + Agent Sandbox + Kata in staging (KVM-capable nodes)
+- Both `E2bSandboxAdapter` and `K8sSandboxAdapter` implement the same `SandboxPort` interface — adapter-level tests verify contract compliance
 
 ---
 
@@ -55,7 +61,7 @@
 Temporal UI handles workflow visibility in v1. Custom dashboard is limited to:
 - Configuration (webhook secrets, VCS credentials, MCP server list)
 - Gate approval UI (sends `gateApproved` signals)
-- Cost dashboard (from app DB aggregates)
+- Cost dashboard — multi-dimensional breakdown: by AI provider, by sandbox runtime, by tenant, by repo, by task complexity tier (from app DB aggregates)
 
 ## Frontend (v2+ — Custom Dashboard)
 

@@ -36,13 +36,13 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 | **Orchestrator = Lightweight Core** | Orchestrator handles: webhooks, Temporal workflows, credential injection, cost tracking, DSL compilation, gate management, multi-repo coordination. Everything else delegated to agent | Focused codebase with clear boundaries. No platform SDK deps. Adding platform support = webhook handler + MCP server config |
 | **Plug-and-Play MCP** | Agent's MCP servers fully configured per tenant — orchestrator passes them through, no hardcoded servers | Zero wrapper code, any MCP server pluggable, tenant controls agent's tool set |
 | **Temporal-Native** | Workflows are Temporal Workflows from day one | Full execution history, replay, retry, and visibility out of the box |
-| **Webhook-First** | Event-driven by default, polling as fallback | Real-time reactivity, minimal latency |
+| **Webhook-First** | Event-driven by default with durable ingestion (write-first-process-second), polling fallback via Temporal Schedule, and periodic reconciliation | Real-time reactivity, minimal latency, no lost events even during outages |
 | **Human-in-the-Loop** | Configurable gates where automation pauses | Safety without sacrificing speed |
 | **DSL-Driven Workflows** | Workflows defined in typed YAML DSL compiled to Temporal | Visual editor-ready; DSL is the stable contract above the execution engine |
 | **Cost-Aware** | Track and cap agent token/cost per task | No runaway API bills |
 | **Audit Everything** | Every action and cost logged with trace ID | Full accountability and debugging |
 | **Sandbox-First Isolation** | Every agent session runs in a dedicated [E2B](https://e2b.dev) sandbox (Firecracker microVM) — E2B Cloud or self-hosted | Real VM boundary per session — same isolation as AWS Lambda. No Bash allowlists, no command filtering theater |
-| **Secure by Default** | Zero-credential sandbox, credential proxy service | Sandbox has no secrets mounted, no token env vars — credential proxy service injects credentials transparently via authenticated HTTPS |
+| **Secure by Default** | Zero-credential sandbox, credential proxy service, MCP server allowlisting | Sandbox has no secrets mounted, no token env vars — credential proxy service injects credentials transparently via authenticated HTTPS. Curated MCP server registry ensures only verified servers are used by default |
 | **Monorepo-First** | Backend, frontend, shared libs in one Nx workspace | Atomic changes, shared types, single CI |
 
 ---
@@ -56,6 +56,8 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 | [Workflow Engine](specs/workflow-engine.md) | Event system, workflow DSL, state machine, multi-repo coordination |
 | [Data Model](specs/data-model.md) | ER diagram, all entities, workflow mirror reconciliation |
 | [Sandbox & Security](specs/sandbox-and-security.md) | E2B sandboxes (Firecracker microVM, cloud or self-hosted), credential proxy service, security layers, tenant isolation |
+| [Sandbox Research](specs/sandbox-research.md) | E2B (all modes), K8s Agent Sandbox, Kata Containers, alternatives comparison, banking deployment strategy |
+| [Sandbox Alternatives](specs/sandbox-alternatives.md) | Detailed evaluation of Daytona, Northflank, Modal, Fly.io, Firecracker, new entrants, cloud options |
 | [Tech Stack](specs/tech-stack.md) | Technology choices, testing strategy, dev & agent tooling |
 | [Deployment](specs/deployment.md) | Deployment topology, configuration, retry strategy, monitoring, DR, healthchecks, auth |
 | [Roadmap](specs/roadmap.md) | Implementation phases, resolved & open questions |
