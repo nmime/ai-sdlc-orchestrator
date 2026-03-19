@@ -35,7 +35,8 @@ erDiagram
     TENANT_MCP_SERVER {
         uuid id PK
         uuid tenant_id FK
-        varchar name UK
+        varchar name
+        %% UNIQUE(tenant_id, name)
         varchar transport
         varchar url
         varchar command
@@ -58,7 +59,8 @@ erDiagram
     TENANT_REPO_CONFIG {
         uuid id PK
         uuid tenant_id FK
-        varchar repo_id UK
+        varchar repo_id
+        %% UNIQUE(tenant_id, repo_id)
         varchar repo_url
         varchar branch_prefix
         varchar setup_command
@@ -75,7 +77,8 @@ erDiagram
         uuid id PK
         uuid tenant_id FK
         varchar platform
-        varchar delivery_id UK
+        varchar delivery_id
+        %% UNIQUE(platform, delivery_id)
         varchar event_type
         varchar payload_hash
         varchar status
@@ -126,10 +129,13 @@ erDiagram
         uuid id PK
         uuid workflow_id FK
         varchar mode
+        varchar step_id
+        int loop_iteration
         text prompt_sent
         text agent_summary
         jsonb result
         varchar status
+        varchar error_code
         int input_tokens
         int output_tokens
         numeric cost_usd
@@ -157,8 +163,29 @@ erDiagram
         uuid tenant_id FK
         varchar name
         int version
+        %% UNIQUE(tenant_id, name, version)
         jsonb definition
         boolean is_active
+        timestamptz created_at
+    }
+
+    TENANT_API_KEY {
+        uuid id PK
+        uuid tenant_id FK
+        varchar key_hash
+        varchar name
+        varchar role
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    TENANT_USER {
+        uuid id PK
+        uuid tenant_id FK
+        varchar external_id
+        varchar provider
+        varchar email
+        varchar role
         timestamptz created_at
     }
 
@@ -168,6 +195,8 @@ erDiagram
     TENANT ||--o{ WEBHOOK_DELIVERY : "receives"
     TENANT ||--o{ WORKFLOW_MIRROR : "has many"
     TENANT ||--o{ WORKFLOW_DSL : "owns"
+    TENANT ||--o{ TENANT_API_KEY : "has many"
+    TENANT ||--o{ TENANT_USER : "has many"
     WORKFLOW_MIRROR ||--o{ WORKFLOW_MIRROR : "parent/children"
     WORKFLOW_MIRROR ||--o{ WORKFLOW_EVENT : "has many"
     WORKFLOW_MIRROR ||--o{ AGENT_SESSION : "has many"
@@ -186,6 +215,9 @@ erDiagram
 - **`WORKFLOW_MIRROR.cost_usd_reserved` added** — supports the budget reservation model (see [Deployment — Rate Limiting](deployment.md))
 - **`TENANT.monthly_cost_reserved_usd` + `monthly_cost_actual_usd` added** — split tracking for reserved vs actual spend
 - **`TENANT_REPO_CONFIG.agent_image_tag`** — references the OCI image tag for the agent container. Enables per-tenant image pinning and canary rollout (see [Sandbox & Security — Agent Image Versioning](sandbox-and-security.md))
+- **`TENANT_API_KEY` and `TENANT_USER` added** — supports OIDC authentication, API key management, and RBAC (`admin` / `operator` / `viewer`). API keys stored hashed with bcrypt
+- **`AGENT_SESSION.step_id` + `loop_iteration` added** — links each agent session to the DSL step (`implement`, `ci_fix`, `review_fix`) and tracks which iteration of a fix loop the session belongs to
+- **`AGENT_SESSION.error_code` added** — structured error classification (`cancelled`, `cost_limit`, `turn_limit`, `infra_error`, `agent_error`) for retry strategy and analytics
 
 ---
 

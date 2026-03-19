@@ -20,6 +20,8 @@ All external webhooks are normalized into a unified **OrchestratorEvent** and de
 
 Human gate approvals: `POST /workflows/:id/gates/:gateId/approve` → sends `gateApproved` signal. The Workflow parks at `condition()` until the signal arrives or the timeout elapses.
 
+> **Note:** `task.updated` signals are delivered to the running Workflow but are not consumed by the default DSL. The Workflow logs them as `WORKFLOW_EVENT` entries for audit. Custom DSL variants can add a `signal_wait` step that reacts to `taskUpdated` (e.g., to re-plan if requirements change mid-implementation).
+
 ### Webhook Deduplication & Persistence
 
 Webhooks from external platforms can be delivered multiple times (network retries, platform bugs). The ingress layer handles this at three levels:
@@ -100,13 +102,17 @@ steps:
 
   - id: blocked
     type: terminal
-    action: cleanup_and_escalate    # Delete remote branch + close draft MR if no meaningful
-                                    # progress was made, then escalate to human
+    action: cleanup_and_escalate    # Meaningful progress = at least one commit pushed to the branch.
+                                    # If branchName exists on remote with commits beyond base branch:
+                                    #   preserve the branch and MR (mark as draft), escalate to human.
+                                    # If no commits pushed: delete branch + close MR, escalate to human.
 ```
 
 The DSL is dramatically simpler — no separate `validate_task`, `enrich_context`, `create_branch`, `open_mr` steps. The agent handles all of these internally via MCP + built-in tools.
 
 > **Note on `invoke_agent` in loops:** Fix loops (`ci_fix_loop`, `review_fix_loop`) use the same `invoke_agent` action with a different `mode` (ci_fix / review_fix). Each invocation is a fresh agent session — the Activity re-clones the repo, checks out the existing branch, and passes `previousSessionSummary` from the last session's `AgentResult.summary`. No session state is persisted or "resumed."
+
+> **Review-fix re-review cycle:** After a review fix, the workflow routes back to `ci_watch` (not `review_gate`), meaning the code must pass CI again before re-review. This is intentional — code changes during review fix may introduce new issues that require fresh CI validation and review.
 
 ### DSL Concepts
 
@@ -118,6 +124,8 @@ The DSL is dramatically simpler — no separate `validate_task`, `enrich_context
 | `loop` step | Activity in a `while` loop with counter + cost tracking in Workflow state |
 | `terminal` step | Final activity (cleanup / close) + `return` |
 | `condition` | Evaluated at runtime to decide if gate is active |
+
+**Signal ordering:** Temporal delivers signals in FIFO order. If `pipelineFailed` and `pipelineSucceeded` arrive while the Workflow is in `ci_watch`, the first signal processed determines the transition. Subsequent signals for the same `ci_watch` step are ignored (the step has already transitioned). The Workflow does not inspect signal queues retroactively.
 
 ### DSL Versioning & In-Flight Workflow Safety
 
@@ -146,6 +154,7 @@ stateDiagram-v2
     CI_WATCH --> ci_result
     ci_result --> CI_PASSED: pipelineSucceeded
     ci_result --> CI_FAILED: pipelineFailed
+    CI_WATCH --> BLOCKED: timeout (2h, no CI signal)
 
     state ci_retry <<choice>>
     CI_FAILED --> ci_retry
@@ -161,7 +170,7 @@ stateDiagram-v2
     state review_result <<choice>>
     IN_REVIEW --> review_result
     review_result --> REVIEW_FIXING: changesRequested signal
-    review_result --> DONE: gateApproved + mrMerged
+    review_result --> DONE: gateApproved
 
     state review_retry <<choice>>
     REVIEW_FIXING --> review_retry
@@ -173,6 +182,8 @@ stateDiagram-v2
 
     DONE --> [*]
 ```
+
+> **Note on `gateApproved` vs `mrMerged`:** The `gateApproved` signal is the workflow's transition trigger to DONE. In the default workflow, the reviewer's approval-and-merge action triggers: (1) the VCS webhook delivering `mrMerged` to the orchestrator, and (2) the dashboard/API sending `gateApproved`. The `mrMerged` signal is logged as a `WORKFLOW_EVENT` for audit but is not consumed by the default DSL — `gateApproved` alone drives the DONE transition. A future DSL variant may separate approval and merge into distinct steps.
 
 ### Agent Inner Loop (Inside IMPLEMENTING)
 

@@ -32,7 +32,7 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 
 | Principle | Description | Implication |
 |---|---|---|
-| **Agent-First** | Agent does all platform interaction via MCP — orchestrator never calls external APIs | Zero SDK dependencies (no jira.js, gitbeaker, octokit). One integration path per platform |
+| **Agent-First** | Agent does all platform interaction via MCP — orchestrator never calls external APIs | Zero *platform* SDK dependencies (no jira.js, gitbeaker, octokit). One integration path per platform |
 | **Orchestrator = Lightweight Core** | Orchestrator handles: webhooks, Temporal workflows, credential injection, cost tracking, DSL compilation, gate management, multi-repo coordination. Everything else delegated to agent | Focused codebase with clear boundaries. No platform SDK deps. Adding platform support = webhook handler + MCP server config |
 | **Plug-and-Play MCP** | Agent's MCP servers fully configured per tenant — orchestrator passes them through, no hardcoded servers | Zero wrapper code, any MCP server pluggable, tenant controls agent's tool set |
 | **Temporal-Native** | Workflows are Temporal Workflows from day one | Full execution history, replay, retry, and visibility out of the box |
@@ -41,7 +41,7 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 | **DSL-Driven Workflows** | Workflows defined in typed YAML DSL compiled to Temporal | Visual editor-ready; DSL is the stable contract above the execution engine |
 | **Cost-Aware** | Track and cap agent token/cost per task | No runaway API bills |
 | **Audit Everything** | Every action and cost logged with trace ID | Full accountability and debugging |
-| **Sandbox-First Isolation** | Every agent session runs in a Kata Containers microVM pod (hardware-level KVM isolation) | Real KVM boundary, no Bash allowlists, no command filtering theater |
+| **Sandbox-First Isolation** | Every agent session runs in a Kata Containers microVM pod (hardware-level KVM isolation) | Real KVM boundary (pod-to-host); container-level isolation (agent-to-sidecar within pod). No Bash allowlists, no command filtering theater |
 | **Secure by Default** | Zero-credential agent, credential proxy sidecar | Agent container has no secrets mounted, no token env vars — credential-proxy sidecar injects credentials transparently |
 | **Monorepo-First** | Backend, frontend, shared libs in one Nx workspace | Atomic changes, shared types, single CI |
 

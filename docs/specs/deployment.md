@@ -13,7 +13,7 @@
 | **AI Agent** | Model, API key ref, max turns, max fix iterations, cost limit per task (USD) |
 | **MCP Servers** | Per-tenant list of MCP servers to inject into agent session (platform + productivity + custom). This is the primary integration config |
 | **Workflow DSL** | Path to workflow YAML or stored in app DB per tenant. Gate conditions per label/priority/project |
-| **Temporal** | Server address, namespace, task queue, worker concurrency |
+| **Temporal** | Server address, namespace, task queue, worker concurrency. For cluster-wide connection limit management with >4 total API+Worker pods, a centralized PgBouncer deployment (K8s Service) is recommended |
 | **Repo Config** | Per-repo: setup, test, lint, typecheck, build commands, branch prefix (`ai/`), agent image tag |
 
 All config validated at startup via Zod. Secrets referenced as `k8s://secret/{name}`, never in config files or Workflow inputs.
@@ -23,12 +23,12 @@ All config validated at startup via Zod. Secrets referenced as `k8s://secret/{na
 | Control | Default | Scope | Mechanism |
 |---|---|---|---|
 | **Webhook ingress** | 100 req/s per tenant | API gateway | NestJS `@nestjs/throttler` or K8s Ingress rate limit annotation |
-| **Concurrent workflows per tenant** | 10 | Temporal | Checked before `startWorkflow` — query `workflow_mirror` for active count |
+| **Concurrent workflows per tenant** | 10 | Temporal | Checked before `startWorkflow` — query `workflow_mirror` for active count. Combined with Temporal's `startWorkflow` idempotency (deterministic workflow ID) and a `SELECT ... FOR UPDATE` on the tenant's concurrent workflow counter for authoritative check |
 | **Concurrent workflows per repo** | 1 | Temporal | Serializes AI work on the same repo to prevent merge conflicts. Workflow ID includes repo slug — Temporal's "workflow ID reuse policy" prevents concurrent starts. Additional workflows queue as pending (signaled when the current one completes). Configurable per tenant (increase for repos with independent modules) |
 | **Concurrent agent pods per worker** | 2 | Worker config | Temporal Worker `maxConcurrentActivityTaskExecutions`. Each Kata pod: repo clone + `npm ci` + build + agent process = 4-8 GB RAM. Size K8s nodes with sufficient resources for Kata VM overhead |
 | **External API rate limits** | Adaptive | MCP / Temporal | MCP servers handle platform rate limits internally. Temporal Activity retry policy for agent invocation: `initialInterval: 5s`, `backoffCoefficient: 2`, `maximumInterval: 60s`, `maximumAttempts: 5` |
 | **Cost cap per task** | $5 USD | Agent SDK | `costLimitUsd` passed to agent session. Agent SDK terminates session when exceeded |
-| **Cost cap per tenant/month** | $500 USD | Orchestrator | **Budget reservation model:** when a workflow starts, the per-task cost cap ($5) is reserved (decremented from remaining budget). If the session costs less, the surplus is released. If monthly budget minus reservations < per-task cap, new workflows are rejected. Prevents concurrent workflows from overshooting the monthly cap |
+| **Cost cap per tenant/month** | $500 USD | Orchestrator | **Budget reservation model:** when a workflow starts, the per-task cost cap ($5) is reserved (decremented from remaining budget). If the session costs less, the surplus is released. If monthly budget minus reservations < per-task cap, new workflows are rejected. Prevents concurrent workflows from overshooting the monthly cap. Budget check and reservation use `SELECT ... FOR UPDATE` on the `TENANT` row to serialize concurrent reservation attempts within a single database transaction |
 
 ### Temporal Namespace Strategy
 
@@ -113,6 +113,7 @@ graph TB
 3. Inside agent container:
    - `GIT_ASKPASS` configured to call credential proxy sidecar at `localhost:9999` — git clone authenticates transparently without the agent ever seeing the PAT
    - `git clone --shallow-since="30 days ago" --single-branch --branch {target}` to `/workspace`
+   - Fallback: if shallow clone produces an empty repo (no commits in last 30 days), retry with `--depth=1` (latest commit only). `TENANT_REPO_CONFIG` supports a `clone_strategy` override (`shallow_30d` | `depth_1` | `full`) for repos requiring full history
    - For fix loops: `git checkout {existing-branch}`
    - Loads repo config (`.ai-orchestrator.yaml` → tenant settings → auto-detect)
    - Runs **setup command** (`npm ci`, `pip install`, etc.)
@@ -120,7 +121,7 @@ graph TB
    - Passes tenant's MCP server configs to Agent SDK
    - Starts agent session — agent autonomously: fetches task, gathers context, creates branch, implements, tests, pushes, creates MR
 4. Activity monitors pod, heartbeats to Temporal every 30s with agent phase
-5. **Graceful shutdown:** at T-5min before `startToCloseTimeout`, Activity sends shutdown signal to the pod. The agent's system prompt includes: "If you receive a shutdown signal, wrap up immediately: commit and push any partial work, leave a comment on the MR explaining what's left." The Activity waits up to 2 min for graceful completion before force-killing
+5. **Graceful shutdown:** at T-5min before `startToCloseTimeout`, the Activity writes a sentinel file `/workspace/.shutdown-requested` via `kubectl exec touch`. The agent's system prompt instructs: "Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit." The Activity waits up to 2 min for graceful completion. If the agent does not exit, the Activity deletes the pod (SIGKILL via K8s)
 6. Pod completes → Activity reads `AgentResult` from pod logs / exit status
 7. **Verify agent output** (see Agent Output Verification below)
 8. Pod deleted (K8s garbage collection — no persistent state between sessions)
@@ -187,7 +188,7 @@ Kata Containers requires KVM support and a K8s cluster, which is not available o
 | `GET /health/live` | API | Process alive (always 200 if server is running) |
 | `GET /health/ready` | API | PostgreSQL connectivity + Temporal connection |
 | `GET /health/live` | Worker | Process alive |
-| `GET /health/ready` | Worker | PostgreSQL connectivity + Temporal connection + can accept Activity tasks |
+| `GET /health/ready` | Worker | PostgreSQL connectivity + Temporal connection + K8s API access (can create pods) + container registry reachable (can pull agent images) |
 
 Both API and Worker expose these for K8s liveness and readiness probes. Readiness probe failure removes the pod from the Service/TaskQueue without killing it — allows in-flight requests/activities to complete.
 
@@ -202,6 +203,29 @@ Both API and Worker expose these for K8s liveness and readiness probes. Readines
 | **Webhook endpoints** | Per-platform signature verification (HMAC). No auth token — webhooks are verified by signature |
 | **Gate approval API** | Authenticated via dashboard session or API key. RBAC: `admin` (full access), `operator` (approve gates, view workflows), `viewer` (read-only) |
 | **Temporal UI** | Proxied through API with same auth. Scoped to tenant's namespace |
+
+### Worker Service Account RBAC
+
+The Worker ServiceAccount follows least-privilege principles with per-namespace Roles (not ClusterRoles):
+
+| Namespace | Role | Permissions |
+|---|---|---|
+| Tenant namespace (one per tenant) | `agent-pod-manager` | `create`, `get`, `delete` pods; `get` secrets (specific secret names only) |
+| System namespace | `temporal-worker` | Connect to Temporal, read ConfigMaps |
+
+- Worker ServiceAccount has RoleBindings in each tenant namespace — cannot create pods or read secrets outside tenant namespaces
+- Namespace creation and RoleBinding setup is automated as part of tenant onboarding
+- Worker cannot list all pods cluster-wide — only in namespaces it has explicit RoleBindings for
+
+### Encryption in Transit
+
+All intra-cluster communication uses TLS:
+- **Temporal:** mTLS between workers and Temporal frontend (built-in Temporal feature)
+- **PostgreSQL:** `sslmode=require` on all database connections
+- **K8s API:** TLS by default
+- **Credential proxy ↔ agent:** localhost only (no network transit — same pod network namespace)
+
+For zero-trust environments, a service mesh (Istio/Linkerd) provides automatic mTLS between all pods.
 
 ---
 
@@ -242,6 +266,10 @@ Both API and Worker expose these for K8s liveness and readiness probes. Readines
 | `temporal_workflow_task_queue_backlog` | > 100 (scale workers) |
 | Worker pod CPU/memory | > 80% sustained (HPA trigger) |
 
+**Distributed tracing:** OpenTelemetry SDK (already in tech stack) exports traces to Grafana Tempo. Trace context propagated: API pod → Temporal SDK → Activity → K8s API calls → agent pod (via `TRACEPARENT` env var in pod spec). Enables end-to-end latency analysis across the full webhook → workflow → agent pipeline.
+
+**Log flush guarantee:** The Activity waits 5 seconds after pod completion before deleting the pod, allowing Promtail/Alloy to scrape final log lines. For critical sessions, the Activity reads the last 100 log lines via `kubectl logs` as a fallback before pod deletion.
+
 ---
 
 ## Backup & Disaster Recovery
@@ -262,3 +290,5 @@ Both API and Worker expose these for K8s liveness and readiness probes. Readines
 - **App DB down** → API returns 503, workers queue retries. Temporal continues independently (separate DB). Restore from backup
 - **Temporal DB down** → All workflows pause. After restore, Temporal replays event history and workflows resume from last checkpoint
 - **Full cluster failure** → Restore both DBs from backup, redeploy via Helm, Temporal replays all in-flight workflows. Kata pods are recreated automatically by retried Activities
+
+**Post-restore reconciliation:** After Temporal DB restore, a reconciliation job queries all open Workflow executions and compares with external state (branch existence via `git ls-remote`, MR status via VCS API). Workflows referencing non-existent branches or already-merged MRs are transitioned to DONE or BLOCKED accordingly.

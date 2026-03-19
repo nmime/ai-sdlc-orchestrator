@@ -16,16 +16,18 @@
 | DB Connection Pool | **PgBouncer** (sidecar per pod) | Multiple API + worker pods → single PG instance. Transaction pooling mode. Prevents connection exhaustion under load |
 | ORM | **MikroORM** | Unit of Work, explicit transactions, identity map |
 | Workflow DSL | **Custom YAML DSL** (Zod + Temporal compiler) | Team-configurable, visual editor-ready |
-| AI Agent SDK | **@anthropic-ai/claude-agent-sdk** | Full agent loop, MCP-native. The only external SDK |
+| AI Agent SDK | **@anthropic-ai/claude-agent-sdk** | Full agent loop, MCP-native. The only external SDK ¹ |
 | Platform Integration | **MCP servers** (tenant-configured) | Zero SDK deps — agent uses MCP for all platform interaction |
 | Agent Sandbox | **[Kata Containers](https://katacontainers.io/)** | K8s-native microVM runtime. Hardware-level KVM isolation per pod. CNCF project, Apache-2.0. Standard K8s primitives (NetworkPolicy, Secrets, resource limits). No separate infrastructure — runs as a RuntimeClass in the cluster |
 | Credential Isolation | **Credential proxy sidecar** (in Kata pod) | Agent container has zero credential access. Proxy sidecar injects VCS PAT + MCP tokens transparently. K8s provides container-level isolation natively. Pattern recommended by Anthropic's secure deployment guide |
-| Error Handling | **ts-results** | `Result<T, E>` / `AsyncResult<T, E>` |
+| Error Handling | **neverthrow** | `Result<T, E>` / `ResultAsync<T, E>` — actively maintained (4k+ stars), native async support |
 | Secrets | **K8s Secrets** | No secrets in Workflow inputs or agent context |
 | Metrics | **Prometheus + OpenTelemetry** | Standard K8s observability |
 | Logging | **Pino** → **Grafana Loki** | Structured JSON → centralized log aggregation. Queried via Grafana alongside metrics. Correlation IDs link logs across API, worker, and Temporal |
 | Temporal Visibility | **Elasticsearch 8** (or OpenSearch) | Advanced Workflow queries in Temporal UI (by tenant, status, date range, custom search attributes). Default DB-based visibility doesn't support complex queries |
 | Testing | **Jest 30** + **Testcontainers** + **@temporalio/testing** | Unit + component + Temporal workflow tests |
+
+> ¹ `@anthropic-ai/claude-agent-sdk` refers to the anticipated Agent SDK package. If unavailable at implementation time, the integration will use `@anthropic-ai/sdk` with the agent loop implemented in-house via the Messages API + tool use. See [Open Questions](roadmap.md).
 
 ---
 
