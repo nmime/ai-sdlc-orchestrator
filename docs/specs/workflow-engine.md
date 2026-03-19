@@ -68,7 +68,11 @@ steps:
     type: loop
     action: invoke_agent            # Fresh session — agent gets previousSessionSummary
     mode: ci_fix                    # + prompt to fetch CI logs via MCP, fix, push
-    max_iterations: 3
+    loop_strategy:
+      max_iterations: 5
+      no_progress_limit: 2
+      regression_action: stop
+      escalation_threshold: 3
     timeout_minutes: 60
     on_success: ci_watch
     on_exhausted: blocked
@@ -91,7 +95,11 @@ steps:
     type: loop
     action: invoke_agent            # Fresh session — agent gets previousSessionSummary
     mode: review_fix                # + prompt to fetch review comments via MCP, fix, push
-    max_iterations: 3
+    loop_strategy:
+      max_iterations: 5
+      no_progress_limit: 2
+      regression_action: stop
+      escalation_threshold: 3
     timeout_minutes: 60
     on_success: ci_watch
     on_exhausted: blocked
@@ -116,14 +124,18 @@ The DSL is dramatically simpler — no separate `validate_task`, `enrich_context
 
 ### DSL Concepts
 
-| Concept | Temporal Mapping |
-|---|---|
-| `auto` step | `workflow.executeActivity(action, options)` — runs a Temporal Activity |
-| `signal_wait` step | `condition(() => signalReceived, { timeout })` — Workflow-level, no Activity. Waits for an external signal (webhook) or timeout |
-| `gate` step | Same as `signal_wait` but requires explicit human approval (approval signal or timeout) |
-| `loop` step | Activity in a `while` loop with counter + cost tracking in Workflow state |
-| `terminal` step | Final activity (cleanup / close) + `return` |
-| `condition` | Evaluated at runtime to decide if gate is active |
+| Concept | Description | Temporal Mapping |
+|---|---|---|
+| `auto` step | Runs a Temporal Activity | `workflow.executeActivity(action, options)` |
+| `signal_wait` step | Waits for an external signal (webhook) or timeout | `condition(() => signalReceived, { timeout })` — Workflow-level, no Activity |
+| `gate` step | Requires explicit human approval (approval signal or timeout) | Same as `signal_wait` with approval semantics |
+| `loop` step | Adaptive iteration with configurable strategy — progress detection, regression handling, escalation | `loop` in Workflow code with `LoopState` tracking |
+| `terminal` step | Final activity (cleanup / close) | `return` after final Activity |
+| `parallel` step | Fan-out/fan-in step type | Child Workflows or `Promise.all` |
+| `conditional` transition | Transition conditions based on `AgentResult` or workflow variables | Workflow code branching |
+| `condition` | Evaluated at runtime to decide if gate is active | Workflow code condition |
+
+> **Note:** `invoke_agent` is provider-agnostic — the actual AI provider is resolved at Activity execution time based on repo config → tenant config → system default. See [Integration — Agent Provider Resolution](integration.md).
 
 **Signal ordering:** Temporal delivers signals in FIFO order. If `pipelineFailed` and `pipelineSucceeded` arrive while the Workflow is in `ci_watch`, the first signal processed determines the transition. Subsequent signals for the same `ci_watch` step are ignored (the step has already transitioned). The Workflow does not inspect signal queues retroactively.
 
@@ -136,6 +148,76 @@ Temporal requires strict determinism — changing a Workflow definition breaks r
 3. **Temporal `patched()` for hotfixes** — If a critical fix must apply to in-flight workflows, the compiled code uses Temporal's `patched(patchId)` / `deprecatePatch(patchId)` API to branch behavior based on whether the workflow started before or after the fix.
 4. **New workflows use latest active version** — The `is_active` flag on `WORKFLOW_DSL` determines which version new workflows use. Old versions remain available for replay of in-flight workflows.
 5. **Drain strategy** — Before deleting an old DSL version, verify no in-flight workflows reference it (query `workflow_mirror` for `current_step_id != terminal` + matching DSL version).
+
+---
+
+## Adaptive Loop Strategy
+
+Fix loops (CI fix, review fix) use an adaptive strategy instead of a fixed iteration count. Each iteration tracks progress to make intelligent stop/continue decisions.
+
+### LoopState Tracking
+
+Per iteration, the orchestrator records:
+- `iteration`: current iteration number (1-based)
+- `errors_before`: error/failure count before agent ran (from CI output or review comments)
+- `errors_after`: error/failure count after agent ran
+- `files_modified`: files the agent changed in this iteration
+- `test_output_snippet`: truncated test/lint output for context
+
+### Decision Logic
+
+After each iteration, the orchestrator evaluates (in order):
+
+1. **Hard stop** — `iteration >= max_iterations` → `error_code: max_iterations_exceeded`, workflow transitions to `ai_blocked`
+2. **No-progress detection** — if `errors_after >= errors_before` for `no_progress_limit` consecutive iterations → `error_code: no_progress`, stop loop
+3. **Regression detection** — if `errors_after > errors_before` (agent made things worse):
+   - `regression_action: 'stop'` → `error_code: test_regression`, stop immediately
+   - `regression_action: 'retry_once'` → retry one more time with explicit "you introduced a regression" context
+4. **Progress-based escalation** — if `iteration >= escalation_threshold` and still failing → enrich the next iteration's prompt with cumulative context from ALL previous iterations (full `SessionContext` history)
+5. **Success** — `errors_after === 0` → loop exits successfully, workflow continues
+
+### Progress Snapshot
+
+After each agent session, the orchestrator constructs a `SessionContext` from `AgentResult` data:
+- `summary` — agent-generated summary
+- `filesModified` — from `diffStats.filesChanged`
+- `testOutputSnippet` — from agent's test execution output
+- `toolCallsSummary` — from `AGENT_TOOL_CALL` records (top 10 by relevance)
+- `errorCode` — if the session failed
+
+This `SessionContext` is passed as `previousSessionContext` to the next iteration, providing server-side ground truth rather than relying on agent self-reporting.
+
+### LoopStrategy Schema
+
+```typescript
+const LoopStrategySchema = z.object({
+  max_iterations: z.number().min(1).max(10).default(3),
+  no_progress_limit: z.number().min(1).max(5).default(2),
+  regression_action: z.enum(['stop', 'retry_once']).default('stop'),
+  escalation_threshold: z.number().min(1).max(10).default(3),
+});
+```
+
+### Backward Compatibility
+
+If `loop_strategy` is not specified in the DSL (legacy workflows), the default is applied:
+```yaml
+loop_strategy:
+  max_iterations: 3
+  no_progress_limit: 2
+  regression_action: stop
+  escalation_threshold: 3
+```
+
+This preserves the existing behavior of "retry up to 3 times" while enabling tenants to opt into adaptive strategies.
+
+---
+
+## Cost Tracking
+
+When a workflow starts, the orchestrator estimates cost based on task labels → `cost_tiers` mapping → per-task `cost_limit_usd`. This estimated cost is pre-reserved from the tenant's budget before the first agent invocation (see [Deployment — Budget Reservation](deployment.md)).
+
+Each Activity that invokes an agent reports back `ai_cost_usd` and `sandbox_cost_usd` separately. These are accumulated in the workflow state and persisted to `WORKFLOW_EVENT` at each state transition. The `WORKFLOW_MIRROR` is updated with running totals of `ai_cost_usd` and `sandbox_cost_usd`.
 
 ---
 
@@ -232,3 +314,71 @@ graph TB
 - The parent Workflow records per-child results in `workflow_mirror.children_status` (JSONB) for dashboard visibility.
 
 **Per-repo concurrency in multi-repo:** Each child workflow targets a different repo, so per-repo concurrency limits (see [Deployment — Configuration](deployment.md)) apply independently. If one repo has a concurrent workflow in progress, that child queues while siblings proceed.
+
+---
+
+## Extended Step Types (v1.1)
+
+### Parallel Steps
+
+The `parallel` step type enables fan-out/fan-in execution:
+
+```yaml
+- id: parallel_checks
+  type: parallel
+  branches:
+    - id: lint_check
+      action: invoke_agent
+      agent_mode: lint_fix
+    - id: type_check
+      action: invoke_agent
+      agent_mode: typecheck_fix
+  join_strategy: wait_all   # 'wait_all' | 'fail_fast'
+  on_success: next_step
+  on_failure: blocked
+```
+
+- `wait_all`: all branches must succeed; if any fails, the step fails after all complete
+- `fail_fast`: cancel remaining branches on first failure
+
+Implementation: maps to Temporal child workflows (one per branch) with `ParentClosePolicy.TERMINATE` for fail_fast mode.
+
+### Conditional Transitions
+
+Steps can use conditions on transitions:
+
+```yaml
+- id: review_gate
+  action: wait_signal
+  signal: gate.approved
+  transitions:
+    - condition: "agent.quality_score > 0.9"
+      target: done
+    - condition: "agent.quality_score > 0.7"
+      target: quick_review_fix
+    - target: full_review_fix    # default (no condition)
+```
+
+Conditions support:
+- `agent.*` — fields from the last `AgentResult` (e.g., `quality_score`, `diffStats.linesAdded`)
+- `workflow.*` — workflow variables set by previous steps
+- Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
+
+Implementation: evaluated in Workflow code using a simple expression parser. No arbitrary code execution — only field access and comparison operators.
+
+---
+
+## DSL Patch Lifecycle
+
+When DSL schemas evolve, existing in-flight workflows must be handled safely:
+
+1. **Apply** — new DSL version deployed. New workflows use the new version. Existing workflows continue on their pinned version (`WORKFLOW_MIRROR.dsl_version`).
+2. **Monitor drain** — track how many workflows still run on each DSL version via `WORKFLOW_MIRROR` queries. Dashboard shows version distribution.
+3. **Deprecate** — mark old version as deprecated in `WORKFLOW_DSL.is_active = false`. Log warnings when old-version workflows execute steps.
+4. **Clean** — after all old-version workflows complete (drain confirmed), old version support code can be removed.
+
+### CLI Tooling
+
+- `dsl validate <file>` — validate a DSL YAML file against the Zod schema (catches syntax errors, unknown step types, invalid transitions)
+- `dsl diff <v1> <v2>` — show structural differences between two DSL versions (added/removed/changed steps)
+- `dsl drain-status` — show count of in-flight workflows per DSL version, estimated drain time
