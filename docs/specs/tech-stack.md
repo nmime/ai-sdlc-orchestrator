@@ -54,6 +54,25 @@
 - Sandbox tests: `SandboxPort` interface is tested with mock implementations in unit tests, real E2B sandboxes in CI (no KVM requirement), and both E2B + Agent Sandbox + Kata in staging (KVM-capable nodes)
 - Both `E2bSandboxAdapter` and `K8sSandboxAdapter` implement the same `SandboxPort` interface — adapter-level tests verify contract compliance
 
+### Chaos & Load Testing
+
+| Category | Tool | Purpose |
+|----------|------|---------|
+| Chaos Engineering | Litmus Chaos / Chaos Mesh | Inject failures in staging: E2B API unavailability, PostgreSQL failover, Temporal worker restart, credential proxy crash |
+| Load Testing | k6 | Webhook ingestion load testing (target: 1,000 req/s sustained), concurrent workflow creation |
+| Soak Testing | k6 (long-running) | 24-hour steady-state run with continuous workflow creation to detect memory leaks, connection pool exhaustion, log volume growth |
+
+**Failure Matrix**
+
+| Component Failure | Expected Behavior |
+|-------------------|-------------------|
+| E2B API unreachable | Sandbox creation retries with backoff; workflow transitions to BLOCKED after max retries |
+| PostgreSQL primary failover | PgBouncer reconnects to new primary; in-flight transactions retry via Temporal Activity retry |
+| Temporal worker crash | Temporal redistributes Activities to surviving workers; no data loss |
+| Credential proxy all replicas down | Sandbox operations fail; workflows pause; alert fires within 30s |
+| Loki ingestion down | Logs buffer in Promtail; no agent impact; alert on buffer fullness |
+| Redis (budget cache) unavailable | Fallback to direct PostgreSQL query; higher latency but functional |
+
 ---
 
 ## Frontend (v1 — Temporal UI)

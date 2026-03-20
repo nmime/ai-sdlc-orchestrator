@@ -130,6 +130,7 @@ interface AgentResult {
   mrDescription?: string;
   commitMessages?: string[];
   diffStats?: DiffStats;
+  artifacts?: PublishedArtifact[];     // Artifacts produced by the agent (read from /workspace/.artifacts/)
   cost: {
     ai: { inputTokens: number; outputTokens: number; usd: number; provider: AgentProvider; model: string };
     sandbox: { durationSeconds: number; usd: number };
@@ -140,6 +141,17 @@ interface AgentResult {
   staticAnalysisResult?: 'passed' | 'failed' | 'skipped';
   staticAnalysisOutput?: string;
 }
+
+interface PublishedArtifact {
+  kind: string;                        // Free-form: "merge_request", "figma_update", etc.
+  title: string;
+  uri: string;
+  status: 'draft' | 'published';
+  mime_type?: string;
+  metadata?: Record<string, unknown>;
+  content?: string;
+  preview_url?: string;
+}
 ```
 
 **Why no `resumeSession`:** Agent sessions (regardless of provider) are stateless between invocations. "Resuming" would require persisting and replaying the full conversation history (potentially hundreds of tool calls over 60 min), which is impractical and wasteful. Instead, the previous session's `SessionContext` + the existing branch state on VCS gives the agent everything it needs to continue effectively. Critically, `SessionContext` provides **server-side ground truth** — the orchestrator constructs it from actual `AGENT_TOOL_CALL` records, test outputs, and `AgentResult` data rather than relying on the agent's self-reported summary. This means fix-loop context is based on observed behavior (which files were actually modified, which tests actually failed) rather than the agent's potentially inaccurate or hallucinated recollection.
@@ -148,27 +160,50 @@ interface AgentResult {
 
 ### Agent Provider Resolution
 
-The orchestrator resolves which AI agent provider and model to use via a three-level fallback chain:
+The orchestrator resolves which AI agent provider to use via a three-level fallback chain:
 
-1. **Repo config** `agent_provider` / `agent_model` — most specific, per-repository override
-2. **Tenant config** `default_agent_provider` / `default_agent_model` — tenant-wide default
-3. **System default** — `'claude'` with the default model for that provider
+1. **Repo config** `agent_provider` — most specific, per-repository override
+2. **Tenant config** `default_agent_provider` — tenant-wide default
+3. **System default** — `'claude'`
+
+#### Model Resolution Chain
+
+The system resolves which AI model to use for a task via the following chain (first match wins):
+
+1. **Task label → `model_routing`**: `TENANT_REPO_CONFIG.model_routing` (JSONB) maps task labels to specific models
+   - Example: `{"trivial": "claude-haiku-4-5", "standard": "claude-sonnet-4-6", "complex": "claude-opus-4-6"}`
+   - Label is determined from issue labels, estimated complexity, or explicit user annotation
+2. **Repo-level model**: `TENANT_REPO_CONFIG.agent_model`
+3. **Tenant default**: `TENANT.default_agent_model`
+4. **System default**: configured in Helm values (default: `claude-sonnet-4-6`)
 
 ```typescript
 const DEFAULT_MODELS: Record<AgentProvider, string> = {
-  claude: 'claude-opus-4-6',
-  openhands: 'claude-opus-4-6',   // OpenHands uses LLM provider underneath
-  aider: 'claude-opus-4-6',       // Aider uses LLM provider underneath
+  claude: 'claude-sonnet-4-6',
+  openhands: 'claude-sonnet-4-6',   // OpenHands uses LLM provider underneath
+  aider: 'claude-sonnet-4-6',       // Aider uses LLM provider underneath
 };
 
 function resolveProvider(repoConfig, tenantConfig): { provider: AgentProvider; model: string } {
   const provider = repoConfig.agent_provider ?? tenantConfig.default_agent_provider ?? 'claude';
-  const model = repoConfig.agent_model ?? tenantConfig.default_agent_model ?? DEFAULT_MODELS[provider];
-  return { provider, model };
+  return { provider, model: resolveModel(repoConfig, tenantConfig, provider) };
+}
+
+function resolveModel(repoConfig, tenantConfig, provider: AgentProvider, taskLabel?: string): string {
+  // 1. Task label → model_routing
+  if (taskLabel && repoConfig.model_routing?.[taskLabel]) {
+    return repoConfig.model_routing[taskLabel];
+  }
+  // 2. Repo-level model
+  if (repoConfig.agent_model) return repoConfig.agent_model;
+  // 3. Tenant default
+  if (tenantConfig.default_agent_model) return tenantConfig.default_agent_model;
+  // 4. System default
+  return DEFAULT_MODELS[provider];
 }
 ```
 
-This allows tenants to experiment with different providers per-repo while keeping a stable default, and allows the system operator to set a global default.
+This allows tenants to route different task complexities to different models (e.g., Haiku for trivial fixes, Opus for complex features), experiment with different providers per-repo while keeping a stable default, and allows the system operator to set a global default.
 
 ### Prompt Format Abstraction
 
@@ -195,11 +230,42 @@ The orchestrator constructs canonical `AgentPromptData` once, then the resolved 
 
 ### Prompt Injection Defense
 
-Agent sessions are exposed to untrusted input — task descriptions from issue trackers, code review comments, repository contents. A three-layer defense mitigates prompt injection risks:
+**Primary Defense: Structured Isolation**
 
-1. **Input sanitization:** Before constructing `AgentPromptData`, the orchestrator strips known injection patterns from task descriptions and review comments — system prompt overrides (`<|system|>`, `[INST]`), role-play instructions ("ignore previous instructions", "you are now"), base64-encoded command blocks, and Unicode homoglyph obfuscation. Sanitized fields are logged for audit
-2. **Output validation:** After agent completion, the orchestrator scans `AgentResult` outputs (MR descriptions, commit messages, file diffs) for credential patterns (`-----BEGIN.*KEY-----`, `AKIA[0-9A-Z]{16}`, `ghp_`, `glpat-`), suspicious URLs (data exfiltration endpoints), and encoded payloads (base64 blobs in source code). Flagged results are quarantined for human review before the MR is published
-3. **Credential proxy anomaly detection:** Unusual API call patterns from within the sandbox are flagged — see [Sandbox & Security — Credential Proxy Anomaly Detection](sandbox-and-security.md)
+All untrusted input (issue descriptions, PR comments, user-provided context) is isolated from trusted instructions using delimiter-based separation:
+
+```xml
+<system>
+You are an AI coding agent. Follow these instructions exactly.
+{trusted_system_prompt}
+</system>
+
+<task>
+<trusted_context>
+Repository: {repo_name}
+Branch: ai/{task_id}
+Files to modify: {file_list}
+</trusted_context>
+
+<user_input>
+<!-- BEGIN UNTRUSTED: Content below is from external issue/PR description -->
+{sanitized_user_input}
+<!-- END UNTRUSTED -->
+</user_input>
+</task>
+```
+
+**Input Validation** (pre-prompt):
+- Reject binary content / non-UTF-8 input
+- Enforce maximum input length (configurable, default: 50,000 characters)
+- Strip null bytes and control characters (except newlines/tabs)
+
+**Output Scanning** (secondary defense layer):
+- Scan agent output for credential patterns (API keys, tokens) before committing
+- Detect and block attempts to modify files outside the task scope
+- Log anomalous tool call patterns for security review
+
+> **Note**: Output scanning is a defense-in-depth layer, not the primary defense. The structured isolation above ensures untrusted input cannot override system instructions even if scanning misses a pattern.
 
 ### Normalized Task Statuses
 
@@ -222,7 +288,7 @@ The agent is the primary actor in the system. It runs inside a Temporal Activity
 
 ### Agent Tools
 
-**Built-in (always available):** `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep` — covers code work, tests, git operations.
+**Built-in (always available):** `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `publish_artifact` — covers code work, tests, git operations, and artifact publishing.
 
 **Platform MCP (per-tenant):** `atlassian`, `gitlab`, `github`, `linear` — covers all platform interaction: task details, MR/PR creation, CI logs, status transitions, comments.
 
@@ -249,10 +315,11 @@ The tenant can add any MCP server — Notion, Slack, custom internal tools.
 │  3. Create sandbox via SandboxPort.create():                          │
 │     - E2B: E2B template | Agent Sandbox: SandboxClaim from warm pool │
 │     - Template source: Dockerfile.agent (shared by both backends)    │
-│     - Env: AI_PROVIDER_API_KEY, SESSION_TOKEN,                      │
+│     - Env: SESSION_TOKEN,                                            │
+│       AI_API_BASE_URL=$CREDENTIAL_PROXY_URL/ai-api/{provider},      │
 │       CREDENTIAL_PROXY_URL, TRACEPARENT                             │
 │     - Timeout: startToCloseTimeout + 5-min buffer                   │
-│     - No secrets mounted, no VCS/MCP credential access               │
+│     - No secrets mounted, no API keys, no VCS/MCP credential access  │
 │  4. Inside sandbox (via SandboxPort.exec()):                          │
 │     a) GIT_ASKPASS configured to call credential proxy service       │
 │     b) Clone repo to /workspace (auth via proxy)                     │
@@ -279,10 +346,34 @@ The tenant can add any MCP server — Notion, Slack, custom internal tools.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Note**: AI provider API keys are never injected into sandboxes. The credential proxy's AI API proxy endpoint injects the `x-api-key` header server-side. See [Sandbox & Security — AI API Proxy](sandbox-and-security.md#ai-api-proxy).
+
 For **fix loops** (CI fix / review fix), the `invokeAgent` Activity re-clones the repo, checks out the existing branch, and starts a **new agent session** with:
 - `previousSessionContext` — structured data about the previous session: files modified, test output, tool calls summary, branch, MR URL
 - A fix-specific prompt — "CI pipeline failed, fix the issues" or "reviewer requested changes, address feedback"
 - The agent then: fetches CI logs or review comments via MCP → fixes → pushes to the same branch
+
+#### Sandbox Reuse for Fix Iterations
+
+Between `ci_fix` → `ci_watch` → `ci_fix` transitions, the orchestrator can reuse the existing sandbox to avoid repeated clone and setup costs:
+
+1. After `ci_fix` pushes code, call `SandboxPort.pause(handle)` instead of `destroy`
+2. During `ci_watch`, the sandbox is paused (zero compute cost on E2B Cloud)
+3. If CI fails within 15 minutes: call `SandboxPort.resume(handle)`, agent continues with full workspace state
+4. If CI takes >15 minutes or CI succeeds: call `SandboxPort.destroy(handle)`
+5. If `resume` fails (sandbox evicted/expired): create fresh sandbox (fallback to current behavior)
+
+**Decision logic** (in Workflow code, not Activity):
+```typescript
+if (ciResult === 'failed' && ciDuration < MAX_REUSE_WINDOW) {
+  handle = await sandboxPort.resume(pausedHandle);
+} else {
+  await sandboxPort.destroy(pausedHandle);
+  handle = await sandboxPort.create(config);
+}
+```
+
+**Cost impact**: Eliminates ~2–5 minutes of sandbox setup per fix iteration. For a 3-iteration fix loop, saves ~6–15 minutes of sandbox compute time.
 
 ### Security Boundaries
 
@@ -313,6 +404,18 @@ Agent sandbox logs flow into the centralized observability stack (Loki + Grafana
 - If a local MCP server process crashes, the AI agent runtime retries the tool call (built-in retry). If the server is unrecoverable, the tool becomes unavailable and the agent adapts its approach
 - The sandbox's entrypoint script validates MCP server availability (health check on `command`-type servers, connectivity check on `url`-type) before starting the agent session
 
+#### MCP Protocol Version Compatibility
+
+Each MCP server in the registry tracks its supported protocol version:
+
+- `MCP_SERVER_REGISTRY.protocol_version` — e.g., `'2025-03-26'`
+- At sandbox startup, the entrypoint script validates MCP server protocol version compatibility
+- **On version mismatch**: log warning, attempt connection (many MCP servers maintain backward compatibility)
+- **On hard connection failure**: MCP server marked as unavailable for this session; agent adapts by using remaining tools
+- Version compatibility matrix maintained in `MCP_SERVER_REGISTRY` to prevent known-incompatible combinations
+
+See [Data Model — MCP_SERVER_REGISTRY](data-model.md) for the `protocol_version` field definition.
+
 ### MCP Token Injection
 
 MCP servers that require authentication receive tokens via environment variables injected by a sandbox-level init script. The init script reads tokens from the credential proxy service (`curl -H "Authorization: Bearer $SESSION_TOKEN" $CREDENTIAL_PROXY_URL/mcp-token/{server-name}`) during sandbox startup (before the agent session begins) and sets them as environment variables for the MCP server processes. This runs once at startup, not per-request. The agent process itself never sees the raw MCP tokens — they are passed directly to the MCP server processes via their environment.
@@ -324,6 +427,63 @@ All communication uses `SandboxPort` — backend-agnostic:
 - **Prompt injection:** The agent prompt + MCP config is written to `/etc/agent/invocation.json` via `SandboxPort.writeFile()` at creation time. The sandbox's entrypoint reads this file to configure the agent session
 - **Result extraction:** The agent writes `AgentResult` JSON to `/workspace/.agent-result.json` on completion. The Activity reads this file via `SandboxPort.readFile()` after sandbox completion. If the file is missing (crash/OOM), the Activity constructs a failure `AgentResult` from the sandbox exit status and collected logs
 - **Graceful shutdown:** The Activity writes a sentinel file `/workspace/.shutdown-requested` via `SandboxPort.writeFile()`. The agent's system prompt instructs: "Check for `/workspace/.shutdown-requested` between tool calls. If present, wrap up immediately"
+
+### Artifact Publishing (`publish_artifact` Tool)
+
+Agents can produce any type of deliverable by calling the `publish_artifact` built-in tool. This follows the MCP "tool-mediated artifact" pattern — the agent calls a tool that writes a typed reference; the orchestrator tracks references without understanding artifact internals.
+
+```typescript
+// Built-in tool available in every sandbox alongside Read, Write, Edit, Bash, Glob, Grep
+interface PublishArtifactInput {
+  kind: string;                          // Free-form: "merge_request", "figma_update", "design_token",
+                                         // "test_report", "image", "config", "documentation", ...
+  title: string;                         // Human-readable: "MR: Add login form", "Figma: Dashboard redesign"
+  uri?: string;                          // External location: MR URL, Figma link, CDN URL
+                                         // Either `uri` or `local_path` must be provided
+  local_path?: string;                   // Sandbox-local file: "/workspace/coverage/report.html"
+                                         // Activity uploads to object storage → becomes `uri` after upload
+  status?: 'draft' | 'published';        // Default: 'published'
+  mime_type?: string;                    // "text/x-diff", "image/png", "application/json", ...
+  metadata?: Record<string, unknown>;    // Arbitrary structured data (diff stats, coverage %, Figma node IDs)
+  content?: string;                      // Optional inline content for small artifacts (JSON configs, summaries)
+  preview_url?: string;                  // URL for human review (Figma preview, deployed Storybook, image viewer)
+}
+
+interface PublishArtifactOutput {
+  artifact_id: string;                   // UUID assigned by orchestrator
+  status: 'accepted';
+}
+```
+
+**Mechanics:**
+1. Agent calls `publish_artifact` tool during its session
+2. The tool writes artifact metadata to `/workspace/.artifacts/<uuid>.json`
+3. If the artifact has a `local_path` (file inside the sandbox), the tool copies the file to `/workspace/.artifacts/files/<uuid>/<filename>`
+4. At session end, the `invokeAgent` Activity reads all files in `/workspace/.artifacts/` via `SandboxPort.readFile()`
+5. For artifacts with local files: the Activity uploads them to object storage (S3 / GCS / MinIO) via `SandboxPort.uploadArtifact()` and replaces `local_path` with the resulting public URL as the artifact's `uri`
+6. Artifacts are persisted to `WORKFLOW_ARTIFACT` table (see [Data Model](data-model.md))
+7. If a gate has `require_artifacts`, the Workflow validates required kinds exist with `status: published`
+
+**Why object storage is needed:** Sandbox-local files (generated images, test reports, coverage HTML, design exports, build artifacts) are destroyed when the sandbox is cleaned up. Artifacts that point to external URLs (MR links, Figma URLs) don't need upload — only files created inside the sandbox do.
+
+**`kind` is a free string, not an enum** — new artifact types require no schema changes, no DSL updates, and no orchestrator code changes. The agent (or the LLM powering it) decides what it produced. Common kinds:
+
+| `kind` | Source | Typical `uri` / `local_path` | Typical `preview_url` | Use case |
+|---|---|---|---|---|
+| `merge_request` | External URL | `uri`: PR/MR URL | Same as `uri` | Standard code output |
+| `figma_update` | External URL | `uri`: Figma file URL with node ID | Figma prototype link | Design changes |
+| `design_token` | Git commit | `uri`: file path in repo (`tokens/colors.json`) | Storybook deploy URL | Design system tokens |
+| `test_report` | Sandbox upload | `local_path`: `/workspace/coverage/index.html` | Auto-generated from uploaded URL | Test/coverage HTML |
+| `image` | Sandbox upload | `local_path`: `/workspace/output/diagram.png` | Auto-generated from uploaded URL | Generated images/diagrams |
+| `documentation` | Git commit | `uri`: file path in repo (`docs/api.md`) | Deployed docs URL | Generated docs |
+| `config` | Git commit | `uri`: file path in repo (`.env.example`) | — | Configuration files |
+| `build_artifact` | Sandbox upload | `local_path`: `/workspace/dist/bundle.js` | — | Build outputs |
+
+**Auto-supersede**: When the agent publishes an artifact with the same `kind` as an existing `published` artifact in the same workflow, the previous one is automatically marked `superseded`. This handles re-creation after force-pushes or iterative updates.
+
+**Default behavior for code tasks**: The default DSL's `implement` step instructs the agent to publish a `merge_request` artifact after creating the MR. The agent's system prompt includes: *"After creating an MR, call `publish_artifact` with `kind: 'merge_request'`, the MR URL as `uri`, and diff stats in `metadata`."*
+
+**Design tasks**: The same `implement` step works — the agent reads the task description, determines it's a design task, and publishes appropriate artifact kinds (`figma_update`, `design_token`, `image`). The DSL doesn't need to know the task type; the agent adapts.
 
 ### Activity Heartbeating
 

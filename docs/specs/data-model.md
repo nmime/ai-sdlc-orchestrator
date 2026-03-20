@@ -29,7 +29,7 @@ erDiagram
         numeric monthly_cost_actual_usd
         varchar default_agent_provider
         varchar default_agent_model
-        jsonb ai_provider_api_key_refs
+        jsonb agent_provider_api_key_refs
         numeric monthly_ai_cost_limit_usd
         numeric monthly_sandbox_cost_limit_usd
         numeric monthly_ai_cost_actual_usd
@@ -85,6 +85,7 @@ erDiagram
         int max_concurrent_workflows
         varchar agent_provider
         varchar agent_model
+        jsonb model_routing
         numeric cost_limit_usd
         jsonb cost_tiers
         int max_diff_lines
@@ -274,9 +275,27 @@ erDiagram
         uuid id PK
         varchar name UK
         text description
+        varchar protocol_version
         varchar scoping_capability
         boolean is_verified
         jsonb default_config
+        timestamptz created_at
+    }
+
+    WORKFLOW_ARTIFACT {
+        uuid id PK
+        uuid workflow_id FK
+        uuid session_id FK
+        uuid tenant_id FK
+        varchar step_id
+        varchar kind
+        varchar title
+        varchar uri
+        varchar mime_type
+        varchar preview_url
+        jsonb metadata
+        text content
+        varchar status
         timestamptz created_at
     }
 
@@ -296,6 +315,8 @@ erDiagram
     WORKFLOW_MIRROR ||--o{ AGENT_SESSION : "has many"
     AGENT_SESSION ||--o{ AGENT_TOOL_CALL : "has many"
     TENANT_REPO_CONFIG ||--o{ POLLING_SCHEDULE : "has many"
+    WORKFLOW_MIRROR ||--o{ WORKFLOW_ARTIFACT : "has many"
+    AGENT_SESSION ||--o{ WORKFLOW_ARTIFACT : "produces"
 ```
 
 ---
@@ -313,7 +334,7 @@ erDiagram
 - **`TENANT_API_KEY` and `TENANT_USER` added** — supports OIDC authentication, API key management, and RBAC (`admin` / `operator` / `viewer`). API keys stored hashed with bcrypt
 - **`AGENT_SESSION.step_id` + `loop_iteration` added** — links each agent session to the DSL step (`implement`, `ci_fix`, `review_fix`) and tracks which iteration of a fix loop the session belongs to
 - **`AGENT_SESSION.error_code` added** — structured error classification for retry strategy and analytics. Values: `cancelled`, `cost_limit`, `turn_limit`, `infra_error`, `agent_error`, `max_iterations_exceeded`, `quality_gate_skipped`, `diff_size_exceeded`, `scope_violation`, `prompt_injection_detected`, `no_progress`, `test_regression`, `mr_description_invalid`, `commit_message_invalid`, `static_analysis_failed`
-- **Provider abstraction at data level** — `TENANT.default_agent_provider` + `TENANT_REPO_CONFIG.agent_provider` enables per-tenant and per-repo AI provider selection (Claude, OpenHands, Aider). `AGENT_SESSION.provider` records which provider was actually used. `ai_provider_api_key_refs` JSONB stores references to K8s secrets per provider
+- **Provider abstraction at data level** — `TENANT.default_agent_provider` + `TENANT_REPO_CONFIG.agent_provider` enables per-tenant and per-repo AI provider selection (Claude, OpenHands, Aider). `AGENT_SESSION.provider` records which provider was actually used. `agent_provider_api_key_refs` JSONB stores references to K8s secrets per provider
 - **Split cost tracking (AI vs sandbox)** — `ai_cost_usd` and `sandbox_cost_usd` tracked separately throughout: `AGENT_SESSION`, `WORKFLOW_EVENT`, `WORKFLOW_MIRROR`. Enables accurate cost attribution — AI token costs vary by provider/model while sandbox costs are time-based. `TENANT` has separate `monthly_ai_cost_limit_usd` and `monthly_sandbox_cost_limit_usd` caps. Legacy `cost_usd` renamed to `ai_cost_usd` on `AGENT_SESSION`
 - **Budget optimistic concurrency** — `TENANT.budget_version` enables optimistic locking for budget reservation instead of `SELECT ... FOR UPDATE`. Multiple concurrent workflows can attempt budget reservations without row-level lock contention. Retry on version conflict
 - **Quality scoring** — `AGENT_SESSION.quality_score` (0.0–1.0) is a composite metric combining task completion, quality gate results, efficiency, and progress. `quality_gates_passed` JSONB tracks individual gate results. `diff_lines_changed`, `files_modified`, `progress_indicator` enable trend analysis and adaptive loop decisions
@@ -329,6 +350,10 @@ erDiagram
 - **Concurrency hints** — `TENANT_REPO_CONFIG.concurrency_hints` enables per-repo concurrency tuning: `"auto"` mode uses path isolation to allow concurrent workflows on non-overlapping file paths; `"manual"` mode preserves default serial execution
 - **Tenant onboarding** — `TENANT.onboarding_status` (`'pending'` / `'provisioning'` / `'active'`) tracks the tenant provisioning lifecycle (Temporal namespace creation, webhook registration, credential setup)
 - **E2B admission control** — `TENANT.max_concurrent_sandboxes` limits parallel sandbox usage per tenant, preventing resource exhaustion and enabling fair multi-tenant scheduling
+- **DD-31: MCP protocol version tracking** — `MCP_SERVER_REGISTRY.protocol_version` (default `'2025-03-26'`) records the MCP protocol version supported by each registered server. Enables compatibility checks when connecting agents to MCP servers and supports future protocol upgrades
+- **DD-32: Label-based model routing** — `TENANT_REPO_CONFIG.model_routing` enables per-repo cost optimization by routing trivial tasks to cheaper models. Resolution chain: task label → `model_routing` → repo `agent_model` → tenant `default_agent_model` → system default. Example: `{"trivial": "claude-haiku-4-5", "standard": "claude-sonnet-4-6", "complex": "claude-opus-4-6"}`
+- **DD-33: Agent-driven workflow artifacts** — `WORKFLOW_ARTIFACT` tracks any deliverable the agent produces at runtime. `kind` is a free-form string (not an enum) so new artifact types require no schema changes — the agent decides what to produce based on the task. `uri` points to the canonical location (MR URL, Figma link, CDN URL, file path in repo). `preview_url` provides a human-reviewable link for non-code artifacts (Figma preview, Storybook deploy, etc.). `metadata` JSONB holds arbitrary structured data (diff stats, coverage %, Figma node IDs). `status` lifecycle: `draft` → `published` → `superseded` (replaced by a newer version) or `rejected` (reviewer rejected). The agent publishes artifacts via the `publish_artifact` built-in tool (see [Integration — Agent Tools](integration.md)). Gate steps can optionally require specific artifact kinds via `require_artifacts` (see [Workflow Engine — Artifact-Aware Gates](workflow-engine.md)). Follows the MCP "tool-mediated artifact" pattern: tools produce artifacts as side effects; the orchestrator tracks references without understanding artifact internals
+- **DD-34: Artifact entity indexing** — `WORKFLOW_ARTIFACT` is indexed on `(workflow_id, kind)` for gate validation queries and `(tenant_id, created_at)` for dashboard listing. Partitioned monthly alongside `WORKFLOW_EVENT`. `content` column is optional — large artifacts live externally (VCS, Figma, CDN), only small inline artifacts (JSON configs, summaries) are stored directly
 
 ---
 
