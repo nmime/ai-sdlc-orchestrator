@@ -14,7 +14,7 @@
 | Workflow Engine | **Temporal** (self-hosted, TypeScript SDK) | Durable execution, replay, native visibility |
 | App Database | **PostgreSQL 18** | Tenants, costs, DSL, workflow mirror |
 | DB Connection Pool | **PgBouncer** (sidecar per pod) | Multiple API + worker pods → single PG instance. Transaction pooling mode. Prevents connection exhaustion under load |
-| ORM | **MikroORM** | Unit of Work, explicit transactions, identity map |
+| ORM | **MikroORM** | Unit of Work, explicit transactions, identity map. Migrations via `mikro-orm migration:up` (K8s Job, pre-deploy). Partitioned table DDL via raw SQL migrations |
 | Workflow DSL | **Custom YAML DSL** (Zod + Temporal compiler) | Team-configurable, visual editor-ready |
 | AI Agent | **AiAgentPort** with provider-specific adapters | Provider-agnostic abstraction. v1: `ClaudeAgentAdapter` (via `@anthropic-ai/claude-agent-sdk`). v2+: `OpenHandsAdapter`, `AiderAdapter`. Adding a provider = implement `AiAgentPort` + `PromptFormatter` ¹ |
 | Platform Integration | **MCP servers** (tenant-configured) | Zero SDK deps — agent uses MCP for all platform interaction |
@@ -24,9 +24,11 @@
 | Credential Isolation | **Credential proxy service** (K8s Deployment) | Sandbox has zero credential access. Standalone proxy service injects VCS PAT + MCP tokens via authenticated HTTPS. Credentials on K8s cluster, separate from sandbox VM — stronger isolation than sidecar model |
 | Error Handling | **neverthrow** | `Result<T, E>` / `ResultAsync<T, E>` — actively maintained (4k+ stars), native async support |
 | Secrets | **K8s Secrets** | No secrets in Workflow inputs or agent context |
+| Cache (optional) | **Redis 7** (Valkey compatible) | Budget reservation cache (reduces PG contention on hot path), API rate limiting, credential proxy rate limiting, session token revocation list. **Not a required dependency** — all features fall back to PostgreSQL when Redis is unavailable. Deployed as a single replica with AOF persistence or managed (ElastiCache/Memorystore) |
 | Metrics | **Prometheus + OpenTelemetry** | Standard K8s observability |
 | Logging | **Pino** → **Grafana Loki** | Structured JSON → centralized log aggregation. Queried via Grafana alongside metrics. Correlation IDs link logs across API, worker, and Temporal |
 | Tenant Data Isolation | **PostgreSQL RLS** (Row-Level Security) | Per-tenant data isolation at database level. All queries scoped by `tenant_id` via RLS policies. Defense-in-depth alongside application-level tenant filtering |
+| Object Storage | **[MinIO](https://min.io)** (S3-compatible API) | Artifact file uploads (sandbox-local images, test reports, build outputs). Runs as a K8s Deployment. Application code uses AWS S3 SDK (`@aws-sdk/client-s3`). Also used for PG WAL archiving, Loki log chunks, and ES snapshots — single storage backend for all blob data |
 | Temporal Visibility | **Elasticsearch 8** (or OpenSearch) | Advanced Workflow queries in Temporal UI (by tenant, status, date range, custom search attributes). Default DB-based visibility doesn't support complex queries |
 | Workflow DSL Validation | **Zod schema** (published as `@ai-sdlc/workflow-dsl-schema` npm package) | Used by CLI validator (`dsl validate`), dashboard DSL editor, and runtime DSL compiler. Single source of truth for DSL shape |
 | Testing | **Jest 30** + **Testcontainers** + **@temporalio/testing** | Unit + component + Temporal workflow tests |

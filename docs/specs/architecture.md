@@ -54,7 +54,7 @@ graph TB
     end
 
     subgraph ObjStore["OBJECT STORAGE"]
-        S3[(S3 / GCS / MinIO<br>Artifact files: images, reports, exports)]
+        S3[(MinIO<br>S3-compatible · artifact files)]
     end
 
     JH --> EN

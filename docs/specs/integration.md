@@ -156,7 +156,7 @@ interface PublishedArtifact {
 
 **Why no `resumeSession`:** Agent sessions (regardless of provider) are stateless between invocations. "Resuming" would require persisting and replaying the full conversation history (potentially hundreds of tool calls over 60 min), which is impractical and wasteful. Instead, the previous session's `SessionContext` + the existing branch state on VCS gives the agent everything it needs to continue effectively. Critically, `SessionContext` provides **server-side ground truth** — the orchestrator constructs it from actual `AGENT_TOOL_CALL` records, test outputs, and `AgentResult` data rather than relying on the agent's self-reported summary. This means fix-loop context is based on observed behavior (which files were actually modified, which tests actually failed) rather than the agent's potentially inaccurate or hallucinated recollection.
 
-**`cancel()` implementation:** Writes a `/workspace/.shutdown-requested` sentinel file via `SandboxPort.writeFile()`, waits up to 2 minutes for graceful completion (agent commits and pushes partial work), then destroys the sandbox via `SandboxPort.destroy()`. Backend-agnostic — works identically with E2B and Agent Sandbox + Kata. The Activity returns a partial `AgentResult` with `status: 'failure'` and `errorCode: 'cancelled'`.
+**`cancel()` implementation:** Uses the same two-tier graceful shutdown: writes `/workspace/.shutdown-requested` sentinel file via `SandboxPort.writeFile()`, sends `SIGTERM` after 3 minutes if agent hasn't exited, then destroys the sandbox via `SandboxPort.destroy()` at timeout. Backend-agnostic — works identically with E2B and Agent Sandbox + Kata. The Activity returns a partial `AgentResult` with `status: 'failure'` and `errorCode: 'cancelled'`.
 
 ### Agent Provider Resolution
 
@@ -418,7 +418,19 @@ See [Data Model — MCP_SERVER_REGISTRY](data-model.md) for the `protocol_versio
 
 ### MCP Token Injection
 
-MCP servers that require authentication receive tokens via environment variables injected by a sandbox-level init script. The init script reads tokens from the credential proxy service (`curl -H "Authorization: Bearer $SESSION_TOKEN" $CREDENTIAL_PROXY_URL/mcp-token/{server-name}`) during sandbox startup (before the agent session begins) and sets them as environment variables for the MCP server processes. This runs once at startup, not per-request. The agent process itself never sees the raw MCP tokens — they are passed directly to the MCP server processes via their environment.
+MCP servers that require authentication receive tokens via the credential proxy, fetched just-in-time during sandbox startup:
+
+- The sandbox init script (runs before agent session starts) calls `curl -H "Authorization: Bearer $SESSION_TOKEN" $CREDENTIAL_PROXY_URL/mcp-token/{server-name}` for each authenticated MCP server
+- Retrieved tokens are set as environment variables for the corresponding MCP server processes only
+- The agent process itself does not receive MCP tokens as environment variables — they are passed directly to MCP server child processes
+
+**Trust boundary note:** MCP tokens, like VCS PATs obtained via `GIT_ASKPASS`, transit through processes running inside the sandbox. The "zero-credential sandbox" guarantee means **no credentials are present at sandbox creation time** — they are fetched on-demand from the credential proxy during operation. Inside an active sandbox, an agent with Bash access could theoretically read MCP server process environment via `/proc/<pid>/environ`. This is the same trust boundary as every agent-in-sandbox architecture.
+
+**Mitigations:**
+- MCP tokens are session-scoped and short-lived (TTL matches sandbox timeout)
+- Credential proxy logs all token requests for anomaly detection
+- Rate limiting prevents bulk token exfiltration
+- MCP servers with `scoping_capability: 'full'` issue tokens scoped to the specific repo/project, limiting blast radius
 
 ### Activity ↔ Sandbox Communication Protocol
 
@@ -426,7 +438,12 @@ All communication uses `SandboxPort` — backend-agnostic:
 
 - **Prompt injection:** The agent prompt + MCP config is written to `/etc/agent/invocation.json` via `SandboxPort.writeFile()` at creation time. The sandbox's entrypoint reads this file to configure the agent session
 - **Result extraction:** The agent writes `AgentResult` JSON to `/workspace/.agent-result.json` on completion. The Activity reads this file via `SandboxPort.readFile()` after sandbox completion. If the file is missing (crash/OOM), the Activity constructs a failure `AgentResult` from the sandbox exit status and collected logs
-- **Graceful shutdown:** The Activity writes a sentinel file `/workspace/.shutdown-requested` via `SandboxPort.writeFile()`. The agent's system prompt instructs: "Check for `/workspace/.shutdown-requested` between tool calls. If present, wrap up immediately"
+- **Graceful shutdown (two-tier):**
+  1. **Sentinel file** (T-5min): Activity writes `/workspace/.shutdown-requested` via `SandboxPort.writeFile()`. The agent's system prompt instructs: *"Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit."*
+  2. **Process signal** (T-2min): If the agent hasn't exited 3 minutes after the sentinel was written, the Activity sends `SIGTERM` to the agent process via `SandboxPort.exec('kill -TERM <agent_pid>')`. Agent PID is obtained from the initial `SandboxPort.exec()` return value. Agent runtimes (Claude SDK, OpenHands, Aider) handle `SIGTERM` by flushing state and exiting
+  3. **Force kill** (T-0): If still running, `SandboxPort.destroy()` terminates the sandbox. Any partial work not pushed is lost
+  - **Grace period**: default 5 minutes total (sentinel at T-5min, SIGTERM at T-2min, destroy at T-0). Configurable via `graceful_shutdown_minutes` in DSL
+  - **Long-running commands**: If the agent is in a long Bash command (e.g., a 10-minute build), the sentinel file won't be checked until that command completes. The SIGTERM at T-2min ensures the agent is interrupted even during long operations. Agents should prefer streaming build output over blocking commands to enable faster shutdown response
 
 ### Artifact Publishing (`publish_artifact` Tool)
 
@@ -441,7 +458,7 @@ interface PublishArtifactInput {
   uri?: string;                          // External location: MR URL, Figma link, CDN URL
                                          // Either `uri` or `local_path` must be provided
   local_path?: string;                   // Sandbox-local file: "/workspace/coverage/report.html"
-                                         // Activity uploads to object storage → becomes `uri` after upload
+                                         // Activity uploads to MinIO → becomes `uri` after upload
   status?: 'draft' | 'published';        // Default: 'published'
   mime_type?: string;                    // "text/x-diff", "image/png", "application/json", ...
   metadata?: Record<string, unknown>;    // Arbitrary structured data (diff stats, coverage %, Figma node IDs)
@@ -455,12 +472,31 @@ interface PublishArtifactOutput {
 }
 ```
 
+**Implementation:**
+
+The `publish_artifact` tool is a **shell script** (`/usr/local/bin/publish-artifact`) baked into the agent sandbox template (`Dockerfile.agent`). It is registered with each agent provider differently:
+
+| Provider | Registration Mechanism |
+|---|---|
+| **Claude** (`claude-agent-sdk`) | Listed in `allowedTools` configuration. The SDK discovers it as a Bash-callable tool. System prompt instructs: *"To publish artifacts, run: `publish-artifact --kind <kind> --title <title> [--uri <uri>] [--local-path <path>] [--preview-url <url>] [--metadata '<json>']`"* |
+| **OpenHands** | Registered as a custom tool in the OpenHands tool configuration. OpenHands' tool execution engine calls the script |
+| **Aider** | Included in Aider's shell command allowlist. Aider calls it via `/run publish-artifact ...` |
+
+**Script behavior:**
+1. Generates a UUID for the artifact
+2. Validates input (requires `kind`, `title`, and at least one of `uri` or `local_path`)
+3. If `local_path` is specified, copies the file to `/workspace/.artifacts/files/<uuid>/<filename>`
+4. Writes artifact metadata JSON to `/workspace/.artifacts/<uuid>.json`
+5. Returns `{"artifact_id": "<uuid>", "status": "accepted"}` to stdout
+6. Exit code 0 on success, 1 on validation error
+
 **Mechanics:**
 1. Agent calls `publish_artifact` tool during its session
 2. The tool writes artifact metadata to `/workspace/.artifacts/<uuid>.json`
 3. If the artifact has a `local_path` (file inside the sandbox), the tool copies the file to `/workspace/.artifacts/files/<uuid>/<filename>`
 4. At session end, the `invokeAgent` Activity reads all files in `/workspace/.artifacts/` via `SandboxPort.readFile()`
-5. For artifacts with local files: the Activity uploads them to object storage (S3 / GCS / MinIO) via `SandboxPort.uploadArtifact()` and replaces `local_path` with the resulting public URL as the artifact's `uri`
+5. For artifacts with local files: the Activity uploads them to MinIO (S3-compatible) via `SandboxPort.uploadArtifact()` and replaces `local_path` with a presigned URL as the artifact's `uri`
+   - **Upload idempotency**: Each artifact file is uploaded to a path that includes the artifact UUID (`{tenant-slug}/artifacts/{workflow-id}/{artifact-id}/{filename}`). If the Activity retries after a crash, it checks for an existing object at the target path (S3 `HeadObject`) before re-uploading. Duplicate uploads are skipped, and the existing URL is used. This prevents orphaned duplicate files in object storage
 6. Artifacts are persisted to `WORKFLOW_ARTIFACT` table (see [Data Model](data-model.md))
 7. If a gate has `require_artifacts`, the Workflow validates required kinds exist with `status: published`
 
@@ -479,7 +515,23 @@ interface PublishArtifactOutput {
 | `config` | Git commit | `uri`: file path in repo (`.env.example`) | — | Configuration files |
 | `build_artifact` | Sandbox upload | `local_path`: `/workspace/dist/bundle.js` | — | Build outputs |
 
+**Artifact size limits and upload behavior:**
+
+| Setting | Default | Configurable |
+|---|---|---|
+| Max artifact file size | 100 MB | Per tenant via admin API |
+| Multipart upload threshold | 10 MB | System config |
+| Per-tenant artifact storage quota | 10 GB / month | Per tenant |
+| Upload timeout | 5 minutes | System config |
+
+- Files > 10 MB use **multipart upload** (S3 multipart API via `@aws-sdk/lib-storage` `Upload` class) for reliability and streaming
+- Files > 100 MB are **rejected** — the `publish_artifact` script validates file size before writing metadata. The agent receives an error message instructing it to reduce output size or split into multiple artifacts
+- **Streaming upload**: `SandboxPort.uploadArtifact()` streams files from the sandbox to MinIO without buffering the entire file in worker memory. E2B backend: reads file in chunks via E2B SDK's `readFileChunked()`. Agent Sandbox backend: streams via Sandbox Router HTTP API with `Transfer-Encoding: chunked`
+- **Quota enforcement**: before upload, the Activity checks `SUM(size) FROM workflow_artifact WHERE tenant_id = :tenantId AND created_at > date_trunc('month', now())` against the tenant's quota. Exceeding quota fails the upload with a clear error (not the agent session)
+
 **Auto-supersede**: When the agent publishes an artifact with the same `kind` as an existing `published` artifact in the same workflow, the previous one is automatically marked `superseded`. This handles re-creation after force-pushes or iterative updates.
+
+**Concurrent publishing safety**: Each `publish_artifact` call generates a unique UUID for the artifact file path (`/workspace/.artifacts/<uuid>.json`), so concurrent calls from parallel tool executions cannot collide on filenames. For **same-kind artifacts within a single session**: all are collected by the Activity at session end, and auto-supersede runs in creation timestamp order (from the `created_at` field in the artifact JSON). The last-published artifact of a given `kind` retains `published` status; earlier ones are marked `superseded`.
 
 **Default behavior for code tasks**: The default DSL's `implement` step instructs the agent to publish a `merge_request` artifact after creating the MR. The agent's system prompt includes: *"After creating an MR, call `publish_artifact` with `kind: 'merge_request'`, the MR URL as `uri`, and diff stats in `metadata`."*
 
@@ -493,7 +545,7 @@ Long-running agent sessions (up to 60 min) require Temporal Activity heartbeatin
 - **Agent-internal phase** (`implementing`, `testing`, etc.) is **not observable from the Activity** — the agent process does not expose its internal phase via an API. Phase-level observability is available via agent logs (the AI agent runtime logs tool calls to stdout as structured JSON, collected by the Activity). The heartbeat carries: sandbox status, elapsed time, last known agent output line
 - Temporal's `heartbeatTimeout` is set to **90 seconds** — if a worker dies, Temporal reschedules the Activity within 90s instead of waiting for the full 60-minute `startToCloseTimeout`
 - On rescheduling, the Activity receives the last heartbeat details. It checks if the sandbox is still running: E2B backend checks via E2B SDK, Agent Sandbox backend checks via K8s pod status. If running, it reattaches via sandbox ID / SandboxClaim name and continues monitoring. If not, it starts a fresh agent session
-- **Graceful shutdown at T-5min:** Activity tracks elapsed time. At T-5min before `startToCloseTimeout`, it writes a sentinel file `/workspace/.shutdown-requested` via `SandboxPort.writeFile()`. The agent's system prompt instructs: "Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit." The Activity waits up to 2 min for graceful completion before destroying the sandbox via `SandboxPort.destroy()`
+- **Graceful shutdown at T-5min:** Activity tracks elapsed time. At T-5min before `startToCloseTimeout`, it writes a sentinel file `/workspace/.shutdown-requested` via `SandboxPort.writeFile()`. The agent's system prompt instructs: "Between tool calls, check if `/workspace/.shutdown-requested` exists. If present, commit and push partial work immediately, then exit." The Activity sends SIGTERM at T-2min if agent hasn't exited, then destroys sandbox at T-0
 
 ---
 

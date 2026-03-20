@@ -414,7 +414,13 @@ Conditions support:
 - `workflow.*` — workflow variables set by previous steps
 - Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
 
-Implementation: evaluated in Workflow code using a simple expression parser. No arbitrary code execution — only field access and comparison operators.
+**Implementation & security:**
+- Evaluated using [filtrex](https://github.com/joewalnes/filtrex) — a safe expression evaluator that compiles expressions to a sandboxed function with no access to global scope, `eval`, `Function`, or prototype chain
+- **Allowed fields** (strict allowlist): `agent.quality_score`, `agent.status`, `agent.turnCount`, `agent.diffStats.linesAdded`, `agent.diffStats.linesRemoved`, `agent.cost.totalUsd`, `workflow.*` (tenant-defined workflow variables)
+- **Allowed operators**: `==`, `!=`, `>`, `<`, `>=`, `<=`, `and`, `or`, `not`
+- **Disallowed**: function calls, property assignment, bracket notation (`[]`), template literals, regex. Any expression containing these is rejected at DSL compilation time (Zod validation)
+- **Input validation**: DSL compiler parses and validates all conditional expressions at compile time — invalid expressions fail DSL validation, not at runtime
+- Field access is resolved via a flat lookup map (not recursive property traversal), preventing prototype pollution attacks like `agent.__proto__.constructor`
 
 ---
 
@@ -531,3 +537,34 @@ When DSL schemas evolve, existing in-flight workflows must be handled safely:
 - `dsl validate <file>` — validate a DSL YAML file against the Zod schema (catches syntax errors, unknown step types, invalid transitions)
 - `dsl diff <v1> <v2>` — show structural differences between two DSL versions (added/removed/changed steps)
 - `dsl drain-status` — show count of in-flight workflows per DSL version, estimated drain time
+
+---
+
+## Orchestrator Workflow Code Versioning
+
+The DSL versioning system (above) handles changes to workflow YAML definitions. **Orchestrator code versioning** handles changes to the compiled Temporal Workflow code itself — the TypeScript code that the DSL compiler generates.
+
+### Why This Matters
+
+Temporal replays Workflow execution history to rebuild state after worker restarts. If the Workflow code has changed since the execution started, replay produces different results — a **non-determinism error** that halts the Workflow. This applies to ANY change in the compiled Workflow code: bug fixes, new step type support, state machine logic changes, Activity parameter changes.
+
+### Worker Build IDs (Temporal Worker Versioning)
+
+The orchestrator uses Temporal's **Worker Versioning** feature to safely deploy code changes:
+
+| Change Type | Versioning Strategy | Impact on In-Flight Workflows |
+|---|---|---|
+| **Backward-compatible** (new Activity, bug fix in Activity code) | Register new Build ID as **compatible** with current set | Zero — both old and new workers handle any task |
+| **Breaking Workflow code** (state machine change, new step type, Activity signature change) | Register new Build ID as **new default version set** | Old workflows finish on old workers; new workflows use new workers |
+| **Hotfix for in-flight workflows** | Use Temporal `patched()` API in compiled code | Branched behavior: old workflows take old path, new take new |
+
+**Build ID format**: `{version}-{git-sha}` (e.g., `v1.3.0-a1b2c3d`). Set automatically in CI from package version + commit hash.
+
+**Monitoring**:
+- `temporal_worker_build_id_task_count` — tasks per Build ID (detect slow drain)
+- `WORKFLOW_MIRROR` query: count in-flight workflows per `dsl_version` (detect old versions lingering)
+- Alert when old Build ID workers run for > 7 days (indicates stuck workflows)
+
+**Rollback**: register previous Build ID as the new default. New workflows immediately route to old workers. In-flight workflows on the new (broken) Build ID may need manual termination and restart.
+
+See [Deployment — Orchestrator Deployment Strategy](deployment.md) for the full deployment procedure.
