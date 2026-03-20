@@ -10,28 +10,43 @@
 |---|---|
 | **Webhooks** | Per-platform: webhook secret for signature verification. That's all the orchestrator needs per platform |
 | **VCS Credentials** | PAT for `git clone` / `git push` (injected via `GIT_ASKPASS`, never in URLs) |
-| **AI Agent** | Provider (`anthropic`, `openai`, `ollama`, etc.), model, provider API key ref — resolved per-repo or per-tenant via `TENANT_REPO_CONFIG.ai_provider` / `TENANT.default_ai_provider`. Max turns, max fix iterations, cost limit per task (USD) |
+| **AI Agent** | Provider (`anthropic`, `openai`, `ollama`, etc.), model, provider API key ref — resolved per-repo or per-tenant via `TENANT_REPO_CONFIG.agent_provider` / `TENANT.default_agent_provider`. Max turns, max fix iterations, cost limit per task (USD) |
 | **Sandbox** | Backend selection (`e2b` or `k8s-agent-sandbox`). E2B: API key, domain, default template ID, sandbox timeout. Agent Sandbox + Kata: namespace, template name, runtime class, warm pool size, router URL. See [Sandbox & Security — Configuration](sandbox-and-security.md) |
 | **Credential Proxy** | Ingress URL, session token signing key ref, rate limits |
 | **MCP Servers** | Per-tenant list of MCP servers to inject into agent session (platform + productivity + custom). This is the primary integration config |
 | **Workflow DSL** | Path to workflow YAML or stored in app DB per tenant. Gate conditions per label/priority/project |
 | **Temporal** | Server address, namespace, task queue, worker concurrency. For cluster-wide connection limit management with >4 total API+Worker pods, a centralized PgBouncer deployment (K8s Service) is recommended |
 | **Repo Config** | Per-repo: setup, test, lint, typecheck, build commands, branch prefix (`ai/`), agent template ID (E2B template ID or SandboxTemplate CRD name) |
+| **Artifacts** | Agent-produced artifacts tracked in `WORKFLOW_ARTIFACT` (PostgreSQL — metadata, URIs, small inline content only). Sandbox-local files (images, reports, build outputs) uploaded to **object storage** before sandbox destruction. External artifacts (MR URLs, Figma links) need no upload |
+| **Object Storage** | S3 (SaaS/AWS), GCS (GCP), or MinIO (self-hosted). Bucket: `{tenant-slug}/artifacts/{workflow-id}/{artifact-id}/{filename}`. Presigned URLs for reviewer access (1h TTL). Lifecycle policy: 90 days default, configurable per tenant. See [Integration — Artifact Publishing](../specs/integration.md) |
 
 All config validated at startup via Zod. Secrets referenced as `k8s://secret/{name}`, never in config files or Workflow inputs.
 
 ### Rate Limiting & Concurrency Controls
 
+#### Tier-Based Concurrency Limits
+
+| Limit | Standard | Premium | Enterprise | Scope |
+|-------|----------|---------|------------|-------|
+| Concurrent workflows | 10 | 25 | 50 | Per tenant |
+| Concurrent sandboxes | 5 | 15 | 30 | Per tenant |
+| Webhook ingestion | 60 req/min | 120 req/min | 300 req/min | Per tenant |
+| API requests | 100 req/min | 300 req/min | 1000 req/min | Per tenant |
+
+**Queue Management**:
+- Pending workflows timeout after 1 hour (configurable via `TENANT.workflow_queue_ttl`)
+- Queue priority: round-robin across tenants (prevents single tenant from monopolizing), FIFO within each tenant
+- Queue depth alert: fires when any tenant exceeds 5 pending workflows
+
+#### Additional Controls
+
 | Control | Default | Scope | Mechanism |
 |---|---|---|---|
-| **Webhook ingress** | 100 req/s per tenant | API gateway | NestJS `@nestjs/throttler` or K8s Ingress rate limit annotation |
-| **Concurrent workflows per tenant** | 10 | Temporal | Checked before `startWorkflow` — query `workflow_mirror` for active count. Combined with Temporal's `startWorkflow` idempotency (deterministic workflow ID) and a `SELECT ... FOR UPDATE` on the tenant's concurrent workflow counter for authoritative check |
 | **Concurrent workflows per repo** | 1 | Temporal | Serializes AI work on the same repo to prevent merge conflicts. Workflow ID includes repo slug — Temporal's "workflow ID reuse policy" prevents concurrent starts. Additional workflows queue as pending (signaled when the current one completes). Configurable per tenant (increase for repos with independent modules) |
 | **Concurrent agent sandboxes per worker** | 2 | Worker config | Temporal Worker `maxConcurrentActivityTaskExecutions`. Each sandbox runs externally (E2B) or as a separate pod (Agent Sandbox) — worker resources needed only for monitoring + heartbeating, not for the agent process itself |
 | **External API rate limits** | Adaptive | MCP / Temporal | MCP servers handle platform rate limits internally. Temporal Activity retry policy for agent invocation: `initialInterval: 5s`, `backoffCoefficient: 2`, `maximumInterval: 60s`, `maximumAttempts: 5` |
 | **Cost cap per task** | $5 USD | Agent SDK | Configurable per-repo via `TENANT_REPO_CONFIG.cost_limit_usd` or `cost_tiers` (e.g., "trivial" = $1, "large" = $15). `costLimitUsd` passed to agent session. Agent SDK terminates session when exceeded |
 | **Cost cap per tenant/month** | $500 USD | Orchestrator | Separate limits for AI spend (`TENANT.monthly_ai_cost_limit_usd`) and sandbox spend (`TENANT.monthly_sandbox_cost_limit_usd`). **Budget reservation model:** when a workflow starts, estimated task cost is reserved via optimistic concurrency (see Budget Reservation below). If monthly budget minus reservations < estimated task cap, new workflows are rejected. Prevents concurrent workflows from overshooting the monthly cap |
-| **Per-tenant sandbox concurrency** | 5 | Orchestrator | `TENANT.max_concurrent_sandboxes`. Enforced by admission control Activity before `invokeAgent`. Prevents a single tenant from monopolizing sandbox capacity |
 | **Per-tenant credential proxy rate** | 1000 req/hr per session | Credential Proxy | Exceeding triggers anomaly detection alert. Protects against compromised agent sessions making excessive credential requests |
 
 ### Budget Reservation & Cost Tracking
@@ -101,11 +116,73 @@ Configurable per-tenant thresholds trigger alerts when spend approaches limits:
 
 Trade-off: more namespaces to manage. Mitigated by automating namespace creation in the tenant onboarding flow. For self-hosted deployments with few tenants (<10), a single namespace with tenant ID in Workflow IDs is acceptable.
 
+### Temporal Cloud Option
+
+```yaml
+temporal:
+  mode: 'cloud'  # or 'self-hosted'
+  cloud:
+    namespace: 'prod.xxxxx'
+    address: 'prod.xxxxx.tmprl.cloud:7233'
+    tls:
+      certPath: /etc/temporal/tls/client.pem
+      keyPath: /etc/temporal/tls/client.key
+```
+
+| Aspect | Self-Hosted | Temporal Cloud |
+|--------|------------|----------------|
+| Operational overhead | High (cluster, persistence, Elasticsearch) | Minimal (managed) |
+| Cost | Infrastructure + ops team time | ~$200–500/mo (usage-based) |
+| Visibility (advanced search) | Requires Elasticsearch | Built-in |
+| Air-gap / regulated | Supported | Not available |
+| Recommended for | Banking, regulated, air-gapped | SaaS, small teams, startups |
+
+When `temporal.mode: 'cloud'`, the following components are **not deployed**: Temporal server pods, Temporal UI, Elasticsearch, dedicated Temporal PostgreSQL database.
+
+### Global Sandbox Backpressure
+
+Per-tenant sandbox limits prevent individual abuse, but the system also needs a global cap to protect infrastructure:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `SYSTEM_CONFIG.max_global_sandboxes` | 100 | Maximum concurrent sandboxes across all tenants |
+| `SYSTEM_CONFIG.sandbox_queue_ttl` | `1h` | Maximum time a workflow waits for sandbox capacity |
+
+**Admission Control**: Before creating a sandbox, the `createSandbox` Activity checks the global count. If at capacity:
+1. Temporal Activity retries with exponential backoff (natural queue behavior)
+2. Tenant priority determines retry priority: `premium` tenants retry before `standard`
+3. After `sandbox_queue_ttl`, the workflow transitions to `BLOCKED` with reason `sandbox_capacity_exhausted`
+
+**Tenant Priority Tiers**:
+- `standard`: best-effort sandbox allocation, lower retry priority
+- `premium`: guaranteed capacity (reserved pool), higher retry priority
+
+**Metrics**:
+- `orchestrator_sandbox_active_total` gauge (labels: `tenant_id`, `provider`)
+- `orchestrator_sandbox_queue_depth` gauge (labels: `priority_tier`)
+- `orchestrator_sandbox_queue_wait_seconds` histogram
+
+### Tenant QoS Tiers
+
+| Capability | Standard | Premium | Dedicated |
+|------------|----------|---------|-----------|
+| Worker pool | Shared | Shared (priority queue) | Isolated worker pool |
+| Credential proxy | Shared replicas | Shared replicas | Dedicated replica set |
+| PgBouncer | Shared pool | Dedicated user pool | Dedicated user pool |
+| Max concurrent workflows | 10 | 25 | 50 |
+| Max concurrent sandboxes | 5 | 15 | 30 |
+| Sandbox queue priority | Best-effort | Priority retry | Guaranteed capacity |
+| Support SLA | Best-effort | 4h response | 1h response |
+
+**PgBouncer per-tenant pools**: Each premium/dedicated tenant gets a dedicated PgBouncer user pool, preventing connection starvation from noisy neighbors. Standard tenants share a common pool with per-tenant connection limits.
+
+**Worker pool isolation** (dedicated tier): Temporal task queue per tenant (`workflow-{tenant_id}`), backed by dedicated worker pods with resource guarantees.
+
 ---
 
 ## Deployment Topology
 
-Core components: **orchestrator-api**, **orchestrator-worker** (Temporal Worker), **credential-proxy** (standalone service), **agent sandboxes** (E2B or Agent Sandbox + Kata — selected per deployment model via `SandboxPort`), **Temporal cluster** (self-hosted + Elasticsearch for visibility), **App DB** (PostgreSQL + PgBouncer), **Observability** (Loki + Prometheus + Grafana).
+Core components: **orchestrator-api**, **orchestrator-worker** (Temporal Worker), **credential-proxy** (standalone service), **agent sandboxes** (E2B or Agent Sandbox + Kata — selected per deployment model via `SandboxPort`), **Temporal cluster** (self-hosted + Elasticsearch for visibility), **App DB** (PostgreSQL + PgBouncer), **Object Storage** (S3 / GCS / MinIO — artifact file uploads), **Observability** (Loki + Prometheus + Grafana).
 
 The orchestrator runs in K8s. Agent sandboxes run either externally (E2B Cloud/BYOC) or in the same K8s cluster (Agent Sandbox + Kata). All sandbox interaction goes through `SandboxPort` — the worker code is backend-agnostic.
 
@@ -142,6 +219,7 @@ graph TB
 
         PG[(app-db PostgreSQL 18<br>+ PgBouncer sidecar)]
         SEC[K8s Secrets<br>VCS PATs, MCP tokens, signing key]
+        S3[(Object Storage<br>S3 / GCS — artifact files)]
     end
 
     subgraph E2B["E2B (Cloud or BYOC)"]
@@ -152,6 +230,7 @@ graph TB
     API -->|Temporal SDK| TFE
     Worker -->|Temporal SDK| TFE
     Worker -->|E2B SDK| E2B
+    Worker -->|upload artifacts| S3
     SB1 -->|HTTPS| CredProxy
     SB2 -->|HTTPS| CredProxy
     CredProxy --> SEC
@@ -159,6 +238,7 @@ graph TB
     TFE --> ES
     TUI --> TFE
     API --> PG
+    API -->|presigned URLs| S3
     Worker --> PG
     Worker --> SEC
     API --> SEC
@@ -168,6 +248,15 @@ graph TB
     PROM --> GRAF
     LOKI --> GRAF
 ```
+
+### Credential Proxy Sizing
+
+**Credential Proxy Sizing**:
+- Minimum 3 replicas across 3 AZs (hard anti-affinity: `requiredDuringSchedulingIgnoredDuringExecution`)
+- ~2,000 req/s capacity per replica (git-credential + MCP routing + AI API proxy combined)
+- HPA: scale on `requests_per_second` metric, target 1,500 req/s per pod (75% capacity)
+- Resource request: 256Mi memory, 250m CPU per replica
+- AI API proxy streaming: consider higher memory limit (512Mi) if serving many concurrent Claude completions
 
 ### Regulated / On-Prem Deployment (Agent Sandbox + Kata Backend)
 
@@ -209,11 +298,13 @@ graph TB
 
         PG[(app-db PostgreSQL 18<br>+ PgBouncer sidecar)]
         SEC[K8s Secrets<br>VCS PATs, MCP tokens, signing key]
+        MINIO[(MinIO<br>Artifact file storage)]
     end
 
     API -->|Temporal SDK| TFE
     Worker -->|Temporal SDK| TFE
     Worker -->|K8s API + HTTP| CTRL
+    Worker -->|upload artifacts| MINIO
     CTRL --> SB1
     CTRL --> SB2
     WP -.->|warm allocation| CTRL
@@ -224,6 +315,7 @@ graph TB
     TFE --> ES
     TUI --> TFE
     API --> PG
+    API -->|presigned URLs| MINIO
     Worker --> PG
     Worker --> SEC
     API --> SEC
@@ -415,18 +507,82 @@ Periodic Temporal Schedule (every 15 min) performs cross-check:
 
 Sidecar mode is the default in Phase 1. Migration to centralized mode is triggered when pod count exceeds threshold.
 
+### Database Scaling
+
+#### Table Partitioning
+
+High-volume tables are partitioned by time to maintain query performance:
+
+| Table | Partition Key | Interval | Retention |
+|-------|--------------|----------|-----------|
+| `WEBHOOK_DELIVERY` | `received_at` | Monthly | 90 days (configurable) |
+| `AGENT_TOOL_CALL` | `invoked_at` | Monthly | 90 days (configurable) |
+| `WORKFLOW_EVENT` | `timestamp` | Monthly | 1 year |
+
+Partition management via `pg_cron`:
+```sql
+-- Create next month's partition (runs 1st of each month)
+SELECT cron.schedule('create_partitions', '0 0 1 * *', $$
+  SELECT create_monthly_partitions(CURRENT_DATE + INTERVAL '1 month');
+$$);
+
+-- Drop expired partitions (runs weekly)
+SELECT cron.schedule('drop_old_partitions', '0 0 * * 0', $$
+  SELECT drop_partitions_older_than('webhook_delivery', INTERVAL '90 days');
+  SELECT drop_partitions_older_than('agent_tool_call', INTERVAL '90 days');
+$$);
+```
+
+#### Read Replicas
+
+Add a PostgreSQL read replica when:
+- >20 active tenants, OR
+- >100 concurrent workflows, OR
+- Dashboard/reporting queries impact write latency
+
+Read replica routing via PgBouncer: reporting and analytics queries route to replica; all write operations and workflow-critical reads route to primary.
+
+#### Budget Retry Exhaustion
+
+If budget optimistic concurrency retries are exhausted (3 attempts), the workflow start is re-queued with a 30-second delay rather than hard-failing. This prevents budget contention spikes from permanently rejecting workflows.
+
 ---
 
 ## Healthcheck Endpoints
 
-| Endpoint | Component | Checks |
-|---|---|---|
-| `GET /health/live` | API | Process alive (always 200 if server is running) |
-| `GET /health/ready` | API | PostgreSQL connectivity + Temporal connection |
-| `GET /health/live` | Worker | Process alive |
-| `GET /health/ready` | Worker | PostgreSQL connectivity + Temporal connection + sandbox backend reachable (E2B API or K8s API for Agent Sandbox) + credential proxy reachable |
+Three tiers: **live** (K8s liveness probe — restart on failure), **ready** (K8s readiness probe — remove from traffic on failure), **business** (deep check — operational dashboards and alerting, not a K8s probe).
 
-Both API and Worker expose these for K8s liveness and readiness probes. Readiness probe failure removes the pod from the Service/TaskQueue without killing it — allows in-flight requests/activities to complete.
+### orchestrator-api
+
+| Endpoint | K8s Probe | Checks | On Failure |
+|---|---|---|---|
+| `GET /health/live` | Liveness | Process alive, event loop responsive (returns 200 if server is running) | K8s restarts container |
+| `GET /health/ready` | Readiness | PostgreSQL `SELECT 1` + Temporal frontend reachable (`describeNamespace`) | Removed from Service — stops receiving webhooks and API calls. In-flight requests complete |
+| `GET /health/business` | — *(Grafana/alerting only)* | Everything in `/ready` **plus:** at least one active tenant exists, webhook signature keys loaded for configured platforms, Temporal namespace exists for each active tenant, DSL compiler can parse a test schema | Alert to ops. Pod stays in rotation — degraded but functional |
+
+### orchestrator-worker
+
+| Endpoint | K8s Probe | Checks | On Failure |
+|---|---|---|---|
+| `GET /health/live` | Liveness | Process alive, Temporal worker poll loop active | K8s restarts container |
+| `GET /health/ready` | Readiness | PostgreSQL `SELECT 1` + Temporal frontend reachable + sandbox backend reachable (E2B API `GET /health` or K8s API `list SandboxTemplate`) + credential proxy reachable (`GET /healthz`) | Removed from Temporal task queue — stops picking up new Activities. In-flight Activities continue until heartbeat timeout |
+| `GET /health/business` | — *(Grafana/alerting only)* | Everything in `/ready` **plus:** sandbox template exists and is valid (E2B: template ID resolvable; Agent Sandbox: SandboxTemplate CRD exists with correct image), warm pool has available sandboxes (Agent Sandbox only), E2B quota headroom > 0, credential proxy can serve a test token (round-trip JWT sign → verify), session token signing key loaded | Alert to ops. Worker stays in task queue — can still process non-sandbox Activities (mirror, cost, cleanup) |
+
+### credential-proxy
+
+| Endpoint | K8s Probe | Checks | On Failure |
+|---|---|---|---|
+| `GET /healthz` | Liveness | Process alive | K8s restarts container |
+| `GET /readyz` | Readiness | JWT signing key loaded, K8s Secrets mount accessible (`stat` check on secrets volume) | Removed from Service — sandboxes cannot obtain credentials. Agent `GIT_ASKPASS` circuit breaker activates |
+| `GET /health/business` | — *(Grafana/alerting only)* | Everything in `/readyz` **plus:** at least one tenant's VCS credential is accessible (decrypt + validate format), K8s Secret volume mount is fresh (modified within last 5 min — detects stale mount), rate limiter state healthy | Alert to ops |
+
+### Design Principles
+
+- **Liveness probes are cheap and fast** — no external calls, no DB queries. Detects only process death and deadlocks. Failure = restart
+- **Readiness probes check infrastructure dependencies** — DB, Temporal, sandbox API, credential proxy. Failure = stop routing traffic, but don't kill. Allows graceful recovery
+- **Business probes check operational correctness** — templates exist, tenants configured, keys loaded, quota available. Never used as K8s probes (too expensive, too many false positives). Exposed for Grafana dashboards and PagerDuty/OpsGenie alerting
+- All health endpoints return `{ status: 'ok' | 'error', checks: { [name]: { status, message?, latencyMs } } }` — structured for Grafana JSON parsing
+- Implemented via `@nestjs/terminus` (`HealthCheckService` + custom health indicators per check)
 
 ---
 
@@ -464,6 +620,32 @@ All intra-cluster communication uses TLS:
 - **Credential proxy ↔ agent (Agent Sandbox):** ClusterIP — same cluster network. mTLS via service mesh for zero-trust
 
 For zero-trust environments, a service mesh (Istio/Linkerd) provides automatic mTLS between all pods.
+
+### Encryption at Rest
+
+| Component | Encryption Method | Requirement Level |
+|-----------|-------------------|-------------------|
+| PostgreSQL volumes | Cloud KMS (AWS KMS / GCP CMEK) or LUKS for on-prem | **Required** for regulated deployments; recommended for SaaS |
+| K8s Secrets (etcd) | `EncryptionConfiguration` with `aescbc` or `secretbox` provider | **Required** for all deployments |
+| Database backups | SSE-S3 (AWS) / GCS CMEK (GCP) with customer-managed keys | **Required** for regulated deployments |
+| Loki log storage | Encrypted storage backend (S3/GCS with SSE) | Recommended |
+| Temporal persistence | Same as PostgreSQL volumes (shared or dedicated DB) | Follows PostgreSQL policy |
+
+**K8s etcd encryption example**:
+```yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources: ["secrets"]
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: <base64-encoded-key>
+      - identity: {}  # fallback for reading unencrypted secrets
+```
+
+> For banking/regulated deployments, all encryption is **mandatory**. For SaaS deployments, K8s Secret encryption is mandatory; volume encryption is strongly recommended.
 
 ---
 
@@ -524,6 +706,26 @@ For zero-trust environments, a service mesh (Istio/Linkerd) provides automatic m
 - **E2B backend:** The Activity reads agent logs from the sandbox via `SandboxPort.readFile()` before destroying it. Logs shipped to Loki with correlation labels (`workflowId`, `sandboxId`, `tenantId`)
 - **Agent Sandbox backend:** Sandbox pod logs are scraped directly by Promtail/Alloy (standard K8s pod log collection). Labels include `sandboxclaim-name` and `tenant-id` from pod annotations
 - **Credential proxy logs** are collected via standard K8s pod log scraping in both backends
+
+### Observability Rollout
+
+Deploy observability incrementally to reduce initial complexity:
+
+| Phase | Components | Purpose |
+|-------|------------|---------|
+| Phase 1 (MVP) | Prometheus + Grafana + Pino (structured JSON to stdout) | Core metrics, dashboards, structured application logs |
+| Phase 2 | + Loki + Tempo | Centralized log aggregation, distributed tracing |
+| Phase 3 | + Elasticsearch (Temporal visibility) | Advanced workflow search queries (by custom attributes) |
+
+**Managed Alternative**: Grafana Cloud provides Prometheus, Loki, and Tempo as SaaS — eliminates operational overhead of self-hosted observability stack. Recommended for teams without dedicated platform engineering.
+
+**Minimum Sizing** (self-hosted, ~50 concurrent workflows):
+| Component | CPU | Memory | Storage |
+|-----------|-----|--------|---------|
+| Prometheus | 500m | 1Gi | 50Gi (15d retention) |
+| Grafana | 250m | 256Mi | 1Gi |
+| Loki | 500m | 512Mi | 50Gi |
+| Tempo | 500m | 512Mi | 20Gi |
 
 ---
 

@@ -17,6 +17,7 @@ All external webhooks are normalized into a unified **OrchestratorEvent** and de
 | `mr.merged` | VCS | Signal (`mrMerged`) |
 | `mr.changes_requested` | VCS | Signal (`changesRequested`) |
 | `gate.approved` | Dashboard / API | Signal (`gateApproved`) |
+| `workflow.unblock` | Dashboard / API | Signal (`workflowUnblock`) — Retry a blocked workflow. Payload: `{ reason: string }`. Only effective when workflow is in `BLOCKED_RECOVERABLE` state. |
 
 Human gate approvals: `POST /workflows/:id/gates/:gateId/approve` → sends `gateApproved` signal. The Workflow parks at `condition()` until the signal arrives or the timeout elapses.
 
@@ -82,6 +83,10 @@ steps:
     signal: gateApproved | changesRequested
     condition:
       always: true
+    require_artifacts:                   # Optional — gate checks artifacts exist before allowing approval
+      - kind: merge_request              # At least one artifact of this kind must be published
+    review_context:                      # Artifacts to surface to the reviewer
+      artifacts: [merge_request]
     timeout_hours: 72
     on_approved: done
     on_changes_requested: review_fix_loop
@@ -109,11 +114,45 @@ steps:
     action: close_workflow
 
   - id: blocked
-    type: terminal
+    type: recovery                  # Non-terminal — supports unblock signal and manual retry
+    subtypes:
+      recoverable:                  # Transient: sandbox capacity, API rate limit, budget exhausted
+        on_unblock: retry_step      # workflow.unblock signal retries the blocked step
+      terminal:                     # Permanent: max fix iterations exceeded, security violation
+        cleanup_timeout_hours: 24   # Auto-cleanup after timeout
     action: cleanup_and_escalate    # Meaningful progress = at least one commit pushed to the branch.
                                     # If branchName exists on remote with commits beyond base branch:
                                     #   preserve the branch and MR (mark as draft), escalate to human.
                                     # If no commits pushed: delete branch + close MR, escalate to human.
+```
+
+#### BLOCKED State Recovery
+
+The `BLOCKED` state is **non-terminal** and supports recovery:
+
+| Subtype | Condition | Behavior |
+|---------|-----------|----------|
+| `BLOCKED_RECOVERABLE` | Transient failures (sandbox capacity, API rate limit, budget exhausted temporarily) | Can be retried via unblock signal |
+| `BLOCKED_TERMINAL` | Permanent failures (max fix iterations exceeded, security violation) | Requires manual intervention; sandbox cleanup after configurable timeout |
+
+**Unblock Signal**: `workflow.unblock`
+- Transitions `BLOCKED_RECOVERABLE` → retries the blocked step (e.g., back to `IMPLEMENTING` or `CI_FIXING`)
+- Ignored if workflow is in `BLOCKED_TERMINAL`
+
+**Retry API**:
+```
+POST /workflows/:id/retry?from_step={stepId}
+```
+- Restarts workflow execution from a specific step
+- Validates that the workflow is in `BLOCKED` state
+- Creates a new `WORKFLOW_EVENT` with `type: 'manual_retry'`
+- Resets the fix iteration counter if retrying from `IMPLEMENTING`
+
+**State Transitions**:
+```
+BLOCKED_RECOVERABLE → (workflow.unblock signal) → IMPLEMENTING | CI_FIXING
+BLOCKED_TERMINAL → (manual retry API) → IMPLEMENTING
+BLOCKED_TERMINAL → (timeout: 24h default) → cleanup sandbox, archive workflow
 ```
 
 The DSL is dramatically simpler — no separate `validate_task`, `enrich_context`, `create_branch`, `open_mr` steps. The agent handles all of these internally via MCP + built-in tools.
@@ -128,9 +167,10 @@ The DSL is dramatically simpler — no separate `validate_task`, `enrich_context
 |---|---|---|
 | `auto` step | Runs a Temporal Activity | `workflow.executeActivity(action, options)` |
 | `signal_wait` step | Waits for an external signal (webhook) or timeout | `condition(() => signalReceived, { timeout })` — Workflow-level, no Activity |
-| `gate` step | Requires explicit human approval (approval signal or timeout) | Same as `signal_wait` with approval semantics |
+| `gate` step | Requires explicit human approval (approval signal or timeout). Optionally validates required artifacts before allowing approval | Same as `signal_wait` with approval semantics + artifact validation |
 | `loop` step | Adaptive iteration with configurable strategy — progress detection, regression handling, escalation | `loop` in Workflow code with `LoopState` tracking |
 | `terminal` step | Final activity (cleanup / close) | `return` after final Activity |
+| `recovery` step | Non-terminal blocked state with recoverable/terminal subtypes. Supports `workflow.unblock` signal and manual retry API | `condition()` waiting for unblock signal or retry, with timeout for cleanup |
 | `parallel` step | Fan-out/fan-in step type | Child Workflows or `Promise.all` |
 | `conditional` transition | Transition conditions based on `AgentResult` or workflow variables | Workflow code branching |
 | `condition` | Evaluated at runtime to decide if gate is active | Workflow code condition |
@@ -259,7 +299,17 @@ stateDiagram-v2
     review_retry --> CI_WATCH: agent fetches comments via MCP, fixes, pushes
     review_retry --> BLOCKED: max review iterations exceeded
 
-    BLOCKED --> CLEANUP: cleanup_and_escalate
+    state blocked_check <<choice>>
+    BLOCKED --> blocked_check
+    blocked_check --> BLOCKED_RECOVERABLE: transient failure
+    blocked_check --> BLOCKED_TERMINAL: permanent failure
+
+    BLOCKED_RECOVERABLE --> IMPLEMENTING: workflow.unblock signal (retry from implement)
+    BLOCKED_RECOVERABLE --> CI_FIXING: workflow.unblock signal (retry from ci_fix)
+
+    BLOCKED_TERMINAL --> IMPLEMENTING: manual retry API
+    BLOCKED_TERMINAL --> CLEANUP: timeout (24h default)
+
     CLEANUP --> [*]: delete branch + close draft MR + notify human
 
     DONE --> [*]
@@ -365,6 +415,105 @@ Conditions support:
 - Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
 
 Implementation: evaluated in Workflow code using a simple expression parser. No arbitrary code execution — only field access and comparison operators.
+
+---
+
+## Agent-Driven Artifacts
+
+Agents can produce any type of deliverable at runtime — code MRs, design updates, test reports, configuration files, images — by calling the `publish_artifact` built-in tool. The orchestrator tracks artifact metadata without understanding artifact internals; artifacts themselves live externally (VCS, Figma, CDN, etc.).
+
+This follows the MCP "tool-mediated artifact" pattern: the agent calls a tool (write action) that produces a typed reference to an external resource. The orchestrator stores the reference, not the artifact.
+
+### Artifact-Aware Gates
+
+Gate steps can optionally require specific artifact kinds before allowing approval:
+
+```yaml
+# Code task — requires a merge request artifact
+- id: review_gate
+  type: gate
+  signal: gateApproved | changesRequested
+  require_artifacts:
+    - kind: merge_request
+  review_context:
+    artifacts: [merge_request, test_report]
+  on_approved: done
+  on_changes_requested: review_fix_loop
+
+# Design task — requires Figma update + design tokens
+- id: design_review_gate
+  type: gate
+  signal: gateApproved | changesRequested
+  require_artifacts:
+    - kind: figma_update
+    - kind: design_token
+  review_context:
+    artifacts: [figma_update, design_token]
+  on_approved: done
+  on_changes_requested: review_fix_loop
+
+# Mixed task — agent decides what to produce
+- id: flexible_review_gate
+  type: gate
+  signal: gateApproved | changesRequested
+  # No require_artifacts — gate allows approval regardless of artifact types
+  review_context:
+    artifacts: [all]                     # Surface all published artifacts to reviewer
+  on_approved: done
+```
+
+**Validation logic**: When `gateApproved` arrives at a gate with `require_artifacts`, the Workflow queries `WORKFLOW_ARTIFACT` for the current workflow. If any required `kind` has no artifact with `status: published`, the approval is rejected and the gate remains active. This is checked before the signal is consumed.
+
+**`review_context`**: Determines what the reviewer sees in the dashboard / API. `artifacts: [all]` shows every artifact published by the workflow. Specific kinds filter the list. Each artifact's `preview_url` is surfaced as the primary review link.
+
+**Backward compatibility**: If `require_artifacts` is omitted, the gate works exactly as before — no artifact validation. Existing DSL definitions are unaffected.
+
+### Artifact Schema
+
+```yaml
+# Gate-level schema additions
+require_artifacts:                       # Optional array
+  - kind: string                         # Free-form artifact kind
+    min_count: int                       # Default: 1 — minimum artifacts of this kind
+
+review_context:
+  artifacts: string[]                    # List of artifact kinds to show, or ['all']
+```
+
+```typescript
+const GateArtifactRequirement = z.object({
+  kind: z.string(),
+  min_count: z.number().min(1).default(1),
+});
+
+const ReviewContext = z.object({
+  artifacts: z.array(z.string()),        // ['merge_request', 'test_report'] or ['all']
+});
+```
+
+### Artifact Lifecycle
+
+| Status | Meaning | Transition |
+|---|---|---|
+| `draft` | Agent published an in-progress artifact (e.g., draft MR) | Agent publishes with `status: draft` |
+| `published` | Artifact is complete and ready for review | Agent updates to `published`, or publishes directly as `published` |
+| `superseded` | Replaced by a newer version (e.g., agent re-created MR after force-push) | Agent publishes a new artifact of the same `kind`; previous one auto-superseded |
+| `rejected` | Reviewer rejected the artifact | Gate rejection → artifacts marked `rejected`; agent may re-publish after fix |
+
+**Auto-supersede logic**: When an agent publishes an artifact with the same `kind` + `workflow_id` as an existing `published` artifact, the previous one transitions to `superseded`. This handles the common case of an MR being force-pushed or a Figma file being updated multiple times.
+
+### Completion Model
+
+Workflow success is now artifact-aware:
+
+```
+DONE = all require_artifacts satisfied + gate approved
+```
+
+- **Code task**: agent publishes `kind: merge_request` → reviewer approves via PR → gate passes
+- **Design task**: agent publishes `kind: figma_update` + `kind: design_token` → reviewer approves via Figma link → gate passes
+- **Mixed task**: agent publishes both code and design artifacts → review gate shows both → single approval
+- **No `require_artifacts`**: gate passes on `gateApproved` signal alone (current behavior preserved)
 
 ---
 

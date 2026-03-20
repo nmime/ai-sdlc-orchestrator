@@ -27,7 +27,7 @@ graph TB
         EN[Event Normalizer]
         DSL[DSL Compiler<br>YAML → Temporal Workflow]
         TW[Temporal Workflows<br>Orchestration logic]
-        TA[Temporal Activities<br>invokeAgent · cost · mirror · cleanup]
+        TA[Temporal Activities<br>invokeAgent · cost · mirror · artifacts · cleanup]
         CT[Cost Tracker]
         GC[Gate Controller<br>Temporal Signals]
     end
@@ -50,7 +50,11 @@ graph TB
     end
 
     subgraph AppDB["APPLICATION DB"]
-        PG[(PostgreSQL + RLS<br>Tenants · Costs · Configs · DSL)]
+        PG[(PostgreSQL + RLS<br>Tenants · Costs · Configs · DSL · Artifact metadata)]
+    end
+
+    subgraph ObjStore["OBJECT STORAGE"]
+        S3[(S3 / GCS / MinIO<br>Artifact files: images, reports, exports)]
     end
 
     JH --> EN
@@ -76,6 +80,7 @@ graph TB
     TS --> TDB
     TS --> TUI
     Core --> PG
+    TA -->|upload artifacts| S3
 ```
 
 ### Supported Platforms
@@ -98,10 +103,10 @@ Adding a new platform = adding a thin webhook handler (~50-100 lines) + configur
 |---|---|
 | **Webhook Handler** | Verify signature, extract event type + entity ID, normalize to `OrchestratorEvent`. ~50 lines per platform |
 | **Temporal Workflow** | Orchestration only — calls activities, handles signals, gates, timers. No I/O, no business logic |
-| **Temporal Activity** | Side-effect unit. `invokeAgent` (the main one), `updateMirror`, `trackCost`, `cleanupBranch`. Idempotent |
+| **Temporal Activity** | Side-effect unit. `invokeAgent` (the main one), `updateMirror`, `trackCost`, `cleanupBranch`, `persistArtifacts`. Idempotent |
 | **AiAgentPort** | Provider-agnostic abstraction — `AgentProviderRegistry` resolves the correct adapter at runtime based on repo config → tenant config → system default. Two methods: `invoke()` and `cancel()` |
 | **SandboxPort** | Sandbox abstraction — two implementations: `E2bSandboxAdapter` (E2B Cloud/BYOC) and `K8sSandboxAdapter` (Agent Sandbox + Kata). Backend selected per deployment model |
-| **Agent Sandbox** | Dedicated microVM per session (Firecracker via E2B, or Kata Containers via K8s Agent Sandbox) + credential proxy service. Agent does all platform interaction via tenant's MCP servers. Creates branches, MRs, fetches context, transitions statuses |
+| **Agent Sandbox** | Dedicated microVM per session (Firecracker via E2B, or Kata Containers via K8s Agent Sandbox) + credential proxy service. The credential proxy authenticates sandbox sessions and proxies VCS credentials, MCP server routing, and **AI provider API calls** (sandboxes connect to `/ai-api/{provider}/*` for AI model access without holding API keys). Agent does all platform interaction via tenant's MCP servers. Creates branches, MRs, fetches context, transitions statuses. **Publishes artifacts** via `publish_artifact` built-in tool — agent decides at runtime what deliverables to produce (MRs, design files, test reports, images). See [Sandbox & Security — AI API Proxy](sandbox-and-security.md#ai-api-proxy), [Integration — Artifact Publishing](integration.md) |
 | **Webhook Resilience** | Durable ingestion (write-first), polling fallback via Temporal Schedule, periodic reconciliation job |
 
 ---
@@ -199,7 +204,7 @@ ai-sdlc-orchestrator/
 │   │       │                          #   TenantVcsCredential, TenantRepoConfig,
 │   │       │                          #   WebhookDelivery, WorkflowMirror,
 │   │       │                          #   WorkflowEvent, AgentSession, AgentToolCall,
-│   │       │                          #   WorkflowDsl)
+│   │       │                          #   WorkflowDsl, WorkflowArtifact)
 │   │       ├── repository/
 │   │       └── migration/
 │   │
@@ -217,8 +222,11 @@ ai-sdlc-orchestrator/
 │   │                                  # spawned from pre-installed binaries (common) or downloaded
 │   │                                  # at sandbox startup (custom, adds latency). url-type MCP servers
 │   │                                  # (remote) require no local binaries
-│   ├── Dockerfile.credential-proxy    # Standalone service — injects VCS PAT + MCP
-│   │                                  # tokens into sandbox requests via authenticated HTTPS
+│   ├── Dockerfile.credential-proxy    # Standalone service — proxies VCS credentials, MCP
+│   │                                  # server routing, and AI provider API calls into
+│   │                                  # sandbox requests via authenticated HTTPS. Sandboxes
+│   │                                  # connect to /ai-api/{provider}/* for AI model access
+│   │                                  # without holding API keys
 │   └── Dockerfile.dashboard
 │
 ├── .helm/

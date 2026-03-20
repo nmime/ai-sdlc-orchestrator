@@ -58,7 +58,7 @@ graph LR
 **MVP:** Nx monorepo boots, Temporal Workflow executes a no-op Activity, all entities exist in PostgreSQL with RLS.
 
 - Nx monorepo: `orchestrator-api`, `orchestrator-worker`, `workflow-dsl`, `common/*`, `db`
-- NestJS + Fastify bootstrap with healthcheck endpoints (`/health/live`, `/health/ready`)
+- NestJS + Fastify bootstrap with three-tier healthcheck endpoints (`/health/live`, `/health/ready`, `/health/business`) via `@nestjs/terminus`. See [Deployment — Healthcheck Endpoints](deployment.md)
 - `AiAgentPort` interface — single `invoke()` method (the only port in the system)
 - `libs/common/temporal/` — Temporal client factory, Worker factory, interceptors
 - Docker Compose: app PostgreSQL + PgBouncer + Temporal auto-setup (server + UI + Elasticsearch for visibility) + agent Docker container for local dev fallback
@@ -151,6 +151,11 @@ graph LR
 - **DSL patch management dashboard** — version distribution, drain status, deprecation warnings
 - **DSL validation CLI** — `dsl validate`, `dsl diff`, `dsl drain-status` commands
 
+#### Self-Service Testing Endpoints
+- `POST /test/mcp-connectivity` — validate MCP server configurations without launching an agent session
+- `POST /test/sandbox` — boot a sandbox, run health check, destroy (validates template + credentials)
+- `POST /test/agent-dry-run` — run agent with a mock task in sandbox, verify tool access, return structured report
+
 ## Phase 5 — Full Custom Dashboard (3–4 weeks)
 
 **MVP:** Full workflow lifecycle visible in custom dashboard with real-time updates and alerting.
@@ -176,6 +181,12 @@ graph LR
 - OpenHands + Aider agent support via `AiAgentPort` adapters
 - Team management, audit log viewer
 
+#### Temporal Cloud Option
+- `temporal.mode: 'cloud' | 'self-hosted'`
+- Cloud mode eliminates: self-hosted Temporal cluster, Elasticsearch for visibility, dedicated PostgreSQL for Temporal
+- Trade-off: ~$200–500/mo vs. operational complexity of self-hosted cluster
+- Recommended for SaaS deployments; self-hosted required for regulated/air-gapped environments
+
 ---
 
 ## Open Questions
@@ -186,7 +197,7 @@ graph LR
 |---|---|---|
 | **MikroORM vs Prisma** | **MikroORM** | Unit of Work, explicit transactions, better for Activity-level DB control where you need to confirm DB write before marking Activity complete |
 | **Temporal DB: shared or dedicated PostgreSQL?** | **Dedicated** | Separate instance for isolation, independent scaling, simpler DR. SaaS with many tenants needs this |
-| **Agent sandbox isolation** | **Multi-backend via `SandboxPort`** | Two backends selected per deployment model: (1) **E2B** (Cloud or BYOC) for SaaS — Firecracker microVM, purpose-built for AI agents, fastest time-to-market. (2) **K8s Agent Sandbox + Kata Containers** for regulated/banking/on-prem — K8s-native CRDs, hardware VM isolation (0 hypervisor-escape CVEs), runs in same cluster, NetworkPolicy per template. `SandboxPort` abstraction lets the orchestrator core remain backend-agnostic. See [Sandbox & Security](sandbox-and-security.md) and [Sandbox Research](sandbox-research.md) |
+| **Agent sandbox isolation** | **Multi-backend via `SandboxPort`** | Two backends selected per deployment model: (1) **E2B** (Cloud or BYOC) for SaaS — Firecracker microVM, purpose-built for AI agents, fastest time-to-market. (2) **K8s Agent Sandbox + Kata Containers** for regulated/banking/on-prem — K8s-native CRDs, hardware VM isolation (0 hypervisor-escape CVEs), runs in same cluster, NetworkPolicy per template. `SandboxPort` abstraction lets the orchestrator core remain backend-agnostic. See [Sandbox & Security](sandbox-and-security.md) |
 | **Agent reliability for MR creation** | **`cleanupBranch` Activity** | When workflow reaches BLOCKED, a cleanup Activity deletes the remote branch and closes any draft MR. Prevents orphaned resources |
 | **`resumeSession` semantics** | **No resume — fresh sessions with `SessionContext`** | Each invocation (implement, ci_fix, review_fix) is a fresh agent session. `SessionContext` (server-side ground truth: files modified, test output, tool call summary) + existing branch state provides continuity. No conversation history persistence needed |
 | **Credential proxy isolation** | **External service model** (separate host) | Credential proxy runs as a standalone K8s service, not a sidecar. E2B sandbox and credential store are on completely separate hosts — stronger isolation than sidecar model. Session-scoped JWT authentication. See [Sandbox & Security — Credential Proxy](sandbox-and-security.md) |
@@ -200,6 +211,7 @@ graph LR
 | **Credential proxy high availability** | **2+ replicas, PDB, GIT_ASKPASS circuit breaker** | PodDisruptionBudget (minAvailable: 1), pod anti-affinity across nodes. Circuit breaker in sandbox: if proxy unreachable after 3 retries, fail open with 60s cached credentials. `/healthz` + `/livez` endpoints |
 | **Agent prompt injection** | **Three-layer defense-in-depth** | (1) Input sanitization: strip known injection patterns from task descriptions. (2) Output validation: scan MR descriptions, commit messages for credentials/suspicious content. (3) Credential proxy anomaly detection: flag unusual API patterns. See [Integration — Prompt Injection Defense](integration.md) |
 | **Agent output quality** | **Two-phase verification + quality scoring** | Phase 1: existence checks. Phase 2: quality gates, diff limits, scope, description, commit messages, injection scan. Composite `quality_score` (0.0–1.0) for analytics. See [Deployment — Agent Output Scoring](deployment.md) |
+| **Agent model routing per task complexity** | **Label-based model routing** | `TENANT_REPO_CONFIG.model_routing` (JSONB) maps task complexity labels to models. Example: `{"trivial": "claude-haiku-4-5", "standard": "claude-sonnet-4-6", "complex": "claude-opus-4-6"}`. Resolution chain: task label → model_routing → repo agent_model → tenant default_agent_model → system default |
 | **Fix loop iterations** | **Adaptive `loop_strategy` with progress detection** | Replaces fixed `max_iterations: 3`. LoopState tracks errors_before/after per iteration. Decision logic: hard stop, no-progress detection, regression handling, escalation. Backward compatible — default strategy matches old behavior. See [Workflow Engine — Adaptive Loop Strategy](workflow-engine.md) |
 | **`@anthropic-ai/claude-agent-sdk` availability** | **Encapsulated inside `ClaudeAgentAdapter`** | SDK wrapped by adapter implementing `AiAgentPort`. If SDK unavailable, adapter uses `@anthropic-ai/sdk` Messages API + tool use. No impact on orchestrator core or other providers |
 
@@ -211,7 +223,6 @@ graph LR
 | **Elasticsearch vs OpenSearch for Temporal visibility** | Both supported by Temporal. Elasticsearch is the default. OpenSearch is fully open-source (no licensing concerns). For self-hosted SaaS, OpenSearch may be preferable | Phase 1a start |
 | **Agent conversation log storage** | `AGENT_TOOL_CALL` captures tool calls, but full conversation logs (reasoning, intermediate thoughts) could be valuable for debugging. Storage cost vs debugging value. Consider: store full logs in object storage (S3/GCS), reference from `AGENT_SESSION`, 30-day retention | Phase 2 |
 | **Multi-repo review gate UX** | Parent workflow has N child MRs. Does the reviewer approve each MR individually (N approvals) or approve the parent workflow (1 approval, auto-merges all)? Former is safer but slower | Phase 3 |
-| **Agent model routing per task complexity** | Default cost cap $5/task. Simple tasks (typo fix) cost ~$0.50 with Opus, could use Haiku/Sonnet for 5-10x savings. Complex tasks (refactor auth module) may need $20-50. `cost_tiers` provides per-label budgets but not model selection. Consider: task label → model mapping, or let agent start with cheap model and escalate | v2 |
 | **Sandbox backpressure** | If 50 workflows start simultaneously, 50 sandbox creation calls hit E2B API (or 50 SandboxClaims created). Temporal's `maxConcurrentActivityTaskExecutions` limits per-worker, but cluster-wide surge needs capacity planning. Admission control (`max_concurrent_sandboxes`) provides per-tenant limit but not global backpressure | Phase 2 |
 | **Agent Sandbox maturity** | K8s Agent Sandbox is alpha (v0.2.1). `SandboxPort` abstraction mitigates risk — E2B backend is production-ready today. Monitor Agent Sandbox for beta/GA. If it stalls, the Kata backend can be implemented directly against K8s API without the Agent Sandbox CRDs | Phase 2+ |
 | **Agent Sandbox warm pool sizing** | Warm pool size affects startup latency vs resource cost. Need benchmarking: how many concurrent sandboxes per KVM node? What's the optimal warm pool size for p95 < 1s allocation? Auto-scaling warm pool based on queue depth | Phase 2 |
