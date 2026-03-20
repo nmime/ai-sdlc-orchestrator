@@ -40,13 +40,13 @@ interface SandboxPort {
 
 interface SandboxCreateParams {
   templateId: string;                  // E2B template ID or SandboxTemplate name
-  envVars: Record<string, string>;     // AI_PROVIDER_API_KEY, SESSION_TOKEN, etc.
+  envVars: Record<string, string>;     // SESSION_TOKEN, AI_API_BASE_URL, CREDENTIAL_PROXY_URL, TRACEPARENT
   timeoutSeconds: number;
   metadata: Record<string, string>;    // workflowId, tenantId, sessionId
 }
 ```
 
-**Sandbox Pause/Resume**: Between CI fix iterations (`ci_fix` → `ci_watch` → `ci_fix`), the sandbox can be paused to avoid billing while CI runs. If `ci_watch` resolves within 15 minutes, the sandbox is resumed (skipping clone + setup). If CI takes longer or succeeds, the sandbox is destroyed. E2B Cloud: paused sandboxes incur zero compute cost. Agent Sandbox (Kata): pod is scaled to zero replicas. If resume fails (e.g., sandbox evicted), a fresh sandbox is created as fallback.
+**Sandbox Pause/Resume**: Between CI fix iterations (`ci_fix` → `ci_watch` → `ci_fix`), the sandbox can be paused to avoid billing while CI runs. If `ci_watch` resolves within 15 minutes, the sandbox is resumed (skipping clone + setup). If CI takes longer or succeeds, the sandbox is destroyed. E2B Cloud: paused sandboxes incur zero compute cost. Agent Sandbox (Kata): pod is deleted but the workspace PVC is retained. Resume creates a new pod with the same PVC mounted at /workspace, preserving cloned repo and installed dependencies while releasing compute resources. If resume fails (e.g., PVC garbage-collected or node affinity mismatch), a fresh sandbox is created as fallback. PVC retention policy: PVCs are garbage-collected 30 minutes after pause if not resumed.
 
 Two implementations:
 - **`E2bSandboxAdapter`** — wraps `e2b` npm package. Used for SaaS and BYOC deployments
@@ -145,8 +145,9 @@ sandbox:
 │    1. Generate session token (JWT, short-lived, tenant-scoped)      │
 │    2. SandboxPort.create() → E2B SDK:                                │
 │       - Template: agent-sandbox (built from Dockerfile.agent)        │
-│       - Env vars: AI_PROVIDER_API_KEY (injected by credential       │
-│         proxy), SESSION_TOKEN, CREDENTIAL_PROXY_URL, TRACEPARENT   │
+│       - Env vars: SESSION_TOKEN, AI_API_BASE_URL=                   │
+│         $CREDENTIAL_PROXY_URL/ai-api/{provider},                   │
+│         CREDENTIAL_PROXY_URL, TRACEPARENT                          │
 │       - Timeout: startToCloseTimeout + 5-min buffer                 │
 │    3. SandboxPort.exec() → clone repo, install deps, run agent       │
 │    4. Monitor sandbox, heartbeat to Temporal                         │
@@ -162,7 +163,7 @@ sandbox:
 │  Isolation: Firecracker VM boundary — separate kernel, memory,       │
 │             filesystem. Same isolation as AWS Lambda.                 │
 │  /workspace → writable dir                                           │
-│  NO secrets mounted (except AI provider API key)                     │
+│  NO secrets mounted — zero credentials in sandbox                    │
 │  GIT_ASKPASS → calls credential proxy at $CREDENTIAL_PROXY_URL       │
 │  Network: outbound internet (AI provider API, platform APIs, proxy)  │
 └──────────────────────────────────────────────────────────────────────┘
@@ -197,7 +198,7 @@ sandbox:
 │  Isolation: Kata Containers VM boundary — separate kernel, memory,   │
 │             filesystem. Cloud Hypervisor / Firecracker VMM.          │
 │  /workspace → writable dir (PVC for persistence across retries)      │
-│  NO secrets mounted (except AI provider API key)                     │
+│  NO secrets mounted — zero credentials in sandbox                    │
 │  GIT_ASKPASS → calls credential proxy (K8s ClusterIP — private)      │
 │  NetworkPolicy (from SandboxTemplate):                               │
 │    - Egress: AI provider API + credential proxy + public internet    │
@@ -246,7 +247,7 @@ sandbox:
 |---|---|---|
 | **1. Firecracker VM boundary** | Each sandbox is a separate Firecracker microVM with its own kernel. Same isolation technology as AWS Lambda (~50k LoC VMM) | Kernel exploits, sandbox breakout — requires hypervisor exploit to escape. Minimal attack surface compared to QEMU (~1.4M LoC) |
 | **2. Credential proxy service** | Credentials stored in K8s cluster, served via authenticated HTTPS endpoint. Sandbox has no direct access to credential store | Credential theft — sandbox cannot access K8s Secrets. Must authenticate via session token to obtain credentials. Stronger isolation than sidecar model (separate host entirely) |
-| **3. Session token scoping** | Each sandbox gets a unique JWT session token: short TTL, scoped to tenant + session ID. Token is the only credential the sandbox holds (besides AI provider API key) | Cross-session credential reuse, cross-tenant access. Token expires with sandbox |
+| **3. Session token scoping** | Each sandbox gets a unique JWT session token: short TTL, scoped to tenant + session ID. Token is the **only** credential the sandbox holds — no API keys | Cross-session credential reuse, cross-tenant access. Token expires with sandbox |
 | **4. E2B sandbox limits** | Configurable timeout and resource limits per sandbox (CPU, memory, disk) | Resource exhaustion, runaway processes |
 | **5. Agent SDK limits** | `maxTurns`, `costLimitUsd` | Runaway sessions, cost overruns |
 | **6. Ephemeral sandboxes** | Sandbox destroyed after session — no persistent state between sessions. E2B handles cleanup | Cross-session data leakage |
@@ -264,8 +265,13 @@ sandbox:
 - **E2B BYOC** — sandboxes in customer VPC. Standard AWS networking controls (Security Groups, NACLs, PrivateLink). Can operate in private subnets with no public internet
 - **Agent Sandbox + Kata** — **K8s NetworkPolicy per SandboxTemplate CRD**. Secure-by-default: blocks all private IPs (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), allows public internet only. Custom egress rules allowlist credential proxy + AI provider API. Works with any NetworkPolicy-capable CNI (Calico, Cilium). Dynamic updates — changing template policy updates all sandboxes
 
+**Network reachability constraints:**
+- **E2B Cloud** — sandboxes have **public internet access only**. Tenants with internal/private MCP servers (e.g., `http://internal-tools.corp.net/mcp`) cannot use E2B Cloud as the sandbox backend for those workflows. Options: (1) Use E2B BYOC with VPC peering to internal networks, (2) Use Agent Sandbox + Kata in the same cluster as the internal services, (3) Expose the internal MCP server via a public endpoint with mutual TLS authentication (not recommended for security-sensitive servers). This limitation applies only to `url`-type MCP servers pointing to private endpoints — public MCP servers and `command`-type (local process) MCP servers work on all backends.
+- **E2B BYOC** — sandboxes in customer VPC can reach internal services via standard VPC networking (peering, PrivateLink, Transit Gateway)
+- **Agent Sandbox + Kata** — sandboxes in the same K8s cluster can reach any ClusterIP or internal DNS endpoint via NetworkPolicy-controlled egress
+
 Mitigations (all backends):
-- **Credential proxy is the only source of secrets** — even with unrestricted egress, the agent has no credentials to exfiltrate (except the AI provider API key and the session token)
+- **Credential proxy is the only source of secrets** — even with unrestricted egress, the agent has no credentials to exfiltrate (the session token is the only credential in the sandbox)
 - **Session token is short-lived** — expires when the sandbox is destroyed, scoped to one session
 - **Agent prompt hardening** — system prompt instructs the agent to never access unauthorized endpoints
 - **Credential proxy audit logging** — all credential requests logged for post-incident analysis
@@ -280,7 +286,7 @@ E2B sandboxes enforce the following security posture:
 | Root access | Non-root user (configurable in template) |
 | Timeout | `startToCloseTimeout` + 5-min buffer |
 | Credential access | Session token only (no raw VCS/MCP credentials) |
-| AI provider API key | Environment variable (agent needs it for AI provider API calls) |
+| AI API access | Via credential proxy AI API endpoint ($AI_API_BASE_URL) — no API keys in sandbox |
 | Persistent storage | None — ephemeral filesystem destroyed on sandbox termination |
 
 **Ingress policy:** E2B sandboxes have no exposed ports — no inbound connections are possible except via the E2B SDK. The sandbox can only be controlled by the `invokeAgent` Activity that created it.
@@ -293,7 +299,7 @@ The credential proxy runs as a **standalone K8s service** (Deployment + Service)
 
 ### Architecture
 
-- **E2B sandbox:** No secrets mounted (except AI provider API key). `GIT_ASKPASS` environment variable points to a script that calls the credential proxy at `$CREDENTIAL_PROXY_URL` with the session token
+- **E2B sandbox:** No secrets mounted — zero credentials. `GIT_ASKPASS` environment variable points to a script that calls the credential proxy at `$CREDENTIAL_PROXY_URL` with the session token
 - **Credential proxy service:** K8s Deployment + Service. K8s Secrets mounted (VCS PATs, MCP tokens, signing key). Authenticates requests via JWT session token. Implements git credential protocol and MCP token endpoints
 - **Communication:** HTTPS from E2B sandbox to credential proxy. Session token in `Authorization: Bearer` header
 - **Session tokens:** Generated by the `invokeAgent` Activity before sandbox creation. JWT with claims: `tenantId`, `sessionId`, `exp` (sandbox timeout + buffer). Signed with an HMAC key stored in K8s Secrets. Validated by the proxy on every request
@@ -309,7 +315,9 @@ The credential proxy runs as a **standalone K8s service** (Deployment + Service)
 
 Agent Sandbox + Kata in the same K8s cluster is the most secure option: the credential proxy is a ClusterIP Service (no Ingress, no public IP), and sandbox-to-proxy communication is entirely within the cluster network. NetworkPolicy on the SandboxTemplate explicitly allows egress to the credential proxy's ClusterIP.
 
-> **AI Provider API key:** The credential proxy injects the appropriate provider API key (e.g., Anthropic, OpenAI, Google) based on the tenant's `agent_provider_api_key_refs` JSONB configuration. Each provider key is stored as a separate K8s secret. Unlike VCS PATs and MCP tokens, the API key is intentionally accessible to the agent process — the agent needs it to call the AI provider API directly. This is the one credential the sandbox holds besides the session token.
+**End-to-end TLS requirement (E2B Cloud):** For E2B Cloud deployments, TLS must be maintained from the sandbox to the credential proxy pod — not just terminated at the Ingress. Two options: (1) **Pod-level TLS**: credential proxy terminates TLS directly (TLS certificate mounted as K8s Secret), Ingress configured as TLS passthrough. (2) **Service mesh**: Istio/Linkerd provides automatic mTLS between all pods, including Ingress → proxy. Option 1 is simpler for single-service TLS; option 2 is preferred if the cluster already runs a service mesh. Without either, credentials transit in plaintext between the Ingress pod and the proxy pod within the cluster network.
+
+> **AI API Access:** The credential proxy's AI API endpoint (`/ai-api/{provider}/*`) injects the appropriate provider API key server-side. The sandbox receives only `AI_API_BASE_URL` pointing to the proxy — no API keys are stored in the sandbox. See [AI API Proxy](#ai-api-proxy) below.
 
 ### GIT_ASKPASS Flow
 
@@ -405,7 +413,7 @@ Health-check-based load balancing with connection draining (30s grace period) on
 ### Threat Model & Limitations
 
 The credential proxy pattern provides strong **accidental exposure prevention**:
-- No credentials in environment variables (except AI provider API key) — agent cannot read `/proc/self/environ` to obtain VCS/MCP secrets
+- No credentials in environment variables — AI provider API access is proxied via $AI_API_BASE_URL
 - No credentials on filesystem — sandbox has no mounted secrets
 - Session token is the only bearer credential, and it only grants access to the proxy endpoints (not raw credential storage)
 
@@ -486,7 +494,15 @@ The agent sandbox template (built from `Dockerfile.agent`) is managed differentl
 
 - **Template CI pipeline** — `Dockerfile.agent` changes trigger: build (E2B template + OCI image) → deploy to staging → smoke test (clone test repo, `npm ci`, `tsc`, `jest`) → promote
 - **In-flight safety** — running sandboxes use the template they were created with. Updates only affect new sandboxes
-- **Supply chain security** — base images pinned by digest (`FROM node:22@sha256:...`). Trivy scanning in CI — critical CVEs block promotion
+- **Supply chain security** — defense-in-depth for the agent sandbox image:
+  - **Base images** pinned by digest (`FROM node:22@sha256:...`). No floating tags
+  - **Container scanning**: Trivy in CI — critical/high CVEs block promotion
+  - **SBOM generation**: Syft generates Software Bill of Materials per template build, stored alongside template in registry
+  - **npm/pip lockfiles**: `package-lock.json` / `requirements.lock` committed with integrity hashes (`npm ci --ignore-scripts` enforced). MCP server packages (context7, smart-tree, sequential-thinking) pinned to exact versions with integrity verification
+  - **npm audit**: runs in template CI — critical advisories block promotion
+  - **No post-install scripts**: `--ignore-scripts` flag prevents npm package post-install scripts from executing during template build
+  - **Image signing**: Cosign signatures on template images (OCI registry). Signature verification before warm pool pre-pull (Agent Sandbox backend)
+  - **MCP server package verification**: MCP servers installed from npm are audited for known supply chain indicators (typosquatting, obfuscated code, excessive permissions). Registry-verified MCP servers (`MCP_SERVER_REGISTRY.is_verified = true`) have passed this audit
 
 ---
 
@@ -525,7 +541,7 @@ Credentials are stored in K8s Secrets and served by the credential proxy:
 | Layer | Mechanism |
 |---|---|
 | **Hardware-level isolation** | Each agent session runs in a dedicated E2B Firecracker microVM. Separate kernel, memory, filesystem, network stack. Same isolation as AWS Lambda. Escape requires a Firecracker hypervisor exploit |
-| **Zero-credential sandbox** | Sandbox has **no mounted secrets, no VCS/MCP token env vars**. Only the AI provider API key is present (injected by credential proxy based on tenant's `agent_provider_api_key_refs`). Other credentials served only via authenticated credential proxy. Even a VM escape yields zero additional credentials from the sandbox (credentials are on the K8s cluster, not in the sandbox VM) |
+| **Zero-credential sandbox** | Sandbox has **no mounted secrets, no API keys, no VCS/MCP token env vars**. All credentials (VCS PATs, MCP tokens, AI provider API keys) are served exclusively via the authenticated credential proxy. The sandbox holds only a session token and proxy URL. Even a VM escape yields zero additional credentials from the sandbox (credentials are on the K8s cluster, not in the sandbox VM) |
 | **Session-scoped authentication** | Each sandbox gets a unique JWT session token, scoped to tenant + session. Cannot access other tenants' credentials even if the proxy endpoint is known |
 | **No cross-session leakage** | Sandbox destroyed after session completion. No persistent state — E2B handles cleanup automatically |
 | **Credential proxy tenant scoping** | Proxy validates `tenantId` claim in session token. Returns only that tenant's credentials. Separate K8s Secrets per tenant |

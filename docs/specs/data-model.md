@@ -39,7 +39,7 @@ erDiagram
         int budget_version
         varchar mcp_server_policy
         int max_concurrent_sandboxes
-        varchar onboarding_status
+        varchar status
         jsonb meta
         timestamptz created_at
         timestamptz updated_at
@@ -232,6 +232,7 @@ erDiagram
         varchar provider
         varchar email
         varchar role
+        jsonb repo_access
         timestamptz created_at
     }
 
@@ -348,12 +349,15 @@ erDiagram
 - **Repo-level quality controls** — `TENANT_REPO_CONFIG` gains `max_diff_lines`, `allowed_paths`, `commit_message_pattern`, `mr_description_template`, `quality_gate_commands` to enforce output quality at the repo level. `cost_tiers` JSONB maps task complexity labels to dollar limits
 - **Sparse checkout** — `clone_strategy` now supports `'sparse'` in addition to existing options. `sparse_checkout_paths` JSONB lists directories to include, optimizing clone time for monorepos
 - **Concurrency hints** — `TENANT_REPO_CONFIG.concurrency_hints` enables per-repo concurrency tuning: `"auto"` mode uses path isolation to allow concurrent workflows on non-overlapping file paths; `"manual"` mode preserves default serial execution
-- **Tenant onboarding** — `TENANT.onboarding_status` (`'pending'` / `'provisioning'` / `'active'`) tracks the tenant provisioning lifecycle (Temporal namespace creation, webhook registration, credential setup)
+- **Tenant onboarding** — `TENANT.status` tracks the tenant provisioning lifecycle (Temporal namespace creation, webhook registration, credential setup). See DD-36 for the full lifecycle including offboarding
 - **E2B admission control** — `TENANT.max_concurrent_sandboxes` limits parallel sandbox usage per tenant, preventing resource exhaustion and enabling fair multi-tenant scheduling
 - **DD-31: MCP protocol version tracking** — `MCP_SERVER_REGISTRY.protocol_version` (default `'2025-03-26'`) records the MCP protocol version supported by each registered server. Enables compatibility checks when connecting agents to MCP servers and supports future protocol upgrades
 - **DD-32: Label-based model routing** — `TENANT_REPO_CONFIG.model_routing` enables per-repo cost optimization by routing trivial tasks to cheaper models. Resolution chain: task label → `model_routing` → repo `agent_model` → tenant `default_agent_model` → system default. Example: `{"trivial": "claude-haiku-4-5", "standard": "claude-sonnet-4-6", "complex": "claude-opus-4-6"}`
 - **DD-33: Agent-driven workflow artifacts** — `WORKFLOW_ARTIFACT` tracks any deliverable the agent produces at runtime. `kind` is a free-form string (not an enum) so new artifact types require no schema changes — the agent decides what to produce based on the task. `uri` points to the canonical location (MR URL, Figma link, CDN URL, file path in repo). `preview_url` provides a human-reviewable link for non-code artifacts (Figma preview, Storybook deploy, etc.). `metadata` JSONB holds arbitrary structured data (diff stats, coverage %, Figma node IDs). `status` lifecycle: `draft` → `published` → `superseded` (replaced by a newer version) or `rejected` (reviewer rejected). The agent publishes artifacts via the `publish_artifact` built-in tool (see [Integration — Agent Tools](integration.md)). Gate steps can optionally require specific artifact kinds via `require_artifacts` (see [Workflow Engine — Artifact-Aware Gates](workflow-engine.md)). Follows the MCP "tool-mediated artifact" pattern: tools produce artifacts as side effects; the orchestrator tracks references without understanding artifact internals
 - **DD-34: Artifact entity indexing** — `WORKFLOW_ARTIFACT` is indexed on `(workflow_id, kind)` for gate validation queries and `(tenant_id, created_at)` for dashboard listing. Partitioned monthly alongside `WORKFLOW_EVENT`. `content` column is optional — large artifacts live externally (VCS, Figma, CDN), only small inline artifacts (JSON configs, summaries) are stored directly
+- **DD-35: Scoped RBAC with team-level permissions** — `TENANT_USER.role` provides tenant-wide access (`admin` / `operator` / `viewer`). For enterprises with multiple teams sharing a tenant, `TENANT_USER.repo_access` (JSONB, nullable) adds per-repo permission scoping. When `repo_access` is `null`, the user has access to all repos (current behavior — backward-compatible). When set, it contains an array of `{ repo_id: string, role: 'operator' | 'viewer' }` objects restricting the user's effective role per repo. Example: `[{"repo_id": "backend-api", "role": "operator"}, {"repo_id": "frontend", "role": "viewer"}]`. Tenant-wide `admin` role always has full access regardless of `repo_access`. Gate approvals check `repo_access` — a `viewer` on a repo cannot approve gates for that repo's workflows. API endpoints filter workflow lists and cost dashboards by the user's accessible repos
+- **DD-36: Tenant lifecycle and offboarding** — `TENANT.status` tracks the full lifecycle: `pending` → `provisioning` → `active` → `deactivating` → `deactivated` → `deleted`. The existing `onboarding_status` field is superseded by `status` (migration: map `pending`/`provisioning`/`active` to corresponding `status` values, drop `onboarding_status`). State transitions: `deactivating` rejects new workflows and drains active ones (24h grace). `deactivated` retains data for the configurable retention period (default 90 days). `deleted` executes the erasure workflow — see [Deployment — Right-to-Erasure](deployment.md). The `status` field is enforced in webhook handlers (reject if not `active`), workflow starts (reject if not `active`), and API endpoints (read-only if `deactivating`)
+- **DD-37: Model validation and deprecation handling** — at workflow start, the resolved model ID (from `model_routing` → `agent_model` → `default_agent_model` → system default) is validated against a `SUPPORTED_MODELS` configuration (Helm values, hot-reloadable via ConfigMap). If the model is **deprecated** (in `SUPPORTED_MODELS` with `status: deprecated`): workflow starts with a warning logged, `WORKFLOW_EVENT` records deprecation notice, dashboard shows tenant notification. If the model is **removed** (not in `SUPPORTED_MODELS`): workflow is rejected with `error_code: model_not_available`, clear error message suggests the successor model. **Bulk migration API**: `POST /admin/models/migrate` accepts `{ from: "old-model-id", to: "new-model-id" }` and updates all `TENANT_REPO_CONFIG.agent_model`, `TENANT_REPO_CONFIG.model_routing` values, and `TENANT.default_agent_model` entries matching the old model. Generates an audit trail of all changes
 
 ---
 

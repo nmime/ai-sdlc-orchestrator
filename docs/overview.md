@@ -90,8 +90,8 @@ A simplified end-to-end flow for a single task:
 | **Platform fee** | Pricing TBD | No license fee (TBD — may change) |
 | **AI API costs** | Pass-through at cost — you bring your own API key or use ours with markup | Your own API keys, billed directly by provider |
 | **Sandbox compute** | Per-minute billing for Firecracker microVM runtime | Your infrastructure costs (E2B self-hosted or K8s Agent Sandbox) |
-| **Artifact storage** | Included (S3-backed) | Your object storage (S3 / GCS / MinIO) — sandbox-local files uploaded before sandbox cleanup |
-| **Infrastructure** | Managed by us | K8s cluster + PostgreSQL + Temporal + sandbox backend + object storage |
+| **Artifact storage** | Included (MinIO-backed) | MinIO in your K8s cluster (S3-compatible) — sandbox-local files uploaded before sandbox cleanup |
+| **Infrastructure** | Managed by us | K8s cluster + PostgreSQL + Temporal + sandbox backend + MinIO |
 
 The orchestrator tracks costs at every level: per-task, per-tenant, per-session. Budget reservations, real-time alerts, and configurable caps prevent runaway spending. See [Deployment — Budget & Cost Tracking](specs/deployment.md) for details.
 

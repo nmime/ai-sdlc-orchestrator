@@ -16,9 +16,10 @@
 | **MCP Servers** | Per-tenant list of MCP servers to inject into agent session (platform + productivity + custom). This is the primary integration config |
 | **Workflow DSL** | Path to workflow YAML or stored in app DB per tenant. Gate conditions per label/priority/project |
 | **Temporal** | Server address, namespace, task queue, worker concurrency. For cluster-wide connection limit management with >4 total API+Worker pods, a centralized PgBouncer deployment (K8s Service) is recommended |
+| **Redis** (optional) | Cache layer for budget reservation hot path (reduces PG contention), API/credential-proxy rate limiting counters, session token revocation list replication. Not a required dependency — all Redis-backed features fall back to PostgreSQL when Redis is unavailable. Connection: `redis.url` in config |
 | **Repo Config** | Per-repo: setup, test, lint, typecheck, build commands, branch prefix (`ai/`), agent template ID (E2B template ID or SandboxTemplate CRD name) |
 | **Artifacts** | Agent-produced artifacts tracked in `WORKFLOW_ARTIFACT` (PostgreSQL — metadata, URIs, small inline content only). Sandbox-local files (images, reports, build outputs) uploaded to **object storage** before sandbox destruction. External artifacts (MR URLs, Figma links) need no upload |
-| **Object Storage** | S3 (SaaS/AWS), GCS (GCP), or MinIO (self-hosted). Bucket: `{tenant-slug}/artifacts/{workflow-id}/{artifact-id}/{filename}`. Presigned URLs for reviewer access (1h TTL). Lifecycle policy: 90 days default, configurable per tenant. See [Integration — Artifact Publishing](../specs/integration.md) |
+| **Object Storage** | MinIO (S3-compatible API). Runs as a K8s deployment in both SaaS and self-hosted. Bucket path: `{tenant-slug}/artifacts/{workflow-id}/{artifact-id}/{filename}`. Presigned URLs for reviewer access (1h TTL). Lifecycle policy: 90 days default, configurable per tenant. Application code uses AWS S3 SDK — works with MinIO, AWS S3, or any S3-compatible backend. See [Integration — Artifact Publishing](../specs/integration.md) |
 
 All config validated at startup via Zod. Secrets referenced as `k8s://secret/{name}`, never in config files or Workflow inputs.
 
@@ -88,6 +89,24 @@ After an agent session completes:
 2. Reserved amount is released: `monthly_cost_reserved_usd -= estimated_task_cost`
 3. Actual amount is added: `monthly_cost_actual_usd += total_cost_usd`, `monthly_ai_cost_actual_usd += ai_cost_usd`, `monthly_sandbox_cost_actual_usd += sandbox_cost_usd`
 4. `budget_version` incremented
+
+#### AI Cost Extraction via Credential Proxy
+
+The credential proxy's AI API endpoint (`/ai-api/{provider}/*`) extracts real-time token usage from proxied responses:
+
+**Extraction method** (provider-specific):
+- **Anthropic**: parses the `message_stop` SSE event and the final `message_delta` event which contains `usage.input_tokens` and `usage.output_tokens`
+- **OpenAI**: parses the final SSE chunk containing `usage.prompt_tokens` and `usage.completion_tokens`
+- **Other providers**: falls back to byte-size estimation (configurable tokens-per-byte ratio)
+
+**Flow:**
+1. Proxy streams SSE response from AI provider to sandbox — zero latency impact
+2. Proxy simultaneously parses the stream, extracting the `usage` object from the final event
+3. Usage data accumulated in proxy memory per session token
+4. On session end (sandbox destroy → token revocation), proxy pushes accumulated usage to the orchestrator via internal callback (`POST /internal/sessions/:id/cost`)
+5. Orchestrator records actual cost in `AGENT_SESSION.ai_cost_usd` (calculated from usage × per-token price from provider config)
+
+**Fallback**: if the proxy fails to parse usage from the stream (malformed response, provider format change), cost is estimated from the `AgentResult.cost` field reported by the agent SDK. A `cost_estimation_fallback` metric is incremented for monitoring.
 
 #### Orphaned Reservation Recovery
 
@@ -182,7 +201,7 @@ Per-tenant sandbox limits prevent individual abuse, but the system also needs a 
 
 ## Deployment Topology
 
-Core components: **orchestrator-api**, **orchestrator-worker** (Temporal Worker), **credential-proxy** (standalone service), **agent sandboxes** (E2B or Agent Sandbox + Kata — selected per deployment model via `SandboxPort`), **Temporal cluster** (self-hosted + Elasticsearch for visibility), **App DB** (PostgreSQL + PgBouncer), **Object Storage** (S3 / GCS / MinIO — artifact file uploads), **Observability** (Loki + Prometheus + Grafana).
+Core components: **orchestrator-api**, **orchestrator-worker** (Temporal Worker), **credential-proxy** (standalone service), **agent sandboxes** (E2B or Agent Sandbox + Kata — selected per deployment model via `SandboxPort`), **Temporal cluster** (self-hosted + Elasticsearch for visibility), **App DB** (PostgreSQL + PgBouncer), **Object Storage** (MinIO — S3-compatible, artifact file uploads), **Observability** (Loki + Prometheus + Grafana).
 
 The orchestrator runs in K8s. Agent sandboxes run either externally (E2B Cloud/BYOC) or in the same K8s cluster (Agent Sandbox + Kata). All sandbox interaction goes through `SandboxPort` — the worker code is backend-agnostic.
 
@@ -219,7 +238,7 @@ graph TB
 
         PG[(app-db PostgreSQL 18<br>+ PgBouncer sidecar)]
         SEC[K8s Secrets<br>VCS PATs, MCP tokens, signing key]
-        S3[(Object Storage<br>S3 / GCS — artifact files)]
+        S3[(MinIO<br>S3-compatible artifact storage)]
     end
 
     subgraph E2B["E2B (Cloud or BYOC)"]
@@ -460,6 +479,37 @@ The `SandboxPort` abstraction makes sandbox backend transparent to application c
 
 ---
 
+## Orchestrator Deployment Strategy
+
+### Rolling Updates with Temporal Worker Versioning
+
+Temporal requires strict workflow determinism — changing compiled workflow code breaks replay for in-flight executions. The orchestrator uses **Temporal Worker Build IDs** (Worker Versioning) to safely deploy code changes:
+
+**Deployment procedure:**
+1. **Build new version** — new Docker images for `orchestrator-api` and `orchestrator-worker` with a Build ID (e.g., git commit hash)
+2. **Register Build ID** — register the new Build ID with Temporal as compatible with the current version set (if backward-compatible) or as a new default version set (if breaking)
+3. **Deploy new workers** — rolling update deploys new worker pods. New workers register with the new Build ID
+4. **Task routing** — Temporal routes new workflow tasks to new workers. In-flight workflow tasks continue routing to old workers (matching their Build ID)
+5. **Drain old workers** — once all in-flight workflows on the old Build ID complete, old workers are decommissioned. Monitor via `temporal_workflow_task_queue_backlog` metric per Build ID
+
+**For backward-compatible changes** (bug fixes, new Activity implementations that don't change Workflow code):
+- Register new Build ID as compatible with the current set
+- Both old and new workers can process any workflow task
+- Instant rollout, no draining needed
+
+**For breaking Workflow code changes** (DSL compiler output changes, state machine modifications):
+- Register new Build ID as a **new default version set**
+- New workflows use new workers; old workflows stick to old workers
+- Old worker pods retained until all old-version workflows complete (monitor via `WORKFLOW_MIRROR.dsl_version`)
+
+**API pods** (`orchestrator-api`): standard K8s rolling update with `maxUnavailable: 0`, `maxSurge: 1`. No Temporal versioning concerns — API pods only start workflows and send signals.
+
+**Webhook ingestion during deploy**: PodDisruptionBudget ensures at least one API pod is always available. Durable ingestion (write-first) guarantees no lost webhooks even if a pod restarts mid-request.
+
+**Rollback**: revert to previous Docker image. Register old Build ID as the default version set. New workflows route to rolled-back workers immediately.
+
+---
+
 ## Webhook Resilience
 
 ### Durable Ingestion
@@ -482,6 +532,12 @@ For platforms with unreliable webhooks or as a safety net:
 - `last_poll_at` tracks recency; `poll_interval_seconds` is configurable (default: 300s)
 - Polling is opt-in per repo — `POLLING_SCHEDULE.enabled` flag
 
+**Platform rate limit management:**
+- **Global rate limit per platform** — all polling jobs for a given platform (across all tenants) share a token bucket rate limiter. Default capacities: Jira (100 req/min), GitLab (300 req/min), GitHub (300 req/min), Linear (200 req/min). Configured in system settings
+- **Adaptive polling** — when the platform returns `429 Too Many Requests` or `X-RateLimit-Remaining` drops below 10%, the polling interval for that platform doubles (up to 30 minutes max). Reverts to configured interval after 5 successful polls
+- **Tenant priority** — when rate budget is limited, premium/dedicated tenants' polling jobs execute first. Standard tenants' jobs are deferred
+- **Polling cost metric** — `orchestrator_polling_api_calls_total` (labels: `platform`, `tenant_id`) tracks API usage for capacity planning
+
 ### Reconciliation Job
 
 Periodic Temporal Schedule (every 15 min) performs cross-check:
@@ -489,6 +545,19 @@ Periodic Temporal Schedule (every 15 min) performs cross-check:
 2. Compare against active `WORKFLOW_MIRROR` records
 3. Create missing workflows for tasks that fell through the cracks
 4. Log discrepancies to `orchestrator_reconciliation_missed_tasks_total` metric
+
+### Webhook Secret Rotation
+
+Zero-downtime rotation procedure for webhook verification secrets:
+
+1. **Generate new secret** — create new K8s Secret with the new webhook verification key
+2. **Update orchestrator config** — `TENANT_WEBHOOK_CONFIG` gains `previous_secret_ref` field pointing to the old secret. Webhook handler verifies incoming signatures against **both** the current and previous secrets — if either validates, the webhook is accepted
+3. **Update platform** — register the new secret on the external platform (Jira, GitLab, GitHub, Linear)
+4. **Dual-secret window** — both secrets are valid simultaneously. Duration: configurable, default 24 hours
+5. **Clear previous secret** — after the dual-secret window expires, `previous_secret_ref` is set to null. Scheduled job handles automatic cleanup
+6. **Audit** — all rotation events logged with timestamp, tenant, platform, and initiator
+
+**Automation:** `POST /api/v1/tenants/:id/webhook-configs/:configId/rotate` triggers the rotation workflow. The orchestrator generates a new secret and returns it — the tenant registers it on their platform. The dual-secret window starts immediately.
 
 ---
 
@@ -506,6 +575,26 @@ Periodic Temporal Schedule (every 15 min) performs cross-check:
 - `server_idle_timeout = 300s`
 
 Sidecar mode is the default in Phase 1. Migration to centralized mode is triggered when pod count exceeds threshold.
+
+### PostgreSQL High Availability
+
+| Deployment | HA Strategy | Failover | RPO | RTO |
+|---|---|---|---|---|
+| **SaaS (cloud)** | Managed HA (AWS RDS Multi-AZ / GCP Cloud SQL HA) | Automatic (provider-managed) | 0 (synchronous replication) | < 30s |
+| **Self-hosted (K8s)** | Patroni + streaming replication (2 replicas min) | Automatic (Patroni leader election) | 0 (synchronous) or < 5s (async) | < 30s |
+| **Self-hosted (simple)** | Streaming replication + manual failover | Manual (promote replica) | < 5s | < 5 min |
+
+**Patroni configuration (self-hosted):**
+- Primary + 2 synchronous standby replicas (quorum commit)
+- etcd or K8s API for leader election (DCS)
+- PgBouncer reconnects automatically on failover (follows DNS/Service change)
+- Temporal DB: same HA strategy (dedicated Patroni cluster)
+
+**Post-failover verification:**
+1. PgBouncer health check detects new primary within 10s
+2. Temporal workers reconnect automatically (Temporal SDK has built-in reconnect)
+3. In-flight Activities retry via Temporal's retry policy (no data loss)
+4. Webhook ingestion: durable ingestion pattern ensures no lost events during brief failover window
 
 ### Database Scaling
 
@@ -545,6 +634,32 @@ Read replica routing via PgBouncer: reporting and analytics queries route to rep
 #### Budget Retry Exhaustion
 
 If budget optimistic concurrency retries are exhausted (3 attempts), the workflow start is re-queued with a 30-second delay rather than hard-failing. This prevents budget contention spikes from permanently rejecting workflows.
+
+### Database Migration Strategy
+
+**Expand-contract pattern** for zero-downtime schema changes:
+
+| Phase | Action | Example |
+|---|---|---|
+| **Expand** | Add new columns/tables (nullable or with defaults). Deploy new code that writes to both old and new schema | Add `TENANT.status` column with default `'active'` |
+| **Migrate** | Backfill data from old to new schema. Run as a background job, not in migration transaction | `UPDATE tenant SET status = 'active' WHERE status IS NULL` |
+| **Contract** | Remove old columns/code in a subsequent release. Only after all running code uses the new schema | Drop deprecated column in next release |
+
+**Migration execution:**
+- Migrations run as a **K8s Job** (`migration-runner`) before the main deployment. Helm hook: `pre-install,pre-upgrade`
+- Job uses the same MikroORM migration runner (`mikro-orm migration:up`)
+- Migration Job has its own PgBouncer connection (bypasses transaction pooling — DDL requires direct connection)
+- **Timeout**: 5 minutes per migration. Job fails if any migration exceeds this
+- **Rollback**: MikroORM supports `migration:down`, but we prefer forward-fix (new migration to undo changes) over in-place rollback to maintain migration history integrity
+
+**Partitioned table migrations:**
+- MikroORM doesn't natively support PostgreSQL partitioning DDL. Partitioned tables (`WEBHOOK_DELIVERY`, `AGENT_TOOL_CALL`, `WORKFLOW_EVENT`, `WORKFLOW_ARTIFACT`) use raw SQL migrations
+- Adding a column to a partitioned table: `ALTER TABLE parent ADD COLUMN ...` propagates to all partitions automatically
+- Adding an index: create on parent table with `CONCURRENTLY` (requires raw SQL migration outside a transaction)
+
+**CI validation:**
+- Every PR runs `mikro-orm migration:check` to detect schema drift
+- Migration tests in component test suite: apply all migrations to a fresh Testcontainers PostgreSQL, verify schema matches entity definitions
 
 ---
 
@@ -610,6 +725,24 @@ The Worker ServiceAccount follows least-privilege principles:
 - Both backends: Worker needs session token signing key for credential proxy JWT generation
 - Credential proxy ServiceAccount has its own Role: `get` secrets (VCS PATs, MCP tokens, signing key) in tenant namespaces
 
+### API Versioning
+
+All REST API endpoints use URL-prefix versioning:
+
+```
+/api/v1/tenants/:id/...
+/api/v1/workflows/:id/...
+/api/v1/workflows/:id/gates/:gateId/approve
+```
+
+**Versioning policy:**
+- **Major version** (`v1` → `v2`): breaking changes (removed fields, changed semantics). Old version supported for 6 months after new version GA
+- **Minor changes** (additive): new fields, new endpoints — added to current version without version bump. Clients must tolerate unknown fields
+- **Deprecation**: deprecated fields/endpoints include `Sunset` HTTP header with removal date. Dashboard shows deprecation warnings for tenants using deprecated features
+- **Webhook payloads**: not versioned (additive-only policy). New fields may appear; clients must ignore unknown fields
+
+**Internal endpoints** (health checks, metrics) are unversioned — they are not part of the public API contract.
+
 ### Encryption in Transit
 
 All intra-cluster communication uses TLS:
@@ -627,8 +760,8 @@ For zero-trust environments, a service mesh (Istio/Linkerd) provides automatic m
 |-----------|-------------------|-------------------|
 | PostgreSQL volumes | Cloud KMS (AWS KMS / GCP CMEK) or LUKS for on-prem | **Required** for regulated deployments; recommended for SaaS |
 | K8s Secrets (etcd) | `EncryptionConfiguration` with `aescbc` or `secretbox` provider | **Required** for all deployments |
-| Database backups | SSE-S3 (AWS) / GCS CMEK (GCP) with customer-managed keys | **Required** for regulated deployments |
-| Loki log storage | Encrypted storage backend (S3/GCS with SSE) | Recommended |
+| Database backups | MinIO SSE-S3 with customer-managed keys (or AWS KMS when running on AWS) | **Required** for regulated deployments |
+| Loki log storage | Encrypted storage backend (MinIO with SSE-S3, same instance as artifact storage) | Recommended |
 | Temporal persistence | Same as PostgreSQL volumes (shared or dedicated DB) | Follows PostgreSQL policy |
 
 **K8s etcd encryption example**:
@@ -733,12 +866,13 @@ Deploy observability incrementally to reduce initial complexity:
 
 | Component | Strategy | RPO | RTO |
 |---|---|---|---|
-| **App DB (PostgreSQL)** | Daily automated backups (pg_dump) + continuous WAL archiving to object storage | < 5 min (WAL) | < 30 min (restore from backup) |
+| **App DB (PostgreSQL)** | Daily automated backups (pg_dump) + continuous WAL archiving to MinIO | < 5 min (WAL) | < 30 min (restore from backup) |
 | **Temporal DB** | Same as App DB — separate PostgreSQL instance with its own backup schedule | < 5 min | < 30 min |
 | **Temporal Workflows** | Durable by design — Temporal replays from event history. After DB restore, all in-flight workflows resume automatically | 0 (event-sourced) | Equal to DB RTO |
 | **Worker state** | Stateless — no persistent data on workers. Agent sessions can be retried by Temporal after worker loss | N/A | Immediate (Temporal reschedules) |
 | **Agent sandboxes** | Ephemeral — sandboxes (E2B or Kata) are created per session and destroyed on completion. No backup needed. If a sandbox is lost, Temporal retries the Activity and creates a new sandbox via `SandboxPort` | N/A (stateless) | Immediate (Temporal reschedules) |
-| **Elasticsearch (Temporal visibility)** | Snapshot to object storage (daily). Temporal can rebuild visibility from event history if needed | < 24h (snapshot) | < 1h (restore from snapshot) or rebuild from Temporal DB |
+| **Elasticsearch (Temporal visibility)** | Snapshot to MinIO (daily). Temporal can rebuild visibility from event history if needed | < 24h (snapshot) | < 1h (restore from snapshot) or rebuild from Temporal DB |
+| **MinIO (artifact storage)** | Erasure coding (default) for data durability. Cross-site replication for DR in multi-region setups. Bucket versioning enabled for artifact history | N/A (durable by design) | < 5 min (self-healing) |
 | **Configuration** | Stored in App DB (backed up) + Helm values in Git | 0 (Git) | < 5 min (Helm rollback) |
 
 **Disaster scenarios:**
@@ -749,3 +883,73 @@ Deploy observability incrementally to reduce initial complexity:
 - **Full cluster failure** → Restore both DBs from backup, redeploy via Helm, Temporal replays all in-flight workflows. Sandboxes are recreated automatically by retried Activities via `SandboxPort` (previous E2B sandboxes terminated by E2B timeout; previous Agent Sandbox pods terminated by SandboxClaim TTL)
 
 **Post-restore reconciliation:** After Temporal DB restore, a reconciliation job queries all open Workflow executions and compares with external state (branch existence via `git ls-remote`, MR status via VCS API). Workflows referencing non-existent branches or already-merged MRs are transitioned to DONE or BLOCKED accordingly.
+
+---
+
+## Privacy & Data Governance
+
+### Data Retention Policies
+
+| Entity | Default Retention | Configurable | Deletion Method |
+|---|---|---|---|
+| `WEBHOOK_DELIVERY` | 90 days | Per tenant | Partition drop (`pg_cron`) |
+| `AGENT_TOOL_CALL` | 90 days | Per tenant | Partition drop |
+| `WORKFLOW_EVENT` | 1 year | Per tenant | Partition drop |
+| `WORKFLOW_MIRROR` | Indefinite (active), 1 year (completed) | Per tenant | Soft delete → hard delete after retention |
+| `AGENT_SESSION` | 1 year | Per tenant | Cascade from `WORKFLOW_MIRROR` |
+| `WORKFLOW_ARTIFACT` metadata | 1 year | Per tenant | Cascade from `WORKFLOW_MIRROR` |
+| Artifact files (MinIO) | 90 days | Per tenant (lifecycle policy) | MinIO ILM rule per tenant prefix |
+| Agent conversation logs (MinIO) | 30 days | Per tenant | MinIO ILM rule |
+| Observability logs (Loki) | 30 days | System-wide | Loki retention policy |
+
+### Right-to-Erasure (Tenant Data Deletion)
+
+Triggered via admin API: `DELETE /admin/tenants/:id/data`
+
+**Deletion procedure** (automated via Temporal Workflow):
+1. **Deactivate tenant** — `TENANT.status` → `deactivating`. New workflows rejected, webhooks return 410
+2. **Drain active workflows** — wait for in-flight workflows to complete or force-cancel after 24h grace period
+3. **Delete Temporal namespace** — removes all workflow history, signals, and timers
+4. **Delete database records** — cascade delete from `TENANT` (all FK-linked tables). RLS ensures no cross-tenant impact
+5. **Delete object storage** — remove tenant's MinIO prefix (`{tenant-slug}/`). Includes artifacts, agent logs, backups
+6. **Delete K8s Secrets** — remove tenant's VCS PATs, MCP tokens, API key references
+7. **Revoke session tokens** — add all tenant's tokens to revocation list
+8. **Audit log** — erasure event logged to a separate, non-tenant-scoped audit table (retained for compliance)
+9. **Confirmation** — `TENANT.status` → `deleted`. Record retained with only `id`, `slug`, `deleted_at` for referential integrity
+
+**Timeline**: complete within 72 hours (GDPR requirement: 30 days, we target faster).
+
+### Data Export (Portability)
+
+`GET /api/v1/tenants/:id/export` — returns a ZIP archive containing:
+- Tenant configuration (JSON): MCP servers, VCS credentials (references only, not secrets), repo configs, DSL definitions
+- Workflow history (NDJSON): all `WORKFLOW_MIRROR` + `WORKFLOW_EVENT` records
+- Agent sessions (NDJSON): `AGENT_SESSION` + `AGENT_TOOL_CALL` records (truncated)
+- Artifact metadata (NDJSON): `WORKFLOW_ARTIFACT` records (URIs only — actual files available separately via presigned URLs)
+- Cost reports (CSV): monthly cost breakdown by AI provider, sandbox, repo
+
+Export is rate-limited (1 per hour per tenant) and runs as a background Temporal Workflow.
+
+### PII Handling
+
+- **Agent logs**: tool call inputs/outputs are truncated in `AGENT_TOOL_CALL` (`input_summary` / `output_summary`) to prevent storing full file contents that may contain PII
+- **Session tokens**: redacted from all log streams via regex filter (`SESSION_TOKEN=\S+` → `[REDACTED]`)
+- **Task descriptions**: stored in Temporal Workflow input (encrypted at rest via Temporal DB encryption). Not persisted in app DB — only task ID is stored
+- **MR descriptions / commit messages**: stored in `AgentResult.mrDescription` and `commitMessages` — may contain PII from task descriptions. Retention follows `AGENT_SESSION` retention policy
+- **Artifact content**: `WORKFLOW_ARTIFACT.content` (inline) is subject to the same retention as the parent entity. Large artifacts in MinIO follow MinIO ILM
+
+### Cross-Border Data Transfer
+
+- **E2B Cloud**: sandbox code execution occurs in E2B's infrastructure (US/EU regions available). Tenant selects region at onboarding. Region stored in `TENANT.meta.region`
+- **E2B BYOC / Agent Sandbox + Kata**: code execution in customer's infrastructure — no cross-border transfer
+- **MinIO (SaaS)**: hosted in same region as orchestrator. Self-hosted: customer controls location
+- **AI provider APIs**: requests to Anthropic/OpenAI/Google may cross borders. Tenants must accept provider's data processing terms. The credential proxy logs the provider endpoint for audit
+
+### Compliance Documents
+
+| Document | Status | Covers |
+|---|---|---|
+| Data Processing Agreement (DPA) | Required for SaaS tenants | GDPR Article 28 obligations |
+| Sub-processor list | Published and maintained | E2B, AI providers, cloud hosting |
+| Security whitepaper | TBD (Phase 5+) | Architecture, encryption, isolation, audit |
+| SOC 2 Type II | Planned (post-GA) | Trust services criteria |

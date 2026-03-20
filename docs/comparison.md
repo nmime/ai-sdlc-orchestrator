@@ -52,7 +52,7 @@ A deeper look at how each product handles agent outputs — this is where archit
 
 | Aspect | AI SDLC Orchestrator | Devin | Factory | Paperclip | Sweep / CodeRabbit |
 |---|---|---|---|---|---|
-| **Output abstraction** | `WORKFLOW_ARTIFACT` — typed, tracked, with URI + preview URL + metadata. Sandbox-local files auto-uploaded to S3/GCS/MinIO before cleanup | Git commits + chat | Git commits | Ticket completion (opaque) | PR comments |
+| **Output abstraction** | `WORKFLOW_ARTIFACT` — typed, tracked, with URI + preview URL + metadata. Sandbox-local files auto-uploaded to MinIO (S3-compatible) before cleanup | Git commits + chat | Git commits | Ticket completion (opaque) | PR comments |
 | **Type system** | Free-form `kind` string — no enum, no schema changes for new types | Fixed (code) | Fixed (code) | None (implicit) | Fixed (PR suggestions) |
 | **Agent decides output?** | Yes — agent calls `publish_artifact` at runtime with any `kind` | No — always code | No — always code | Partially — workflow defines output | No — always PR comments |
 | **Non-code artifacts** | Figma updates, design tokens, images, docs, configs — via MCP servers | Not supported | Not supported | Possible (user-built workflows) | Not supported |
