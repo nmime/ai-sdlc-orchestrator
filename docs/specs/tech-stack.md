@@ -13,7 +13,7 @@
 | Framework | **NestJS 11** + **Fastify** | DDD modules, DI, raw body for webhook signatures |
 | Workflow Engine | **Temporal** (self-hosted, TypeScript SDK) | Durable execution, replay, native visibility |
 | App Database | **PostgreSQL 18** | Tenants, costs, DSL, workflow mirror |
-| DB Connection Pool | **PgBouncer** (sidecar per pod) | Multiple API + worker pods → single PG instance. Transaction pooling mode. Prevents connection exhaustion under load |
+| DB Connection Pool | **PgBouncer** (sidecar or centralized) | Multiple API + worker pods → single PG instance. Transaction pooling mode. Sidecar mode for ≤4 pods, centralized K8s Deployment for larger clusters. See [Deployment — PgBouncer](deployment.md) |
 | ORM | **MikroORM** | Unit of Work, explicit transactions, identity map. Migrations via `mikro-orm migration:up` (K8s Job, pre-deploy). Partitioned table DDL via raw SQL migrations |
 | Workflow DSL | **Custom YAML DSL** (Zod + Temporal compiler) | Team-configurable, visual editor-ready |
 | AI Agent | **AiAgentPort** with provider-specific adapters | Provider-agnostic abstraction. v1: `ClaudeAgentAdapter` (via `@anthropic-ai/claude-agent-sdk`). v2+: `OpenHandsAdapter`, `AiderAdapter`. Adding a provider = implement `AiAgentPort` + `PromptFormatter` ¹ |
@@ -21,7 +21,7 @@
 | Agent Sandbox | **Multi-backend via `SandboxPort`** | Two implementations selected per deployment model. See [Sandbox & Security](sandbox-and-security.md) |
 | ↳ E2B backend | **[E2B](https://e2b.dev)** (`e2b` npm package) | Firecracker microVM per session. Cloud (SaaS) or BYOC (enterprise, AWS). Purpose-built for AI agents. Custom templates from Dockerfiles |
 | ↳ Agent Sandbox + Kata backend | **[K8s Agent Sandbox](https://github.com/kubernetes-sigs/agent-sandbox)** + **[Kata Containers](https://katacontainers.io)** | K8s-native CRDs with Kata KVM microVM isolation. For regulated/banking/on-prem. Runs in same K8s cluster. NetworkPolicy per template |
-| Credential Isolation | **Credential proxy service** (K8s Deployment) | Sandbox has zero credential access. Standalone proxy service injects VCS PAT + MCP tokens via authenticated HTTPS. Credentials on K8s cluster, separate from sandbox VM — stronger isolation than sidecar model |
+| Credential Isolation | **Credential proxy service** (K8s Deployment) | Sandbox has zero credential access. Standalone proxy service injects VCS PAT + MCP tokens + AI provider API keys via authenticated HTTPS (`/ai-api/{provider}/*` endpoint). Credentials on K8s cluster, separate from sandbox VM — stronger isolation than sidecar model |
 | Error Handling | **neverthrow** | `Result<T, E>` / `ResultAsync<T, E>` — actively maintained (4k+ stars), native async support |
 | Secrets | **K8s Secrets** | No secrets in Workflow inputs or agent context |
 | Cache (optional) | **Redis 7** (Valkey compatible) | Budget reservation cache (reduces PG contention on hot path), API rate limiting, credential proxy rate limiting, session token revocation list. **Not a required dependency** — all features fall back to PostgreSQL when Redis is unavailable. Deployed as a single replica with AOF persistence or managed (ElastiCache/Memorystore) |

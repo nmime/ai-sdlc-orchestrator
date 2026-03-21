@@ -124,7 +124,7 @@ The orchestrator tracks costs at every level: per-task, per-tenant, per-session.
 | [Integration](specs/integration.md) | Agent-first integration model, agent communication, MCP servers, prompt & context strategy |
 | [Workflow Engine](specs/workflow-engine.md) | Event system, workflow DSL, state machine, multi-repo coordination |
 | [Data Model](specs/data-model.md) | ER diagram, all entities, workflow mirror reconciliation |
-| [Sandbox & Security](specs/sandbox-and-security.md) | E2B sandboxes (Firecracker microVM, cloud or self-hosted), credential proxy service, security layers, tenant isolation, sandbox research & alternatives comparison |
+| [Sandbox & Security](specs/sandbox-and-security.md) | SandboxPort multi-backend architecture (E2B + Agent Sandbox + Kata), credential proxy service, security layers, tenant isolation, sandbox backend comparison |
 | [Tech Stack](specs/tech-stack.md) | Technology choices, testing strategy, dev & agent tooling |
 | [Deployment](specs/deployment.md) | Deployment topology, configuration, retry strategy, monitoring, DR, healthchecks, auth |
 | [Roadmap](specs/roadmap.md) | Implementation phases, resolved & open questions |
