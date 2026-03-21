@@ -355,7 +355,7 @@ All sandbox interaction uses `SandboxPort` — the same code path regardless of 
 2. Generates a **session token** (JWT: `tenantId`, `sessionId`, short TTL)
 3. Creates sandbox via **`SandboxPort.create()`**:
    - Template: `agent-sandbox` (built from `Dockerfile.agent`): pre-baked toolchain (Git, Node.js, Python, Go) + agent SDK
-   - Environment variables: `AI_PROVIDER_API_KEY`, `SESSION_TOKEN`, `CREDENTIAL_PROXY_URL`, `TRACEPARENT`
+   - Environment variables: `SESSION_TOKEN`, `CREDENTIAL_PROXY_URL`, `AI_API_BASE_URL` (set to `$CREDENTIAL_PROXY_URL/ai-api/{provider}`), `TRACEPARENT`
    - Timeout: `startToCloseTimeout` + 5-minute buffer
    - Metadata: `workflowId`, `tenantId`, `sessionId`
    - Backend-specific: E2B template ID (E2B) or SandboxClaim from warm pool (Agent Sandbox + Kata)

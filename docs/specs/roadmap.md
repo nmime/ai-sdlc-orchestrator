@@ -95,7 +95,7 @@ graph LR
 - **Durable webhook ingestion** — write-first-process-second: persist to `WEBHOOK_DELIVERY` → return 200 → async start Temporal workflow. Retry failed workflow starts from persisted payloads
 - **Polling fallback** — Temporal Schedule per-tenant per-platform polling job (`POLLING_SCHEDULE` entity). Queries platform API for tasks not already tracked in `WORKFLOW_MIRROR`
 - **Tenant CRUD API** — `POST/GET/PUT /tenants` + nested CRUD for MCP servers, VCS credentials, repo configs. Zod-validated. CLI seed script for initial tenant setup
-- **Tenant onboarding automation** — `onboarding_status` lifecycle: `pending` → `provisioning` (Temporal namespace creation, webhook registration, credential setup) → `active`. Automated via Temporal Workflow
+- **Tenant lifecycle automation** — `TENANT.status` lifecycle: `pending` → `provisioning` (Temporal namespace creation, webhook registration, credential setup) → `active` → `deactivating` → `deactivated` → `deleted`. Onboarding and offboarding automated via Temporal Workflow. See [Data Model — DD-36](data-model.md)
 - **Dashboard auth:** OIDC integration (Google/GitHub), API key generation per tenant, RBAC (admin/operator/viewer)
 - **Agent provider abstraction** — `AgentProviderRegistry` + `ClaudeAgentAdapter` (v1). Resolution chain: repo config → tenant config → system default. `PromptFormatter` per provider
 - Claude Code integration via `@anthropic-ai/claude-agent-sdk` — implements `AiAgentPort.invoke()` inside `ClaudeAgentAdapter`
