@@ -1,5 +1,6 @@
 import { Module, Global } from '@nestjs/common';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
+import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '../config/app-config.module';
 
@@ -9,7 +10,7 @@ import type { AppConfig } from '../config/app-config.module';
     MikroOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<AppConfig, true>) => ({
-        type: 'postgresql',
+        driver: PostgreSqlDriver,
         host: config.get('DATABASE_HOST'),
         port: config.get('DATABASE_PORT'),
         dbName: config.get('DATABASE_NAME'),
@@ -26,6 +27,5 @@ import type { AppConfig } from '../config/app-config.module';
       }),
     }),
   ],
-  exports: [MikroOrmModule],
 })
 export class DatabaseModule {}

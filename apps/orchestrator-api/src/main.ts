@@ -5,7 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
-import { PinoLoggerService, BootstrapService } from '@ai-sdlc/common';
+import { PinoLoggerService } from '@ai-sdlc/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -17,7 +17,7 @@ async function bootstrap() {
     { bufferLogs: true },
   );
 
-  const logger = app.get(PinoLoggerService);
+  const logger = await app.resolve(PinoLoggerService);
   app.useLogger(logger);
 
   const fastify = app.getHttpAdapter().getInstance();
@@ -48,8 +48,7 @@ async function bootstrap() {
   const port = parseInt(process.env['API_PORT'] || '3000', 10);
   await app.listen(port, '0.0.0.0');
 
-  const bootstrapService = app.get(BootstrapService);
-  bootstrapService.logStartup('orchestrator-api', port);
+  logger.log(`orchestrator-api started on port ${port}`);
 }
 
 bootstrap();

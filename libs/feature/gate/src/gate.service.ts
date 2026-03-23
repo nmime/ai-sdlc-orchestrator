@@ -25,6 +25,7 @@ export class GateService {
 
       const decision: GateDecision = {
         workflowId,
+        gateId: workflowId,
         action,
         reviewer,
         comment,

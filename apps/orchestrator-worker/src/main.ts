@@ -1,7 +1,9 @@
+import path from 'path';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import { MikroORM, Options } from '@mikro-orm/postgresql';
 import pino from 'pino';
-import { initActivities } from '@ai-sdlc/feature-workflow';
+
+import { initActivities, activities } from '@ai-sdlc/feature-workflow';
 import { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
 import { ClaudeAgentAdapter } from '@ai-sdlc/feature-agent-claude-code';
 import { E2bSandboxAdapter } from '@ai-sdlc/feature-agent-sandbox';
@@ -9,6 +11,8 @@ import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
 import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 import { PinoLoggerService } from '@ai-sdlc/common';
 import { ConfigService } from '@nestjs/config';
+
+const ROOT = path.resolve(__dirname, '../../..');
 
 const logger = pino({
   level: process.env['WORKER_LOG_LEVEL'] || 'info',
@@ -33,7 +37,6 @@ async function run() {
   };
 
   const orm = await MikroORM.init(ormConfig);
-
   const em = orm.em.fork();
   const pinoLogger = new PinoLoggerService();
   const configService = new ConfigService(process.env);
@@ -58,12 +61,24 @@ async function run() {
     address: process.env['TEMPORAL_ADDRESS'] || 'localhost:7233',
   });
 
+  const workflowsPath = path.resolve(ROOT, 'libs/feature/workflow/src/workflows/orchestrate-task.workflow.ts');
+
   const worker = await Worker.create({
     connection,
     namespace: process.env['TEMPORAL_NAMESPACE'] || 'default',
     taskQueue: 'orchestrator-queue',
-    workflowsPath: require.resolve('@ai-sdlc/feature-workflow'),
-    activities: require('@ai-sdlc/feature-workflow').activities,
+    workflowsPath,
+    activities,
+    bundlerOptions: {
+      webpackConfigHook: (config: any) => {
+        config.resolve = config.resolve || {};
+        config.resolve.alias = {
+          ...config.resolve.alias,
+          '@ai-sdlc/shared-type': path.resolve(ROOT, 'libs/shared-type/src'),
+        };
+        return config;
+      },
+    },
   });
 
   logger.info('Worker started, listening on task queue: orchestrator-queue');

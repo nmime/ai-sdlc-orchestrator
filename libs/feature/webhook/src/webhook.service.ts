@@ -73,7 +73,7 @@ export class WebhookService {
       const client = await this.temporalClient.getClient();
       const workflowId = `orchestrate-${tenantId}-${event.taskId}-${v4().slice(0, 8)}`;
 
-      await client.workflow.start('orchestrateTask', {
+      await client.workflow.start('orchestrateTaskWorkflow', {
         taskQueue: 'orchestrator-queue',
         workflowId,
         args: [{
