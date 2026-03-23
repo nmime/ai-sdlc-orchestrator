@@ -192,7 +192,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
     return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'Review gate timed out');
   }
 
-  if (changesRequested || (gateDecision && gateDecision.action === 'request_changes')) {
+  if (changesRequested || (gateDecision && (gateDecision as GateDecision).action === 'request_changes')) {
     // --- REVIEW FIX LOOP ---
     currentStepId = 'review_fix_loop';
     await mirrorUpdate('review_fixing');

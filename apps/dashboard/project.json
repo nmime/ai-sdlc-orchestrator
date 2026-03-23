@@ -1,0 +1,17 @@
+{
+  "name": "dashboard",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/dashboard/src",
+  "targets": {
+    "build": {
+      "command": "cd apps/dashboard && npx vite build"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p apps/dashboard/tsconfig.json"
+    },
+    "serve": {
+      "command": "cd apps/dashboard && npx vite"
+    }
+  }
+}

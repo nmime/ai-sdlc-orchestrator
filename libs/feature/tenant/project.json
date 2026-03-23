@@ -1,0 +1,17 @@
+{
+  "name": "feature-tenant",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/feature/tenant/src",
+  "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/tenant"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/feature/tenant/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/feature/tenant/src"
+    }
+  }
+}

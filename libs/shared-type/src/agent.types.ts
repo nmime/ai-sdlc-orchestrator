@@ -45,6 +45,28 @@ export interface AgentInvocation {
   workflowVariables?: Record<string, string>;
 }
 
+export interface AgentInvokeInput {
+  sessionId: string;
+  provider: string;
+  prompt: string;
+  sandboxId: string;
+  maxDurationMs: number;
+  maxCostUsd: number;
+  credentialProxyUrl?: string;
+  previousContext?: import('./workflow.types').SessionContext;
+}
+
+export interface AgentInvokeOutput {
+  success: boolean;
+  filesChanged: number;
+  inputTokens: number;
+  outputTokens: number;
+  aiCostUsd: number;
+  sandboxCostUsd: number;
+  artifacts: import('./workflow.types').PublishedArtifact[];
+  errorMessage?: string;
+}
+
 export interface AgentResult {
   sessionId: string;
   provider: AgentProvider;

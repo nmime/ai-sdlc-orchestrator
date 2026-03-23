@@ -141,7 +141,7 @@ export class DslCompiler {
     }
 
     if (step.steps) {
-      compiled.childSteps = step.steps.map((s) => this.compileStep(s));
+      compiled.childSteps = step.steps.map((s: any) => this.compileStep(s));
     }
 
     return compiled;

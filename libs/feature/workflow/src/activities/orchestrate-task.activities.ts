@@ -233,5 +233,9 @@ export async function cleanupAndEscalate(input: {
   branchName?: string;
   repoUrl: string;
 }): Promise<void> {
-  // Placeholder: check if branch has commits, preserve or delete accordingly
+  await updateWorkflowMirror({
+    tenantId: input.tenantId,
+    temporalWorkflowId: input.workflowId,
+    state: 'blocked_terminal',
+  });
 }

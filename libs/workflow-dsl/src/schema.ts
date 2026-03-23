@@ -22,34 +22,7 @@ export const stepTypeSchema = z.enum([
 
 export type StepType = z.infer<typeof stepTypeSchema>;
 
-type DslStepInput = {
-  id: string;
-  type: StepType;
-  action?: string;
-  mode?: 'implement' | 'ci_fix' | 'review_fix';
-  description?: string;
-  timeout_minutes?: number;
-  graceful_shutdown_minutes?: number;
-  signal?: string;
-  condition?: Record<string, unknown>;
-  on_success?: string;
-  on_failure?: string;
-  on_timeout?: string;
-  on_exhausted?: string;
-  on_approved?: string;
-  on_changes_requested?: string;
-  loop_strategy?: LoopStrategy;
-  require_artifacts?: { kind: string }[];
-  review_context?: { artifacts: string[] };
-  subtypes?: {
-    recoverable?: { on_unblock?: string };
-    terminal?: { cleanup_timeout_hours?: number };
-  };
-  steps?: DslStepInput[];
-  metadata?: Record<string, unknown>;
-};
-
-export const dslStepSchema: z.ZodType<DslStepInput> = z.object({
+export const dslStepSchema: z.ZodType<any> = z.lazy(() => z.object({
   id: z.string().min(1).max(100),
   type: stepTypeSchema,
   action: z.string().optional(),
@@ -72,9 +45,9 @@ export const dslStepSchema: z.ZodType<DslStepInput> = z.object({
     recoverable: z.object({ on_unblock: z.string().optional() }).optional(),
     terminal: z.object({ cleanup_timeout_hours: z.number().optional() }).optional(),
   }).optional(),
-  steps: z.lazy(() => z.array(dslStepSchema)).optional(),
+  steps: z.array(dslStepSchema).optional(),
   metadata: z.record(z.unknown()).optional(),
-});
+}));
 
 export type DslStep = z.infer<typeof dslStepSchema>;
 
