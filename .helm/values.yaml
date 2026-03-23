@@ -1,0 +1,88 @@
+replicaCount:
+  api: 2
+  worker: 2
+
+image:
+  repository: ghcr.io/nmime/ai-sdlc-orchestrator
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+api:
+  port: 3000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    API_PORT: "3000"
+    NODE_ENV: "production"
+
+worker:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  env:
+    WORKER_LOG_LEVEL: "info"
+    NODE_ENV: "production"
+
+dashboard:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+postgresql:
+  enabled: true
+  auth:
+    database: orchestrator
+    username: orchestrator
+    existingSecret: db-credentials
+
+temporal:
+  enabled: true
+  server:
+    replicaCount: 1
+
+redis:
+  enabled: true
+  architecture: standalone
+
+minio:
+  enabled: true
+  defaultBuckets: artifacts
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: orchestrator.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: dashboard
+  tls:
+    - secretName: orchestrator-tls
+      hosts:
+        - orchestrator.example.com
+
+monitoring:
+  enabled: true
+  serviceMonitor: true
+  grafanaDashboard: true

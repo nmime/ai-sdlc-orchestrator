@@ -1,1 +1,14 @@
 .idea
+node_modules
+dist
+tmp
+.env
+.env.*
+!.env.example
+coverage
+*.js.map
+*.d.ts
+!jest.preset.js
+!jest.config.ts
+!mikro-orm.config.ts
+.nx
