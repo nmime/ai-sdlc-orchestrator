@@ -23,14 +23,8 @@ export class TenantVcsCredential {
   host!: string;
 
   @Property()
-  tokenRef!: string;
-
-  @Property({ nullable: true })
-  label?: string;
+  secretRef!: string;
 
   @Property()
   createdAt: Date = new Date();
-
-  @Property({ onUpdate: () => new Date() })
-  updatedAt: Date = new Date();
 }

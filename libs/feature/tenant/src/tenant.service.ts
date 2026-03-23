@@ -3,19 +3,27 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
-import { Tenant, TenantStatus, TenantUser, TenantRole, TenantRepoConfig, TenantWebhookConfig } from '@ai-sdlc/db';
+import { Tenant, TenantStatus, TenantUser, TenantRole } from '@ai-sdlc/db';
 
 export interface CreateTenantDto {
   slug: string;
   name: string;
-  budgetLimitUsd?: number;
-  config?: Record<string, unknown>;
+  monthlyCostLimitUsd?: number;
+  defaultAgentProvider?: string;
+  defaultAgentModel?: string;
+  meta?: Record<string, unknown>;
 }
 
 export interface UpdateTenantDto {
   name?: string;
-  budgetLimitUsd?: number;
-  config?: Record<string, unknown>;
+  monthlyCostLimitUsd?: number;
+  monthlyAiCostLimitUsd?: number;
+  monthlySandboxCostLimitUsd?: number;
+  defaultAgentProvider?: string;
+  defaultAgentModel?: string;
+  maxConcurrentWorkflows?: number;
+  maxConcurrentSandboxes?: number;
+  meta?: Record<string, unknown>;
   status?: TenantStatus;
 }
 
@@ -37,8 +45,10 @@ export class TenantService {
     const tenant = new Tenant();
     tenant.slug = dto.slug;
     tenant.name = dto.name;
-    tenant.budgetLimitUsd = dto.budgetLimitUsd ?? 0;
-    tenant.config = dto.config;
+    if (dto.monthlyCostLimitUsd !== undefined) tenant.monthlyCostLimitUsd = dto.monthlyCostLimitUsd;
+    if (dto.defaultAgentProvider) tenant.defaultAgentProvider = dto.defaultAgentProvider;
+    if (dto.defaultAgentModel) tenant.defaultAgentModel = dto.defaultAgentModel;
+    if (dto.meta) tenant.meta = dto.meta;
 
     await this.em.persistAndFlush(tenant);
     this.logger.log(`Tenant created: ${tenant.slug}`);
@@ -68,8 +78,14 @@ export class TenantService {
 
     const tenant = findResult.value;
     if (dto.name !== undefined) tenant.name = dto.name;
-    if (dto.budgetLimitUsd !== undefined) tenant.budgetLimitUsd = dto.budgetLimitUsd;
-    if (dto.config !== undefined) tenant.config = dto.config;
+    if (dto.monthlyCostLimitUsd !== undefined) tenant.monthlyCostLimitUsd = dto.monthlyCostLimitUsd;
+    if (dto.monthlyAiCostLimitUsd !== undefined) tenant.monthlyAiCostLimitUsd = dto.monthlyAiCostLimitUsd;
+    if (dto.monthlySandboxCostLimitUsd !== undefined) tenant.monthlySandboxCostLimitUsd = dto.monthlySandboxCostLimitUsd;
+    if (dto.defaultAgentProvider !== undefined) tenant.defaultAgentProvider = dto.defaultAgentProvider;
+    if (dto.defaultAgentModel !== undefined) tenant.defaultAgentModel = dto.defaultAgentModel;
+    if (dto.maxConcurrentWorkflows !== undefined) tenant.maxConcurrentWorkflows = dto.maxConcurrentWorkflows;
+    if (dto.maxConcurrentSandboxes !== undefined) tenant.maxConcurrentSandboxes = dto.maxConcurrentSandboxes;
+    if (dto.meta !== undefined) tenant.meta = dto.meta;
     if (dto.status !== undefined) tenant.status = dto.status;
 
     await this.em.flush();
@@ -85,13 +101,13 @@ export class TenantService {
     return ResultUtils.ok(undefined);
   }
 
-  async addUser(tenantId: string, externalId: string, email: string, role: TenantRole, displayName?: string): Promise<Result<TenantUser, AppError>> {
+  async addUser(tenantId: string, externalId: string, provider: string, email: string, role: TenantRole): Promise<Result<TenantUser, AppError>> {
     const user = new TenantUser();
     user.tenant = this.em.getReference(Tenant, tenantId);
     user.externalId = externalId;
+    user.provider = provider;
     user.email = email;
     user.role = role;
-    user.displayName = displayName;
 
     await this.em.persistAndFlush(user);
     return ResultUtils.ok(user);
@@ -102,12 +118,13 @@ export class TenantService {
     return ResultUtils.ok(users);
   }
 
-  async reserveBudget(tenantId: string, amountUsd: number): Promise<Result<{ budgetVersion: number }, AppError>> {
+  async reserveBudget(tenantId: string, estimatedCostUsd: number): Promise<Result<{ budgetVersion: number }, AppError>> {
     const tenant = await this.em.findOne(Tenant, { id: tenantId });
     if (!tenant) return ResultUtils.err('NOT_FOUND', 'Tenant not found');
 
-    if (tenant.budgetLimitUsd > 0 && tenant.budgetUsedUsd + amountUsd > tenant.budgetLimitUsd) {
-      return ResultUtils.err('BUDGET_EXCEEDED', `Budget would exceed limit: $${tenant.budgetUsedUsd} + $${amountUsd} > $${tenant.budgetLimitUsd}`);
+    const total = Number(tenant.monthlyCostActualUsd) + Number(tenant.monthlyCostReservedUsd) + estimatedCostUsd;
+    if (Number(tenant.monthlyCostLimitUsd) > 0 && total > Number(tenant.monthlyCostLimitUsd)) {
+      return ResultUtils.err('BUDGET_EXCEEDED', `Budget would exceed limit: $${total.toFixed(2)} > $${tenant.monthlyCostLimitUsd}`);
     }
 
     const currentVersion = tenant.budgetVersion;
@@ -115,7 +132,7 @@ export class TenantService {
       Tenant,
       { id: tenantId, budgetVersion: currentVersion },
       {
-        budgetUsedUsd: tenant.budgetUsedUsd + amountUsd,
+        monthlyCostReservedUsd: Number(tenant.monthlyCostReservedUsd) + estimatedCostUsd,
         budgetVersion: currentVersion + 1,
       },
     );

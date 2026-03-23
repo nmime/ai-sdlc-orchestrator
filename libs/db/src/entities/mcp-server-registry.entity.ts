@@ -1,12 +1,5 @@
-import { Entity, PrimaryKey, Property, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
 import { v4 } from 'uuid';
-import { McpTransport } from './tenant-mcp-server.entity';
-
-export enum RegistryStatus {
-  VERIFIED = 'verified',
-  COMMUNITY = 'community',
-  DEPRECATED = 'deprecated',
-}
 
 @Entity({ tableName: 'mcp_server_registry' })
 export class McpServerRegistry {
@@ -14,32 +7,23 @@ export class McpServerRegistry {
   id: string = v4();
 
   @Property({ unique: true })
-  slug!: string;
-
-  @Property()
   name!: string;
 
-  @Property({ nullable: true })
+  @Property({ type: 'text', nullable: true })
   description?: string;
 
-  @Enum(() => McpTransport)
-  transport!: McpTransport;
-
-  @Property()
-  endpoint!: string;
-
-  @Enum(() => RegistryStatus)
-  status: RegistryStatus = RegistryStatus.COMMUNITY;
-
-  @Property({ type: 'jsonb', nullable: true })
-  capabilities?: string[];
+  @Property({ nullable: true })
+  protocolVersion?: string;
 
   @Property({ nullable: true })
-  documentationUrl?: string;
+  scopingCapability?: string;
+
+  @Property({ default: false })
+  isVerified: boolean = false;
+
+  @Property({ type: 'jsonb', nullable: true })
+  defaultConfig?: Record<string, unknown>;
 
   @Property()
   createdAt: Date = new Date();
-
-  @Property({ onUpdate: () => new Date() })
-  updatedAt: Date = new Date();
 }

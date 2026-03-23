@@ -1,7 +1,7 @@
 export interface BudgetReservation {
   tenantId: string;
-  taskId: string;
-  reservedUsd: number;
+  workflowId: string;
+  estimatedCostUsd: number;
   budgetVersionBefore: number;
   budgetVersionAfter: number;
 }
@@ -11,7 +11,17 @@ export interface CostBreakdown {
   sandboxCostUsd: number;
   totalCostUsd: number;
   provider: string;
+  model: string;
   inputTokens: number;
   outputTokens: number;
-  sandboxDurationMs: number;
+  sandboxDurationSeconds: number;
+}
+
+export interface CostSettlement {
+  tenantId: string;
+  workflowId: string;
+  reservedUsd: number;
+  actualAiCostUsd: number;
+  actualSandboxCostUsd: number;
+  actualTotalCostUsd: number;
 }

@@ -4,10 +4,9 @@ export interface WebhookEvent {
   source: WebhookSource;
   eventType: string;
   tenantId: string;
-  idempotencyKey: string;
-  taskExternalId: string;
-  taskTitle: string;
-  taskDescription?: string;
+  deliveryId: string;
+  taskId: string;
+  taskProvider: string;
   repoUrl: string;
   labels?: string[];
   assignee?: string;

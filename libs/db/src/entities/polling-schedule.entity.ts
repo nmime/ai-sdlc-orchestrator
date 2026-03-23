@@ -1,13 +1,7 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
-
-export enum PollingFrequency {
-  EVERY_5_MIN = '5m',
-  EVERY_15_MIN = '15m',
-  EVERY_30_MIN = '30m',
-  EVERY_HOUR = '1h',
-}
+import { TenantRepoConfig } from './tenant-repo-config.entity';
 
 @Entity({ tableName: 'polling_schedule' })
 export class PollingSchedule {
@@ -17,24 +11,24 @@ export class PollingSchedule {
   @ManyToOne(() => Tenant)
   tenant!: Tenant;
 
+  @ManyToOne(() => TenantRepoConfig)
+  repoConfig!: TenantRepoConfig;
+
   @Property()
-  repoUrl!: string;
+  platform!: string;
 
-  @Enum(() => PollingFrequency)
-  frequency: PollingFrequency = PollingFrequency.EVERY_15_MIN;
+  @Property({ type: 'jsonb', nullable: true })
+  queryFilter?: Record<string, unknown>;
+
+  @Property({ type: 'int', default: 900 })
+  pollIntervalSeconds: number = 900;
 
   @Property({ nullable: true })
-  lastPolledAt?: Date;
-
-  @Property({ nullable: true })
-  lastCursor?: string;
+  lastPollAt?: Date;
 
   @Property({ default: true })
   enabled: boolean = true;
 
   @Property()
   createdAt: Date = new Date();
-
-  @Property({ onUpdate: () => new Date() })
-  updatedAt: Date = new Date();
 }

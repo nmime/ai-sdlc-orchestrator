@@ -1,30 +1,47 @@
 import { parse as parseYaml } from 'yaml';
 import { Result } from 'neverthrow';
-import { workflowDslSchema, type WorkflowDslConfig } from './schema';
+import { workflowDslSchema, type WorkflowDslConfig, type DslStep } from './schema';
 import type { AppError } from '@ai-sdlc/common/result/app-error';
 import { ResultUtils } from '@ai-sdlc/common/result/result.utils';
 
 export interface CompiledStep {
-  name: string;
+  id: string;
   type: string;
+  action?: string;
+  mode?: string;
   timeoutMs: number;
-  retries: number;
-  condition?: string;
+  gracefulShutdownMs: number;
   signal?: string;
-  maxIterations?: number;
-  noProgressThreshold?: number;
-  escalation?: string;
-  childSteps?: CompiledStep[];
+  condition?: Record<string, unknown>;
+  onSuccess?: string;
   onFailure?: string;
-  recoveryStep?: string;
+  onTimeout?: string;
+  onExhausted?: string;
+  onApproved?: string;
+  onChangesRequested?: string;
+  loopStrategy?: {
+    maxIterations: number;
+    noProgressLimit: number;
+    regressionAction: string;
+    escalationThreshold: number;
+  };
+  requireArtifacts?: { kind: string }[];
+  reviewContext?: { artifacts: string[] };
+  subtypes?: {
+    recoverable?: { onUnblock?: string };
+    terminal?: { cleanupTimeoutHours?: number };
+  };
+  childSteps?: CompiledStep[];
   metadata?: Record<string, unknown>;
 }
 
 export interface CompiledWorkflow {
   name: string;
+  version: number;
   taskQueue: string;
   timeoutMs: number;
   steps: CompiledStep[];
+  stepMap: Record<string, CompiledStep>;
   defaults: {
     agentProvider: string;
     sandboxProvider: string;
@@ -61,13 +78,21 @@ export class DslCompiler {
   }
 
   private compileConfig(config: WorkflowDslConfig, rawYaml: string): CompiledWorkflow {
+    const steps = config.steps.map((s) => this.compileStep(s));
+    const stepMap: Record<string, CompiledStep> = {};
+    for (const step of steps) {
+      stepMap[step.id] = step;
+    }
+
     return {
       name: config.name,
+      version: config.version ?? 1,
       taskQueue: config.taskQueue,
-      timeoutMs: this.parseDuration(config.timeout),
-      steps: config.steps.map((s) => this.compileStep(s)),
+      timeoutMs: (config.timeout_minutes ?? 240) * 60 * 1000,
+      steps,
+      stepMap,
       defaults: {
-        agentProvider: config.defaults?.agentProvider ?? 'claude_code',
+        agentProvider: config.defaults?.agentProvider ?? 'claude',
         sandboxProvider: config.defaults?.sandboxProvider ?? 'e2b',
         maxRetries: config.defaults?.maxRetries ?? 3,
         maxCostPerTaskUsd: config.defaults?.maxCostPerTaskUsd ?? 50,
@@ -78,37 +103,48 @@ export class DslCompiler {
     };
   }
 
-  private compileStep(step: Record<string, any>): CompiledStep {
-    return {
-      name: step.name,
+  private compileStep(step: DslStep): CompiledStep {
+    const compiled: CompiledStep = {
+      id: step.id,
       type: step.type,
-      timeoutMs: this.parseDuration(step.timeout || '30m'),
-      retries: step.retries ?? 0,
-      condition: step.condition,
+      action: step.action,
+      mode: step.mode,
+      timeoutMs: (step.timeout_minutes ?? 60) * 60 * 1000,
+      gracefulShutdownMs: (step.graceful_shutdown_minutes ?? 5) * 60 * 1000,
       signal: step.signal,
-      maxIterations: step.maxIterations,
-      noProgressThreshold: step.noProgressThreshold,
-      escalation: step.escalation,
-      childSteps: step.steps?.map((s: any) => this.compileStep(s)),
-      onFailure: step.onFailure,
-      recoveryStep: step.recoveryStep,
+      condition: step.condition,
+      onSuccess: step.on_success,
+      onFailure: step.on_failure,
+      onTimeout: step.on_timeout,
+      onExhausted: step.on_exhausted,
+      onApproved: step.on_approved,
+      onChangesRequested: step.on_changes_requested,
+      requireArtifacts: step.require_artifacts,
+      reviewContext: step.review_context,
       metadata: step.metadata,
     };
-  }
 
-  private parseDuration(duration: string): number {
-    const match = duration.match(/^(\d+)([smhd])$/);
-    if (!match) return 30 * 60 * 1000;
+    if (step.loop_strategy) {
+      compiled.loopStrategy = {
+        maxIterations: step.loop_strategy.max_iterations,
+        noProgressLimit: step.loop_strategy.no_progress_limit,
+        regressionAction: step.loop_strategy.regression_action,
+        escalationThreshold: step.loop_strategy.escalation_threshold,
+      };
+    }
 
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    const multipliers: Record<string, number> = {
-      s: 1000,
-      m: 60 * 1000,
-      h: 60 * 60 * 1000,
-      d: 24 * 60 * 60 * 1000,
-    };
-    return value * (multipliers[unit] ?? 60 * 1000);
+    if (step.subtypes) {
+      compiled.subtypes = {
+        recoverable: step.subtypes.recoverable ? { onUnblock: step.subtypes.recoverable.on_unblock } : undefined,
+        terminal: step.subtypes.terminal ? { cleanupTimeoutHours: step.subtypes.terminal.cleanup_timeout_hours } : undefined,
+      };
+    }
+
+    if (step.steps) {
+      compiled.childSteps = step.steps.map((s) => this.compileStep(s));
+    }
+
+    return compiled;
   }
 
   private computeChecksum(content: string): string {

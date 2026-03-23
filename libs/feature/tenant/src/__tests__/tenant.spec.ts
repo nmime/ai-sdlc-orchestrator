@@ -8,6 +8,7 @@ const mockEm = {
   flush: vi.fn(),
   getReference: vi.fn(),
   nativeUpdate: vi.fn(),
+  nativeDelete: vi.fn(),
 };
 
 const mockLogger = {
@@ -77,7 +78,13 @@ describe('TenantService', () => {
   });
 
   it('should reserve budget with optimistic concurrency', async () => {
-    const tenant = { id: 'uuid-1', budgetLimitUsd: 100, budgetUsedUsd: 20, budgetVersion: 5 };
+    const tenant = {
+      id: 'uuid-1',
+      monthlyCostLimitUsd: 100,
+      monthlyCostReservedUsd: 10,
+      monthlyCostActualUsd: 10,
+      budgetVersion: 5,
+    };
     mockEm.findOne.mockResolvedValue(tenant);
     mockEm.nativeUpdate.mockResolvedValue(1);
 
@@ -87,7 +94,13 @@ describe('TenantService', () => {
   });
 
   it('should reject budget exceeding limit', async () => {
-    const tenant = { id: 'uuid-1', budgetLimitUsd: 100, budgetUsedUsd: 80, budgetVersion: 5 };
+    const tenant = {
+      id: 'uuid-1',
+      monthlyCostLimitUsd: 100,
+      monthlyCostReservedUsd: 40,
+      monthlyCostActualUsd: 40,
+      budgetVersion: 5,
+    };
     mockEm.findOne.mockResolvedValue(tenant);
 
     const result = await service.reserveBudget('uuid-1', 30);
@@ -96,7 +109,13 @@ describe('TenantService', () => {
   });
 
   it('should handle budget concurrency conflict', async () => {
-    const tenant = { id: 'uuid-1', budgetLimitUsd: 100, budgetUsedUsd: 20, budgetVersion: 5 };
+    const tenant = {
+      id: 'uuid-1',
+      monthlyCostLimitUsd: 100,
+      monthlyCostReservedUsd: 10,
+      monthlyCostActualUsd: 10,
+      budgetVersion: 5,
+    };
     mockEm.findOne.mockResolvedValue(tenant);
     mockEm.nativeUpdate.mockResolvedValue(0);
 
@@ -122,7 +141,7 @@ describe('ApiKeyService', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.key).toMatch(/^asdlc_/);
-      expect(result.value.keyPrefix).toHaveLength(12);
+      expect(result.value.id).toBeDefined();
     }
   });
 
@@ -135,8 +154,7 @@ describe('ApiKeyService', () => {
   });
 
   it('should revoke an API key', async () => {
-    mockEm.findOne.mockResolvedValue({ id: 'key-1', active: true });
-    mockEm.flush.mockResolvedValue(undefined);
+    mockEm.nativeDelete.mockResolvedValue(1);
 
     const result = await service.revoke('key-1');
     expect(result.isOk()).toBe(true);

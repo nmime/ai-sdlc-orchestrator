@@ -1,7 +1,8 @@
-export type GateAction = 'approve' | 'reject' | 'request_changes';
+export type GateAction = 'approve' | 'request_changes';
 
 export interface GateDecision {
   workflowId: string;
+  gateId: string;
   action: GateAction;
   reviewer: string;
   comment?: string;

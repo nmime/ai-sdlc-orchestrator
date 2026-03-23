@@ -3,8 +3,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
-import { WebhookDelivery, DeliveryStatus } from '@ai-sdlc/db';
-import { WebhookPlatform } from '@ai-sdlc/db';
+import { WebhookDelivery, DeliveryStatus, Tenant } from '@ai-sdlc/db';
 import type { WebhookEvent } from '@ai-sdlc/shared-type';
 import { JiraHandler } from './handlers/jira.handler';
 import { GitLabHandler } from './handlers/gitlab.handler';
@@ -54,19 +53,17 @@ export class WebhookService {
     }
 
     const delivery = new WebhookDelivery();
-    delivery.tenant = this.em.getReference('Tenant', tenantId) as any;
-    delivery.platform = platform as WebhookPlatform;
+    delivery.tenant = this.em.getReference(Tenant, tenantId) as any;
+    delivery.platform = platform;
     delivery.eventType = event.eventType;
-    delivery.idempotencyKey = event.idempotencyKey;
-    delivery.headers = headers;
-    delivery.payload = body;
+    delivery.deliveryId = event.deliveryId;
     delivery.status = DeliveryStatus.RECEIVED;
 
     try {
       await this.em.persistAndFlush(delivery);
     } catch (error: any) {
       if (error?.code === '23505') {
-        this.logger.warn(`Duplicate webhook ignored: ${event.idempotencyKey}`);
+        this.logger.warn(`Duplicate webhook ignored: ${event.deliveryId}`);
         return ResultUtils.ok({ accepted: true, deliveryId: 'duplicate' });
       }
       return ResultUtils.err('INTERNAL_ERROR', error.message);
@@ -74,23 +71,24 @@ export class WebhookService {
 
     try {
       const client = await this.temporalClient.getClient();
-      const workflowId = `orchestrate-${tenantId}-${event.taskExternalId}-${v4().slice(0, 8)}`;
+      const workflowId = `orchestrate-${tenantId}-${event.taskId}-${v4().slice(0, 8)}`;
 
       await client.workflow.start('orchestrateTask', {
         taskQueue: 'orchestrator-queue',
         workflowId,
         args: [{
           tenantId,
-          taskExternalId: event.taskExternalId,
-          taskTitle: event.taskTitle,
-          taskDescription: event.taskDescription,
+          taskId: event.taskId,
+          taskProvider: event.taskProvider,
+          repoId: event.repoUrl.split('/').slice(-1)[0]?.replace('.git', '') || '',
           repoUrl: event.repoUrl,
           webhookDeliveryId: delivery.id,
+          labels: event.labels,
         }],
       });
 
       delivery.status = DeliveryStatus.PROCESSING;
-      delivery.temporalWorkflowId = workflowId;
+      delivery.workflowId = workflowId;
       await this.em.flush();
 
       this.logger.log(`Workflow started: ${workflowId}`);

@@ -3,7 +3,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
-import { TenantApiKey, Tenant } from '@ai-sdlc/db';
+import { TenantApiKey, Tenant, ApiKeyRole } from '@ai-sdlc/db';
 import { randomBytes, createHash } from 'crypto';
 
 @Injectable()
@@ -15,26 +15,24 @@ export class ApiKeyService {
     this.logger.setContext('ApiKeyService');
   }
 
-  async generate(tenantId: string, label: string, scopes?: string[]): Promise<Result<{ key: string; keyPrefix: string }, AppError>> {
+  async generate(tenantId: string, name: string, role: ApiKeyRole = ApiKeyRole.VIEWER): Promise<Result<{ key: string; id: string }, AppError>> {
     const rawKey = `asdlc_${randomBytes(32).toString('hex')}`;
     const keyHash = createHash('sha256').update(rawKey).digest('hex');
-    const keyPrefix = rawKey.slice(0, 12);
 
     const apiKey = new TenantApiKey();
     apiKey.tenant = this.em.getReference(Tenant, tenantId);
-    apiKey.label = label;
     apiKey.keyHash = keyHash;
-    apiKey.keyPrefix = keyPrefix;
-    apiKey.scopes = scopes;
+    apiKey.name = name;
+    apiKey.role = role;
 
     await this.em.persistAndFlush(apiKey);
 
-    return ResultUtils.ok({ key: rawKey, keyPrefix });
+    return ResultUtils.ok({ key: rawKey, id: apiKey.id });
   }
 
   async validate(rawKey: string): Promise<Result<TenantApiKey, AppError>> {
     const keyHash = createHash('sha256').update(rawKey).digest('hex');
-    const apiKey = await this.em.findOne(TenantApiKey, { keyHash, active: true }, { populate: ['tenant'] });
+    const apiKey = await this.em.findOne(TenantApiKey, { keyHash }, { populate: ['tenant'] });
 
     if (!apiKey) {
       return ResultUtils.err('UNAUTHORIZED', 'Invalid API key');
@@ -44,18 +42,12 @@ export class ApiKeyService {
       return ResultUtils.err('UNAUTHORIZED', 'API key expired');
     }
 
-    apiKey.lastUsedAt = new Date();
-    await this.em.flush();
-
     return ResultUtils.ok(apiKey);
   }
 
   async revoke(keyId: string): Promise<Result<void, AppError>> {
-    const apiKey = await this.em.findOne(TenantApiKey, { id: keyId });
-    if (!apiKey) return ResultUtils.err('NOT_FOUND', 'API key not found');
-
-    apiKey.active = false;
-    await this.em.flush();
+    const deleted = await this.em.nativeDelete(TenantApiKey, { id: keyId });
+    if (deleted === 0) return ResultUtils.err('NOT_FOUND', 'API key not found');
     return ResultUtils.ok(undefined);
   }
 }
