@@ -1,0 +1,10 @@
+system:
+  log:
+    stdout:
+      level: info
+  forwardingRules:
+    - rule: true
+      add:
+        search_attribute:
+          - name: CustomStringField
+            type: Text
