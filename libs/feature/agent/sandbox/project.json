@@ -1,0 +1,14 @@
+{
+  "name": "feature-agent-sandbox",
+  "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/feature/agent/sandbox/src",
+  "targets": {
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/feature/agent/sandbox/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/feature/agent/sandbox/src"
+    }
+  }
+}
