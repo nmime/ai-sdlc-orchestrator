@@ -2,18 +2,32 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
 import { PinoLoggerService, BootstrapService } from '@ai-sdlc/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false }),
+    new FastifyAdapter({
+      logger: false,
+      bodyLimit: 1_048_576,
+    }),
     { bufferLogs: true },
   );
 
   const logger = app.get(PinoLoggerService);
   app.useLogger(logger);
+
+  const fastify = app.getHttpAdapter().getInstance();
+  await fastify.register(helmet, { contentSecurityPolicy: false });
+  await fastify.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+  });
+
+  app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 

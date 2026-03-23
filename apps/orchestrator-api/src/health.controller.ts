@@ -12,10 +12,10 @@ export class HealthController {
     private readonly temporalClient: TemporalClientService,
   ) {}
 
-  @Get()
+  @Get('live')
   @HealthCheck()
   @ApiOperation({ summary: 'Liveness check' })
-  async check() {
+  async liveness() {
     return this.health.check([
       () => this.db.pingCheck('database'),
     ]);
@@ -30,17 +30,34 @@ export class HealthController {
       async () => {
         try {
           await this.temporalClient.getClient();
-          return { temporal: { status: 'up' } };
+          return { temporal: { status: 'up' as const } };
         } catch {
-          return { temporal: { status: 'down' } };
+          return { temporal: { status: 'down' as const } };
         }
       },
     ]);
   }
 
-  @Get('startup')
-  @ApiOperation({ summary: 'Startup check' })
-  async startup() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+  @Get('business')
+  @ApiOperation({ summary: 'Deep business health check' })
+  async business() {
+    const checks: Record<string, { status: string; message?: string }> = {};
+
+    try {
+      await this.db.pingCheck('database');
+      checks['database'] = { status: 'up' };
+    } catch (e) {
+      checks['database'] = { status: 'down', message: (e as Error).message };
+    }
+
+    try {
+      await this.temporalClient.getClient();
+      checks['temporal'] = { status: 'up' };
+    } catch (e) {
+      checks['temporal'] = { status: 'down', message: (e as Error).message };
+    }
+
+    const allUp = Object.values(checks).every(c => c.status === 'up');
+    return { status: allUp ? 'ok' : 'degraded', checks, timestamp: new Date().toISOString() };
   }
 }

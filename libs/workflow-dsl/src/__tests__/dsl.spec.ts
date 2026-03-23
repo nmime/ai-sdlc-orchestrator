@@ -6,21 +6,21 @@ describe('DslCompiler', () => {
 
   it('should compile a valid DSL YAML', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "test-workflow"
 taskQueue: "test-queue"
-timeout: "2h"
+timeout_minutes: 120
 steps:
-  - name: code
+  - id: code
     type: auto
-    timeout: "30m"
-  - name: review_gate
+    timeout_minutes: 30
+  - id: review_gate
     type: gate
-    timeout: "24h"
-  - name: ci_wait
+    timeout_minutes: 1440
+  - id: ci_wait
     type: signal_wait
     signal: ci_result
-    timeout: "1h"
+    timeout_minutes: 60
 `;
     const result = compiler.compile(yaml);
     expect(result.isOk()).toBe(true);
@@ -29,7 +29,7 @@ steps:
       expect(result.value.taskQueue).toBe('test-queue');
       expect(result.value.timeoutMs).toBe(7200000);
       expect(result.value.steps).toHaveLength(3);
-      expect(result.value.steps[0].name).toBe('code');
+      expect(result.value.steps[0].id).toBe('code');
       expect(result.value.steps[0].type).toBe('auto');
       expect(result.value.steps[0].timeoutMs).toBe(1800000);
       expect(result.value.steps[1].type).toBe('gate');
@@ -52,7 +52,7 @@ steps:
     const yaml = `
 name: "test"
 steps:
-  - name: code
+  - id: code
     type: auto
 `;
     const result = compiler.compile(yaml);
@@ -61,10 +61,10 @@ steps:
 
   it('should use defaults when not specified', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "minimal-workflow"
 steps:
-  - name: code
+  - id: code
     type: auto
 `;
     const result = compiler.compile(yaml);
@@ -72,7 +72,7 @@ steps:
     if (result.isOk()) {
       expect(result.value.taskQueue).toBe('orchestrator-queue');
       expect(result.value.timeoutMs).toBe(14400000);
-      expect(result.value.defaults.agentProvider).toBe('claude_code');
+      expect(result.value.defaults.agentProvider).toBe('claude');
       expect(result.value.defaults.sandboxProvider).toBe('e2b');
       expect(result.value.defaults.maxRetries).toBe(3);
     }
@@ -80,70 +80,71 @@ steps:
 
   it('should compile nested parallel steps', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "parallel-workflow"
 steps:
-  - name: parallel_tasks
+  - id: parallel_tasks
     type: parallel
     steps:
-      - name: task_a
+      - id: task_a
         type: auto
-        timeout: "10m"
-      - name: task_b
+        timeout_minutes: 10
+      - id: task_b
         type: auto
-        timeout: "15m"
+        timeout_minutes: 15
 `;
     const result = compiler.compile(yaml);
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.steps[0].childSteps).toHaveLength(2);
-      expect(result.value.steps[0].childSteps![0].name).toBe('task_a');
+      expect(result.value.steps[0].childSteps![0].id).toBe('task_a');
     }
   });
 
   it('should compile loop step with maxIterations', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "loop-workflow"
 steps:
-  - name: fix_loop
+  - id: fix_loop
     type: loop
-    maxIterations: 5
-    noProgressThreshold: 2
-    escalation: gate
-    timeout: "2h"
+    timeout_minutes: 120
+    loop_strategy:
+      max_iterations: 5
+      no_progress_limit: 2
+      escalation_threshold: 3
 `;
     const result = compiler.compile(yaml);
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value.steps[0].maxIterations).toBe(5);
-      expect(result.value.steps[0].noProgressThreshold).toBe(2);
-      expect(result.value.steps[0].escalation).toBe('gate');
+      expect(result.value.steps[0].loopStrategy!.maxIterations).toBe(5);
+      expect(result.value.steps[0].loopStrategy!.noProgressLimit).toBe(2);
+      expect(result.value.steps[0].loopStrategy!.escalationThreshold).toBe(3);
     }
   });
 
-  it('should parse duration strings correctly', () => {
+  it('should compile steps with various timeout values', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "durations"
 steps:
-  - name: seconds
+  - id: short
     type: auto
-    timeout: "30s"
-  - name: minutes
+    timeout_minutes: 1
+  - id: medium
     type: auto
-    timeout: "45m"
-  - name: hours
+    timeout_minutes: 45
+  - id: long
     type: auto
-    timeout: "2h"
-  - name: days
+    timeout_minutes: 120
+  - id: very_long
     type: auto
-    timeout: "1d"
+    timeout_minutes: 1440
 `;
     const result = compiler.compile(yaml);
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value.steps[0].timeoutMs).toBe(30000);
+      expect(result.value.steps[0].timeoutMs).toBe(60000);
       expect(result.value.steps[1].timeoutMs).toBe(2700000);
       expect(result.value.steps[2].timeoutMs).toBe(7200000);
       expect(result.value.steps[3].timeoutMs).toBe(86400000);
@@ -156,10 +157,10 @@ describe('DslValidator', () => {
 
   it('should validate a correct DSL', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "valid"
 steps:
-  - name: code
+  - id: code
     type: auto
 `;
     const result = validator.validate(yaml);
@@ -168,27 +169,27 @@ steps:
 
   it('should reject duplicate step names', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "duplicate-steps"
 steps:
-  - name: code
+  - id: code
     type: auto
-  - name: code
+  - id: code
     type: auto
 `;
     const result = validator.validate(yaml);
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
-      expect(result.error.message).toContain('Duplicate step name');
+      expect(result.error.message).toContain('Duplicate step id');
     }
   });
 
   it('should reject signal_wait without signal', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "no-signal"
 steps:
-  - name: wait
+  - id: wait
     type: signal_wait
 `;
     const result = validator.validate(yaml);
@@ -200,32 +201,32 @@ steps:
 
   it('should reject loop without maxIterations', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "no-max-iter"
 steps:
-  - name: loop
+  - id: loop
     type: loop
 `;
     const result = validator.validate(yaml);
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
-      expect(result.error.message).toContain('loop requires maxIterations');
+      expect(result.error.message).toContain('loop requires loop_strategy');
     }
   });
 
   it('should reject invalid recovery step reference', () => {
     const yaml = `
-version: "1.0"
+version: 1
 name: "bad-recovery"
 steps:
-  - name: code
+  - id: code
     type: auto
-    recoveryStep: nonexistent
+    on_failure: nonexistent
 `;
     const result = validator.validate(yaml);
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
-      expect(result.error.message).toContain('Recovery step');
+      expect(result.error.message).toContain('references unknown on_failure target');
     }
   });
 });

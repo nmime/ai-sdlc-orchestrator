@@ -20,17 +20,17 @@ export class TenantUser {
   externalId!: string;
 
   @Property()
-  email!: string;
+  provider!: string;
 
-  @Property({ nullable: true })
-  displayName?: string;
+  @Property()
+  email!: string;
 
   @Enum(() => TenantRole)
   role: TenantRole = TenantRole.VIEWER;
 
+  @Property({ type: 'jsonb', nullable: true })
+  repoAccess?: string[];
+
   @Property()
   createdAt: Date = new Date();
-
-  @Property({ onUpdate: () => new Date() })
-  updatedAt: Date = new Date();
 }

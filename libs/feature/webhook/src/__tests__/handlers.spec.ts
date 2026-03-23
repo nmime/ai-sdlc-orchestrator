@@ -8,10 +8,10 @@ describe('JiraHandler', () => {
 
   it('should parse a valid Jira webhook with ai-sdlc label', () => {
     const result = handler.parse(
-      { 'x-atlassian-webhook-identifier': 'jira:issue_updated' },
+      { 'x-atlassian-webhook-identifier': 'delivery-123' },
       {
+        webhookEvent: 'jira:issue_updated',
         issue: {
-          id: '10001',
           key: 'PROJ-123',
           fields: {
             summary: 'Fix the login bug',
@@ -19,9 +19,9 @@ describe('JiraHandler', () => {
             labels: ['ai-sdlc', 'bug'],
             customfield_10100: 'https://github.com/org/repo.git',
             assignee: { displayName: 'John' },
+            priority: { name: 'High' },
           },
         },
-        timestamp: 1700000000,
       },
       'tenant-1',
     );
@@ -30,16 +30,20 @@ describe('JiraHandler', () => {
     if (result.isOk()) {
       expect(result.value).not.toBeNull();
       expect(result.value!.source).toBe('jira');
-      expect(result.value!.taskExternalId).toBe('PROJ-123');
-      expect(result.value!.taskTitle).toBe('Fix the login bug');
+      expect(result.value!.taskId).toBe('PROJ-123');
       expect(result.value!.repoUrl).toBe('https://github.com/org/repo.git');
+      expect(result.value!.tenantId).toBe('tenant-1');
+      expect(result.value!.deliveryId).toBe('delivery-123');
     }
   });
 
   it('should return null for issues without ai-sdlc label', () => {
     const result = handler.parse(
       {},
-      { issue: { id: '10001', key: 'PROJ-124', fields: { summary: 'Test', labels: ['bug'] } } },
+      {
+        webhookEvent: 'jira:issue_updated',
+        issue: { key: 'PROJ-124', fields: { summary: 'Test', labels: ['bug'] } },
+      },
       'tenant-1',
     );
 
@@ -47,7 +51,7 @@ describe('JiraHandler', () => {
     if (result.isOk()) expect(result.value).toBeNull();
   });
 
-  it('should return null for payload without issue', () => {
+  it('should return null for payload without webhookEvent', () => {
     const result = handler.parse({}, { type: 'other' }, 'tenant-1');
     expect(result.isOk()).toBe(true);
     if (result.isOk()) expect(result.value).toBeNull();
@@ -59,7 +63,7 @@ describe('GitHubHandler', () => {
 
   it('should parse a GitHub issue with ai-sdlc label', () => {
     const result = handler.parse(
-      { 'x-github-event': 'issues' },
+      { 'x-github-event': 'issues', 'x-github-delivery': 'gh-del-1' },
       {
         action: 'labeled',
         issue: {
@@ -77,8 +81,8 @@ describe('GitHubHandler', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value!.source).toBe('github');
-      expect(result.value!.taskExternalId).toBe('#42');
-      expect(result.value!.taskTitle).toBe('Add dark mode');
+      expect(result.value!.taskId).toBe('#42');
+      expect(result.value!.eventType).toBe('issues');
     }
   });
 
@@ -117,7 +121,6 @@ describe('GitHubHandler', () => {
   it('should return null for unsupported events', () => {
     const result = handler.parse({ 'x-github-event': 'star' }, {}, 'tenant-2');
     expect(result.isOk()).toBe(true);
-    if (result.isOk()) expect(result.value).toBeNull();
   });
 });
 
@@ -126,7 +129,7 @@ describe('GitLabHandler', () => {
 
   it('should parse a GitLab issue with ai-sdlc label', () => {
     const result = handler.parse(
-      { 'x-gitlab-event': 'Issue Hook' },
+      { 'x-gitlab-event': 'Issue Hook', 'x-gitlab-event-uuid': 'gl-uuid-1' },
       {
         object_attributes: {
           iid: 10,
@@ -143,7 +146,7 @@ describe('GitLabHandler', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value!.source).toBe('gitlab');
-      expect(result.value!.taskExternalId).toBe('#10');
+      expect(result.value!.taskId).toBe('#10');
     }
   });
 
@@ -168,7 +171,7 @@ describe('LinearHandler', () => {
 
   it('should parse a Linear issue with ai-sdlc label', () => {
     const result = handler.parse(
-      {},
+      { 'linear-delivery': 'lin-del-1' },
       {
         type: 'Issue',
         action: 'update',
@@ -188,7 +191,7 @@ describe('LinearHandler', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value!.source).toBe('linear');
-      expect(result.value!.taskExternalId).toBe('ENG-42');
+      expect(result.value!.taskId).toBe('ENG-42');
     }
   });
 

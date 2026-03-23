@@ -1,6 +1,12 @@
-import { Entity, PrimaryKey, Property, ManyToOne } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
+
+export enum ApiKeyRole {
+  ADMIN = 'admin',
+  OPERATOR = 'operator',
+  VIEWER = 'viewer',
+}
 
 @Entity({ tableName: 'tenant_api_key' })
 export class TenantApiKey {
@@ -11,25 +17,16 @@ export class TenantApiKey {
   tenant!: Tenant;
 
   @Property()
-  label!: string;
-
-  @Property()
   keyHash!: string;
 
   @Property()
-  keyPrefix!: string;
+  name!: string;
 
-  @Property({ type: 'jsonb', nullable: true })
-  scopes?: string[];
+  @Enum(() => ApiKeyRole)
+  role: ApiKeyRole = ApiKeyRole.VIEWER;
 
   @Property({ nullable: true })
   expiresAt?: Date;
-
-  @Property({ nullable: true })
-  lastUsedAt?: Date;
-
-  @Property({ default: true })
-  active: boolean = true;
 
   @Property()
   createdAt: Date = new Date();

@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Unique } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -9,6 +9,7 @@ export enum McpTransport {
 }
 
 @Entity({ tableName: 'tenant_mcp_server' })
+@Unique({ properties: ['tenant', 'name'] })
 export class TenantMcpServer {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();
@@ -22,21 +23,24 @@ export class TenantMcpServer {
   @Enum(() => McpTransport)
   transport!: McpTransport;
 
-  @Property()
-  endpoint!: string;
+  @Property({ nullable: true })
+  url?: string;
+
+  @Property({ nullable: true })
+  command?: string;
 
   @Property({ type: 'jsonb', nullable: true })
-  headers?: Record<string, string>;
+  args?: string[];
 
   @Property({ type: 'jsonb', nullable: true })
-  env?: Record<string, string>;
+  headersSecretRef?: Record<string, string>;
+
+  @Property({ type: 'jsonb', nullable: true })
+  envSecretRef?: Record<string, string>;
 
   @Property({ default: true })
-  enabled: boolean = true;
+  isEnabled: boolean = true;
 
   @Property()
   createdAt: Date = new Date();
-
-  @Property({ onUpdate: () => new Date() })
-  updatedAt: Date = new Date();
 }

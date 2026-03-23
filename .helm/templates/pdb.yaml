@@ -1,0 +1,25 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ai-sdlc.fullname" . }}-api
+  labels:
+    {{- include "ai-sdlc.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ai-sdlc.fullname" . }}-worker
+  labels:
+    {{- include "ai-sdlc.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}

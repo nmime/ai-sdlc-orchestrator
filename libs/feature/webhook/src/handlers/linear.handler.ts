@@ -1,39 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { Result } from 'neverthrow';
-import { ResultUtils } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
+import { ResultUtils } from '@ai-sdlc/common';
 import type { WebhookEvent } from '@ai-sdlc/shared-type';
 
 @Injectable()
 export class LinearHandler {
   parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError> {
     const type = body['type'] as string;
-    const action = body['action'] as string;
+    if (!type) return ResultUtils.ok(null);
 
-    if (type !== 'Issue' || (action !== 'create' && action !== 'update')) {
-      return ResultUtils.ok(null);
-    }
+    const action = body['action'] as string;
+    if (type !== 'Issue' || !['create', 'update'].includes(action)) return ResultUtils.ok(null);
 
     const data = body['data'] as Record<string, unknown> || {};
-    const labels = ((data['labels'] as { name: string }[]) || []).map((l) => l.name);
+    const labels = ((data['labels'] || data['labelIds']) as { name: string }[] || []).map(l => l.name ?? l);
+    if (!labels.includes('ai-sdlc')) return ResultUtils.ok(null);
 
-    if (!labels.includes('ai-sdlc')) {
-      return ResultUtils.ok(null);
-    }
-
-    const team = data['team'] as Record<string, unknown> || {};
+    const deliveryId = headers['linear-delivery'] || `linear-${data['id']}-${Date.now()}`;
 
     return ResultUtils.ok({
-      source: 'linear',
-      eventType: `issue.${action}`,
+      source: 'linear' as const,
+      eventType: `${type}.${action}`,
       tenantId,
-      idempotencyKey: `linear-${data['id']}-${body['updatedFrom'] || Date.now()}`,
-      taskExternalId: data['identifier'] as string || data['id'] as string,
-      taskTitle: data['title'] as string || '',
-      taskDescription: data['description'] as string,
-      repoUrl: (team['key'] as string) || '',
+      deliveryId,
+      taskId: data['identifier'] as string || data['id'] as string,
+      taskProvider: 'linear',
+      repoUrl: '',
       labels,
-      priority: data['priority'] as string,
       rawPayload: body,
     });
   }

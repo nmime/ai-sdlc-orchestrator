@@ -9,6 +9,11 @@ export enum WebhookPlatform {
   LINEAR = 'linear',
 }
 
+export enum WebhookConfigStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}
+
 @Entity({ tableName: 'tenant_webhook_config' })
 export class TenantWebhookConfig {
   @PrimaryKey({ type: 'uuid' })
@@ -20,17 +25,17 @@ export class TenantWebhookConfig {
   @Enum(() => WebhookPlatform)
   platform!: WebhookPlatform;
 
-  @Property()
-  externalId!: string;
+  @Property({ nullable: true })
+  webhookId?: string;
 
   @Property({ nullable: true })
-  secret?: string;
+  webhookUrl?: string;
 
-  @Property()
-  targetUrl!: string;
+  @Enum(() => WebhookConfigStatus)
+  status: WebhookConfigStatus = WebhookConfigStatus.ACTIVE;
 
-  @Property({ default: true })
-  active: boolean = true;
+  @Property({ nullable: true })
+  secretRef?: string;
 
   @Property()
   createdAt: Date = new Date();

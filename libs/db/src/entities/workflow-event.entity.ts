@@ -1,6 +1,6 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne } from '@mikro-orm/core';
 import { v4 } from 'uuid';
-import { WorkflowMirror, WorkflowStatus } from './workflow-mirror.entity';
+import { WorkflowMirror } from './workflow-mirror.entity';
 
 @Entity({ tableName: 'workflow_event' })
 export class WorkflowEvent {
@@ -10,23 +10,26 @@ export class WorkflowEvent {
   @ManyToOne(() => WorkflowMirror)
   workflow!: WorkflowMirror;
 
-  @Enum(() => WorkflowStatus)
-  fromStatus!: WorkflowStatus;
-
-  @Enum(() => WorkflowStatus)
-  toStatus!: WorkflowStatus;
+  @Property()
+  eventType!: string;
 
   @Property({ nullable: true })
-  step?: string;
+  fromState?: string;
 
   @Property({ nullable: true })
-  reason?: string;
-
-  @Property({ type: 'decimal', precision: 10, scale: 4, nullable: true })
-  costUsd?: number;
+  toState?: string;
 
   @Property({ type: 'jsonb', nullable: true })
-  metadata?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+
+  @Property({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  aiCostUsd?: number;
+
+  @Property({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  sandboxCostUsd?: number;
+
+  @Property({ type: 'decimal', precision: 10, scale: 4, nullable: true })
+  totalCostUsd?: number;
 
   @Property()
   createdAt: Date = new Date();

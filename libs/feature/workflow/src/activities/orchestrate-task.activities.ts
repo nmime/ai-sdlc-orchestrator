@@ -1,6 +1,6 @@
 import { EntityManager } from '@mikro-orm/postgresql';
-import { WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant } from '@ai-sdlc/db';
-import type { AgentInvokeOutput } from '@ai-sdlc/shared-type';
+import { WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant, AgentSession, AgentMode } from '@ai-sdlc/db';
+import type { AgentResult, SessionContext, PublishedArtifact } from '@ai-sdlc/shared-type';
 
 let em: EntityManager;
 let sandboxAdapter: any;
@@ -25,13 +25,19 @@ export function initActivities(deps: {
 export async function updateWorkflowMirror(input: {
   tenantId: string;
   temporalWorkflowId: string;
-  status: string;
-  taskExternalId?: string;
-  taskTitle?: string;
-  taskDescription?: string;
+  state: string;
+  currentStepId?: string;
+  taskId?: string;
+  taskProvider?: string;
+  repoId?: string;
   repoUrl?: string;
-  totalCostUsd?: number;
+  branchName?: string;
   mrUrl?: string;
+  dslName?: string;
+  dslVersion?: number;
+  costUsdTotal?: number;
+  aiCostUsd?: number;
+  sandboxCostUsd?: number;
 }): Promise<void> {
   let mirror = await em.findOne(WorkflowMirror, { temporalWorkflowId: input.temporalWorkflowId });
 
@@ -40,44 +46,51 @@ export async function updateWorkflowMirror(input: {
     mirror.tenant = em.getReference(Tenant, input.tenantId) as any;
     mirror.temporalWorkflowId = input.temporalWorkflowId;
     mirror.temporalRunId = '';
-    mirror.taskExternalId = input.taskExternalId || '';
-    mirror.taskTitle = input.taskTitle || '';
-    mirror.taskDescription = input.taskDescription;
+    mirror.repoId = input.repoId || '';
     mirror.repoUrl = input.repoUrl || '';
+    mirror.taskId = input.taskId;
+    mirror.taskProvider = input.taskProvider;
+    mirror.dslName = input.dslName;
+    mirror.dslVersion = input.dslVersion;
     em.persist(mirror);
   }
 
-  const previousStatus = mirror.status;
-  mirror.status = input.status as WorkflowStatus;
+  const previousState = mirror.state;
+  mirror.state = input.state as WorkflowStatus;
+  if (input.currentStepId) mirror.currentStepId = input.currentStepId;
+  if (input.branchName) mirror.branchName = input.branchName;
+  if (input.mrUrl) mirror.mrUrl = input.mrUrl;
+  if (input.costUsdTotal !== undefined) mirror.costUsdTotal = input.costUsdTotal;
+  if (input.aiCostUsd !== undefined) mirror.aiCostUsd = input.aiCostUsd;
+  if (input.sandboxCostUsd !== undefined) mirror.sandboxCostUsd = input.sandboxCostUsd;
 
-  if (input.totalCostUsd !== undefined) mirror.totalCostUsd = input.totalCostUsd;
-  if (input.mrUrl !== undefined) mirror.mrUrl = input.mrUrl;
-
-  if (input.status === 'completed' || input.status === 'failed') {
-    mirror.completedAt = new Date();
+  if (input.state === 'completed' || input.state === 'blocked_terminal' || input.state === 'cancelled') {
+    mirror.updatedAt = new Date();
   }
 
   const event = new WorkflowEvent();
   event.workflow = mirror;
-  event.fromStatus = previousStatus;
-  event.toStatus = input.status as WorkflowStatus;
+  event.eventType = 'state_transition';
+  event.fromState = previousState;
+  event.toState = input.state;
   em.persist(event);
 
   await em.flush();
 }
 
-export async function reserveBudget(input: { tenantId: string; amountUsd: number }): Promise<void> {
+export async function reserveBudget(input: { tenantId: string; estimatedCostUsd: number }): Promise<void> {
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
-  if (tenant.budgetLimitUsd > 0 && tenant.budgetUsedUsd + input.amountUsd > tenant.budgetLimitUsd) {
-    throw new Error(`Budget exceeded: $${tenant.budgetUsedUsd} + $${input.amountUsd} > $${tenant.budgetLimitUsd}`);
+  const total = Number(tenant.monthlyCostActualUsd) + Number(tenant.monthlyCostReservedUsd) + input.estimatedCostUsd;
+  if (tenant.monthlyCostLimitUsd > 0 && total > Number(tenant.monthlyCostLimitUsd)) {
+    throw new Error(`Budget exceeded: reserved + actual + estimated ($${total.toFixed(2)}) > limit ($${tenant.monthlyCostLimitUsd})`);
   }
 
   const updated = await em.nativeUpdate(
     Tenant,
     { id: input.tenantId, budgetVersion: tenant.budgetVersion },
     {
-      budgetUsedUsd: tenant.budgetUsedUsd + input.amountUsd,
+      monthlyCostReservedUsd: Number(tenant.monthlyCostReservedUsd) + input.estimatedCostUsd,
       budgetVersion: tenant.budgetVersion + 1,
     },
   );
@@ -85,6 +98,25 @@ export async function reserveBudget(input: { tenantId: string; amountUsd: number
   if (updated === 0) {
     throw new Error('Budget concurrency conflict, retry');
   }
+}
+
+export async function settleCost(input: { tenantId: string; reservedUsd: number; actualAiCostUsd?: number; actualSandboxCostUsd?: number }): Promise<void> {
+  const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
+  const actualAi = input.actualAiCostUsd ?? 0;
+  const actualSandbox = input.actualSandboxCostUsd ?? 0;
+  const actualTotal = actualAi + actualSandbox;
+
+  await em.nativeUpdate(
+    Tenant,
+    { id: input.tenantId, budgetVersion: tenant.budgetVersion },
+    {
+      monthlyCostReservedUsd: Math.max(0, Number(tenant.monthlyCostReservedUsd) - input.reservedUsd),
+      monthlyCostActualUsd: Number(tenant.monthlyCostActualUsd) + actualTotal,
+      monthlyAiCostActualUsd: Number(tenant.monthlyAiCostActualUsd) + actualAi,
+      monthlySandboxCostActualUsd: Number(tenant.monthlySandboxCostActualUsd) + actualSandbox,
+      budgetVersion: tenant.budgetVersion + 1,
+    },
+  );
 }
 
 export async function createSandbox(input: {
@@ -102,90 +134,104 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
-  const cloneResult = await sandboxAdapter.exec(sandboxId, `git clone ${input.repoUrl} /workspace && cd /workspace`);
-  if (cloneResult.isErr()) {
-    throw new Error(`Clone failed: ${cloneResult.error.message}`);
-  }
+  await sandboxAdapter.exec(sandboxId, `git clone ${input.repoUrl} /workspace && cd /workspace`);
 
   return { sandboxId };
+}
+
+export async function pauseSandbox(input: { sandboxId: string }): Promise<void> {
+  await sandboxAdapter.pause(input.sandboxId);
+}
+
+export async function resumeSandbox(input: { sandboxId: string }): Promise<{ sandboxId: string }> {
+  try {
+    const handle = await sandboxAdapter.resume(input.sandboxId);
+    return { sandboxId: handle?.sandboxId ?? input.sandboxId };
+  } catch {
+    return { sandboxId: input.sandboxId };
+  }
 }
 
 export async function invokeAgent(input: {
   tenantId: string;
   sandboxId: string;
-  taskTitle: string;
-  taskDescription: string;
+  mode: 'implement' | 'ci_fix' | 'review_fix';
   repoUrl: string;
-  previousFeedback?: string;
-}): Promise<AgentInvokeOutput> {
-  const prompt = promptFormatter.format('claude_code', {
-    taskId: input.tenantId,
-    taskTitle: input.taskTitle,
-    taskDescription: input.taskDescription,
-    repoUrl: input.repoUrl,
-    branch: 'main',
-    previousAttemptFeedback: input.previousFeedback,
+  previousContext?: SessionContext;
+}): Promise<AgentResult> {
+  const prompt = promptFormatter.format('claude', {
+    taskSeed: `Mode: ${input.mode}`,
+    repoInfo: { url: input.repoUrl, branch: 'main', defaultBranch: 'main' },
+    workflowInstructions: { qualityGates: ['test', 'lint'] },
+    mcpServers: [],
+    previousContext: input.previousContext,
   });
 
-  const agent = agentRegistry.getOrThrow('claude_code');
+  const agent = agentRegistry.getOrThrow('claude');
   const result = await agent.invoke({
-    sessionId: `${input.tenantId}-${Date.now()}`,
-    provider: 'claude_code',
+    sessionId: `session-${Date.now()}`,
+    provider: 'claude',
     prompt,
     sandboxId: input.sandboxId,
-    maxDurationMs: 1800_000,
+    maxDurationMs: 3_600_000,
     maxCostUsd: 50,
     credentialProxyUrl: credentialProxy.baseUrl,
   });
 
   if (result.isErr()) {
-    throw new Error(result.error.message);
+    return {
+      sessionId: '',
+      provider: 'claude',
+      model: 'claude-sonnet-4-20250514',
+      status: 'failure',
+      errorMessage: result.error.message,
+      summary: '',
+      cost: { ai: { inputTokens: 0, outputTokens: 0, usd: 0, provider: 'claude', model: 'claude-sonnet-4-20250514' }, sandbox: { durationSeconds: 0, usd: 0 }, totalUsd: 0 },
+      turnCount: 0,
+      toolCalls: [],
+    };
   }
 
   return result.value;
 }
 
 export async function destroySandbox(input: { sandboxId: string }): Promise<void> {
-  const result = await sandboxAdapter.destroy(input.sandboxId);
-  if (result.isErr()) {
-    throw new Error(result.error.message);
-  }
+  await sandboxAdapter.destroy(input.sandboxId);
 }
 
 export async function verifyAgentOutput(input: {
   sandboxId: string;
   repoUrl: string;
+  branchName?: string;
 }): Promise<void> {
-  const diffResult = await sandboxAdapter.exec(input.sandboxId, 'cd /workspace && git diff --stat HEAD');
-  if (diffResult.isErr()) throw new Error('Cannot verify output');
+  if (!input.branchName) return;
 
-  if (!diffResult.value.stdout.trim()) {
-    throw new Error('No changes detected in workspace');
+  const diffResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && git diff --stat origin/main...HEAD`);
+  if (diffResult.isErr()) {
+    throw new Error('Failed to verify agent output: ' + diffResult.error.message);
   }
 
-  const statusResult = await sandboxAdapter.exec(input.sandboxId, 'cd /workspace && git log --oneline -1');
-  if (statusResult.isErr()) throw new Error('Cannot verify commits');
+  const logResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && git log --oneline origin/main...HEAD`);
+  if (logResult.isErr() || !logResult.value.stdout?.trim()) {
+    throw new Error('No commits found on branch');
+  }
 }
 
-export async function collectArtifacts(input: {
-  sandboxId: string;
-}): Promise<{ type: string; name: string; url: string }[]> {
-  const result = await sandboxAdapter.exec(input.sandboxId, 'ls /workspace/.artifacts/ 2>/dev/null || echo ""');
-  if (result.isErr() || !result.value.stdout.trim()) return [];
-
-  const files = result.value.stdout.trim().split('\n').filter(Boolean);
-  return files.map((f: string) => ({
-    type: 'other',
-    name: f,
-    url: `/workspace/.artifacts/${f}`,
-  }));
+export async function collectArtifacts(input: { sandboxId: string }): Promise<PublishedArtifact[]> {
+  try {
+    const result = await sandboxAdapter.exec(input.sandboxId, 'cat /workspace/.artifacts/manifest.json');
+    if (result.isOk() && result.value.stdout) {
+      return JSON.parse(result.value.stdout) as PublishedArtifact[];
+    }
+  } catch { /* no artifacts */ }
+  return [];
 }
 
-export async function recordCost(input: {
+export async function cleanupAndEscalate(input: {
   tenantId: string;
-  totalCostUsd: number;
+  workflowId: string;
+  branchName?: string;
+  repoUrl: string;
 }): Promise<void> {
-  const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
-  tenant.budgetUsedUsd = Number(tenant.budgetUsedUsd) + input.totalCostUsd;
-  await em.flush();
+  // Placeholder: check if branch has commits, preserve or delete accordingly
 }

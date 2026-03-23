@@ -10,12 +10,6 @@ export enum AlertType {
   SYSTEM = 'system',
 }
 
-export enum AlertStatus {
-  ACTIVE = 'active',
-  ACKNOWLEDGED = 'acknowledged',
-  RESOLVED = 'resolved',
-}
-
 @Entity({ tableName: 'cost_alert' })
 export class CostAlert {
   @PrimaryKey({ type: 'uuid' })
@@ -25,22 +19,19 @@ export class CostAlert {
   tenant!: Tenant;
 
   @Enum(() => AlertType)
-  type!: AlertType;
+  alertType!: AlertType;
 
-  @Enum(() => AlertStatus)
-  status: AlertStatus = AlertStatus.ACTIVE;
-
-  @Property({ type: 'decimal', precision: 10, scale: 4 })
-  thresholdUsd!: number;
+  @Property({ type: 'decimal', precision: 5, scale: 2 })
+  thresholdPct!: number;
 
   @Property({ type: 'decimal', precision: 10, scale: 4 })
-  currentUsd!: number;
+  actualUsd!: number;
 
-  @Property()
-  message!: string;
+  @Property({ type: 'decimal', precision: 10, scale: 4 })
+  limitUsd!: number;
 
-  @Property({ nullable: true })
-  acknowledgedBy?: string;
+  @Property({ default: false })
+  acknowledged: boolean = false;
 
   @Property()
   createdAt: Date = new Date();

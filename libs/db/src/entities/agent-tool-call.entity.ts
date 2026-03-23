@@ -16,17 +16,17 @@ export class AgentToolCall {
   @ManyToOne(() => AgentSession)
   session!: AgentSession;
 
+  @Property({ type: 'int' })
+  sequenceNumber!: number;
+
   @Property()
   toolName!: string;
 
-  @Property({ nullable: true })
-  serverName?: string;
+  @Property({ type: 'jsonb', nullable: true })
+  inputSummary?: Record<string, unknown>;
 
   @Property({ type: 'jsonb', nullable: true })
-  input?: Record<string, unknown>;
-
-  @Property({ type: 'jsonb', nullable: true })
-  output?: Record<string, unknown>;
+  outputSummary?: Record<string, unknown>;
 
   @Enum(() => ToolCallStatus)
   status: ToolCallStatus = ToolCallStatus.RUNNING;
@@ -34,12 +34,6 @@ export class AgentToolCall {
   @Property({ type: 'int', nullable: true })
   durationMs?: number;
 
-  @Property({ nullable: true })
-  errorMessage?: string;
-
   @Property()
-  startedAt: Date = new Date();
-
-  @Property({ nullable: true })
-  completedAt?: Date;
+  createdAt: Date = new Date();
 }

@@ -8,9 +8,18 @@ import { TenantVcsCredential } from './tenant-vcs-credential.entity';
 import { TenantWebhookConfig } from './tenant-webhook-config.entity';
 
 export enum TenantStatus {
+  PENDING = 'pending',
+  PROVISIONING = 'provisioning',
   ACTIVE = 'active',
   SUSPENDED = 'suspended',
+  DEACTIVATING = 'deactivating',
+  DEACTIVATED = 'deactivated',
   DELETED = 'deleted',
+}
+
+export enum McpServerPolicy {
+  CURATED = 'curated',
+  OPEN = 'open',
 }
 
 @Entity({ tableName: 'tenant' })
@@ -27,23 +36,59 @@ export class Tenant {
   @Enum(() => TenantStatus)
   status: TenantStatus = TenantStatus.ACTIVE;
 
+  @Property({ nullable: true })
+  temporalNamespace?: string;
+
+  @Property({ type: 'int', default: 10 })
+  maxConcurrentWorkflows: number = 10;
+
+  @Property({ type: 'int', default: 5 })
+  maxConcurrentSandboxes: number = 5;
+
+  @Property({ type: 'decimal', precision: 12, scale: 2, default: 500 })
+  monthlyCostLimitUsd: number = 500;
+
+  @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  monthlyCostReservedUsd: number = 0;
+
+  @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  monthlyCostActualUsd: number = 0;
+
+  @Property({ nullable: true })
+  defaultAgentProvider?: string;
+
+  @Property({ nullable: true })
+  defaultAgentModel?: string;
+
   @Property({ type: 'jsonb', nullable: true })
-  config?: Record<string, unknown>;
+  agentProviderApiKeyRefs?: Record<string, string>;
+
+  @Property({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  monthlyAiCostLimitUsd?: number;
+
+  @Property({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  monthlySandboxCostLimitUsd?: number;
 
   @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  budgetLimitUsd: number = 0;
+  monthlyAiCostActualUsd: number = 0;
 
   @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  budgetUsedUsd: number = 0;
+  monthlySandboxCostActualUsd: number = 0;
+
+  @Property({ type: 'decimal', precision: 10, scale: 4, default: 0.05 })
+  sandboxHourlyRateUsd: number = 0.05;
+
+  @Property({ type: 'jsonb', nullable: true })
+  costAlertThresholds?: number[];
 
   @Property({ type: 'int', default: 0 })
   budgetVersion: number = 0;
 
-  @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  aiBudgetUsedUsd: number = 0;
+  @Enum(() => McpServerPolicy)
+  mcpServerPolicy: McpServerPolicy = McpServerPolicy.CURATED;
 
-  @Property({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  sandboxBudgetUsedUsd: number = 0;
+  @Property({ type: 'jsonb', nullable: true })
+  meta?: Record<string, unknown>;
 
   @Property()
   createdAt: Date = new Date();

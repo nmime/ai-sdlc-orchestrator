@@ -16,11 +16,12 @@ export class CostController {
 
     return {
       tenantId,
-      budgetLimitUsd: tenant.budgetLimitUsd,
-      budgetUsedUsd: tenant.budgetUsedUsd,
-      aiBudgetUsedUsd: tenant.aiBudgetUsedUsd,
-      sandboxBudgetUsedUsd: tenant.sandboxBudgetUsedUsd,
-      remainingUsd: Math.max(0, Number(tenant.budgetLimitUsd) - Number(tenant.budgetUsedUsd)),
+      monthlyCostLimitUsd: tenant.monthlyCostLimitUsd,
+      monthlyCostActualUsd: tenant.monthlyCostActualUsd,
+      monthlyCostReservedUsd: tenant.monthlyCostReservedUsd,
+      monthlyAiCostActualUsd: tenant.monthlyAiCostActualUsd,
+      monthlySandboxCostActualUsd: tenant.monthlySandboxCostActualUsd,
+      remainingUsd: Math.max(0, Number(tenant.monthlyCostLimitUsd) - Number(tenant.monthlyCostActualUsd) - Number(tenant.monthlyCostReservedUsd)),
     };
   }
 

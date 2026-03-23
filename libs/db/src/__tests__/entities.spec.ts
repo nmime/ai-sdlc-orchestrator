@@ -1,23 +1,24 @@
 import { Tenant, TenantStatus } from '../entities/tenant.entity';
 import { TenantUser, TenantRole } from '../entities/tenant-user.entity';
-import { TenantApiKey } from '../entities/tenant-api-key.entity';
+import { TenantApiKey, ApiKeyRole } from '../entities/tenant-api-key.entity';
 import { TenantRepoConfig, AgentProvider } from '../entities/tenant-repo-config.entity';
 import { WebhookDelivery, DeliveryStatus } from '../entities/webhook-delivery.entity';
 import { WorkflowMirror, WorkflowStatus } from '../entities/workflow-mirror.entity';
-import { WorkflowDsl, DslStatus } from '../entities/workflow-dsl.entity';
+import { WorkflowDsl } from '../entities/workflow-dsl.entity';
 import { AgentSession, SessionStatus } from '../entities/agent-session.entity';
 import { AgentToolCall, ToolCallStatus } from '../entities/agent-tool-call.entity';
-import { CostAlert, AlertType, AlertStatus } from '../entities/cost-alert.entity';
-import { PollingSchedule, PollingFrequency } from '../entities/polling-schedule.entity';
-import { McpServerRegistry, RegistryStatus } from '../entities/mcp-server-registry.entity';
+import { CostAlert, AlertType } from '../entities/cost-alert.entity';
+import { PollingSchedule } from '../entities/polling-schedule.entity';
+import { McpServerRegistry } from '../entities/mcp-server-registry.entity';
 
 describe('Entity defaults', () => {
   it('Tenant should have correct defaults', () => {
     const tenant = new Tenant();
     expect(tenant.id).toBeDefined();
     expect(tenant.status).toBe(TenantStatus.ACTIVE);
-    expect(tenant.budgetLimitUsd).toBe(0);
-    expect(tenant.budgetUsedUsd).toBe(0);
+    expect(tenant.monthlyCostLimitUsd).toBe(500);
+    expect(tenant.monthlyCostReservedUsd).toBe(0);
+    expect(tenant.monthlyCostActualUsd).toBe(0);
     expect(tenant.budgetVersion).toBe(0);
     expect(tenant.createdAt).toBeInstanceOf(Date);
   });
@@ -27,16 +28,16 @@ describe('Entity defaults', () => {
     expect(user.role).toBe(TenantRole.VIEWER);
   });
 
-  it('TenantApiKey should default to active', () => {
+  it('TenantApiKey should default to VIEWER role', () => {
     const key = new TenantApiKey();
-    expect(key.active).toBe(true);
+    expect(key.role).toBe(ApiKeyRole.VIEWER);
   });
 
-  it('TenantRepoConfig should default to CLAUDE_CODE', () => {
+  it('TenantRepoConfig should default to costLimitUsd 5', () => {
     const config = new TenantRepoConfig();
-    expect(config.agentProvider).toBe(AgentProvider.CLAUDE_CODE);
-    expect(config.maxCostPerTaskUsd).toBe(50);
-    expect(config.enabled).toBe(true);
+    expect(config.costLimitUsd).toBe(5);
+    expect(config.maxConcurrentWorkflows).toBe(1);
+    expect(config.createdAt).toBeInstanceOf(Date);
   });
 
   it('WebhookDelivery should default to RECEIVED', () => {
@@ -46,14 +47,14 @@ describe('Entity defaults', () => {
 
   it('WorkflowMirror should default to QUEUED', () => {
     const mirror = new WorkflowMirror();
-    expect(mirror.status).toBe(WorkflowStatus.QUEUED);
-    expect(mirror.totalCostUsd).toBe(0);
-    expect(mirror.retryCount).toBe(0);
+    expect(mirror.state).toBe(WorkflowStatus.QUEUED);
+    expect(mirror.costUsdTotal).toBe(0);
+    expect(mirror.fixAttemptCount).toBe(0);
   });
 
-  it('WorkflowDsl should default to DRAFT', () => {
+  it('WorkflowDsl should default to isActive true', () => {
     const dsl = new WorkflowDsl();
-    expect(dsl.status).toBe(DslStatus.DRAFT);
+    expect(dsl.isActive).toBe(true);
   });
 
   it('AgentSession should default to RUNNING', () => {
@@ -68,26 +69,28 @@ describe('Entity defaults', () => {
     expect(call.status).toBe(ToolCallStatus.RUNNING);
   });
 
-  it('CostAlert should default to ACTIVE', () => {
+  it('CostAlert should default to acknowledged false', () => {
     const alert = new CostAlert();
-    expect(alert.status).toBe(AlertStatus.ACTIVE);
+    expect(alert.acknowledged).toBe(false);
   });
 
-  it('PollingSchedule should default to 15min', () => {
+  it('PollingSchedule should default to 900s interval', () => {
     const schedule = new PollingSchedule();
-    expect(schedule.frequency).toBe(PollingFrequency.EVERY_15_MIN);
+    expect(schedule.pollIntervalSeconds).toBe(900);
     expect(schedule.enabled).toBe(true);
   });
 
-  it('McpServerRegistry should default to COMMUNITY', () => {
+  it('McpServerRegistry should default to isVerified false', () => {
     const registry = new McpServerRegistry();
-    expect(registry.status).toBe(RegistryStatus.COMMUNITY);
+    expect(registry.isVerified).toBe(false);
   });
 });
 
 describe('Entity enums', () => {
   it('TenantStatus should have all values', () => {
-    expect(Object.values(TenantStatus)).toEqual(['active', 'suspended', 'deleted']);
+    expect(Object.values(TenantStatus)).toEqual([
+      'pending', 'provisioning', 'active', 'suspended', 'deactivating', 'deactivated', 'deleted',
+    ]);
   });
 
   it('TenantRole should have all values', () => {
@@ -96,8 +99,9 @@ describe('Entity enums', () => {
 
   it('WorkflowStatus should have all values', () => {
     expect(Object.values(WorkflowStatus)).toEqual([
-      'queued', 'running', 'awaiting_gate', 'awaiting_ci',
-      'awaiting_review', 'completed', 'failed', 'cancelled', 'timed_out',
+      'queued', 'implementing', 'ci_watch', 'ci_passed', 'ci_failed',
+      'ci_fixing', 'in_review', 'review_fixing', 'completed',
+      'blocked_recoverable', 'blocked_terminal', 'cancelled', 'timed_out',
     ]);
   });
 

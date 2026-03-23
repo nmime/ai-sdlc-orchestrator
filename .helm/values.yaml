@@ -1,14 +1,11 @@
-replicaCount:
-  api: 2
-  worker: 2
-
-image:
-  repository: ghcr.io/nmime/ai-sdlc-orchestrator
-  pullPolicy: IfNotPresent
-  tag: "latest"
+nameOverride: ""
+fullnameOverride: ""
 
 api:
-  port: 3000
+  replicas: 2
+  image:
+    repository: ai-sdlc/orchestrator-api
+    tag: latest
   resources:
     requests:
       cpu: 250m
@@ -16,11 +13,12 @@ api:
     limits:
       cpu: 1000m
       memory: 1Gi
-  env:
-    API_PORT: "3000"
-    NODE_ENV: "production"
 
 worker:
+  replicas: 2
+  image:
+    repository: ai-sdlc/orchestrator-worker
+    tag: latest
   resources:
     requests:
       cpu: 500m
@@ -28,61 +26,55 @@ worker:
     limits:
       cpu: 2000m
       memory: 2Gi
-  env:
-    WORKER_LOG_LEVEL: "info"
-    NODE_ENV: "production"
 
-dashboard:
-  enabled: true
-  replicaCount: 1
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
+credentialProxy:
+  replicas: 2
+  image:
+    repository: ai-sdlc/credential-proxy
+    tag: latest
+  signingKey: ""
 
 postgresql:
-  enabled: true
-  auth:
-    database: orchestrator
-    username: orchestrator
-    existingSecret: db-credentials
+  host: postgresql
+  port: "5432"
+  database: ai_sdlc
+  password: ""
 
 temporal:
-  enabled: true
-  server:
-    replicaCount: 1
+  address: temporal:7233
+  namespace: default
 
 redis:
-  enabled: true
-  architecture: standalone
+  url: redis://redis:6379
 
 minio:
-  enabled: true
-  defaultBuckets: artifacts
+  endpoint: http://minio:9000
+  bucket: ai-sdlc-artifacts
+
+e2b:
+  apiKey: ""
+
+anthropic:
+  apiKey: ""
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
+  host: ai-sdlc.example.com
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: orchestrator.example.com
-      paths:
-        - path: /api
-          pathType: Prefix
-          service: api
-        - path: /
-          pathType: Prefix
-          service: dashboard
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
   tls:
-    - secretName: orchestrator-tls
+    - secretName: ai-sdlc-tls
       hosts:
-        - orchestrator.example.com
+        - ai-sdlc.example.com
+
+autoscaling:
+  enabled: false
+  maxReplicas: 10
+  workerMaxReplicas: 8
+  targetCPUUtilization: 70
 
 monitoring:
-  enabled: true
-  serviceMonitor: true
-  grafanaDashboard: true
+  enabled: false
+
+logLevel: info

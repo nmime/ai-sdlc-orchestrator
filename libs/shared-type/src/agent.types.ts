@@ -1,37 +1,71 @@
+export type AgentProvider = 'claude' | 'openhands' | 'aider';
+
 export interface AgentPromptData {
-  taskId: string;
-  taskTitle: string;
-  taskDescription: string;
-  repoUrl: string;
-  branch: string;
-  buildCommands?: string[];
-  testCommands?: string[];
-  lintCommands?: string[];
-  mcpServers?: { name: string; endpoint: string }[];
-  previousAttemptFeedback?: string;
-  additionalContext?: string;
+  taskSeed: string;
+  repoInfo: {
+    url: string;
+    branch: string;
+    defaultBranch: string;
+    paths?: string[];
+  };
+  workflowInstructions: {
+    qualityGates: string[];
+    maxDiffLines?: number;
+    allowedPaths?: string[];
+    commitMessagePattern?: string;
+    mrDescriptionTemplate?: string;
+    staticAnalysisCommand?: string;
+  };
+  mcpServers: McpServerConfig[];
+  previousContext?: import('./workflow.types').SessionContext;
 }
 
-export interface AgentInvokeInput {
+export interface McpServerConfig {
+  name: string;
+  transport: string;
+  url?: string;
+  command?: string;
+  args?: string[];
+  headers?: Record<string, string>;
+  env?: Record<string, string>;
+}
+
+export interface AgentInvocation {
+  workflowId: string;
+  provider: AgentProvider;
+  model?: string;
+  repoPath: string;
+  prompt: AgentPromptData;
+  mcpServers: McpServerConfig[];
+  costLimitUsd: number;
+  maxTurns: number;
+  previousSessionContext?: import('./workflow.types').SessionContext;
+  staticAnalysisCommand?: string;
+  sparseCheckoutPaths?: string[];
+  workflowVariables?: Record<string, string>;
+}
+
+export interface AgentResult {
   sessionId: string;
-  provider: string;
-  prompt: string;
-  sandboxId: string;
-  maxDurationMs: number;
-  maxCostUsd: number;
-  credentialProxyUrl: string;
-}
-
-export interface AgentInvokeOutput {
-  success: boolean;
+  provider: AgentProvider;
+  model: string;
+  status: 'success' | 'failure' | 'cost_limit' | 'turn_limit';
+  errorCode?: string;
+  errorMessage?: string;
+  summary: string;
   branchName?: string;
   mrUrl?: string;
-  filesChanged: number;
-  inputTokens: number;
-  outputTokens: number;
-  aiCostUsd: number;
-  sandboxCostUsd: number;
-  qualityScore?: number;
-  artifacts: { type: string; name: string; url: string }[];
-  errorMessage?: string;
+  mrDescription?: string;
+  commitMessages?: string[];
+  diffStats?: import('./workflow.types').DiffStats;
+  artifacts?: import('./workflow.types').PublishedArtifact[];
+  cost: {
+    ai: { inputTokens: number; outputTokens: number; usd: number; provider: AgentProvider; model: string };
+    sandbox: { durationSeconds: number; usd: number };
+    totalUsd: number;
+  };
+  turnCount: number;
+  toolCalls: { toolName: string; inputSummary?: Record<string, unknown>; outputSummary?: Record<string, unknown>; status: string; durationMs?: number }[];
+  staticAnalysisResult?: 'passed' | 'failed' | 'skipped';
+  staticAnalysisOutput?: string;
 }
