@@ -46,11 +46,11 @@ describe('GateService', () => {
   it('should submit a reject decision', async () => {
     mockSignal.mockResolvedValue(undefined);
 
-    const result = await service.submitDecision('wf-456', 'reject', 'admin@test.com', 'Needs fixes');
+    const result = await service.submitDecision('wf-456', 'request_changes', 'admin@test.com', 'Needs fixes');
 
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value.action).toBe('reject');
+      expect(result.value.action).toBe('request_changes');
     }
   });
 

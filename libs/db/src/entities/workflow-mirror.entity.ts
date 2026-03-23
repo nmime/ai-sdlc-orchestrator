@@ -1,9 +1,9 @@
 import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index, OneToMany, Collection } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
-import { AgentSession } from './agent-session.entity';
-import { WorkflowEvent } from './workflow-event.entity';
-import { WorkflowArtifact } from './workflow-artifact.entity';
+
+
+
 
 export enum WorkflowStatus {
   QUEUED = 'queued',
@@ -102,12 +102,12 @@ export class WorkflowMirror {
   @Property({ onUpdate: () => new Date() })
   updatedAt: Date = new Date();
 
-  @OneToMany(() => AgentSession, (s) => s.workflow)
-  sessions = new Collection<AgentSession>(this);
+  @OneToMany('AgentSession', 'workflow')
+  sessions = new Collection<any>(this);
 
-  @OneToMany(() => WorkflowEvent, (e) => e.workflow)
-  events = new Collection<WorkflowEvent>(this);
+  @OneToMany('WorkflowEvent', 'workflow')
+  events = new Collection<any>(this);
 
-  @OneToMany(() => WorkflowArtifact, (a) => a.workflow)
-  artifacts = new Collection<WorkflowArtifact>(this);
+  @OneToMany('WorkflowArtifact', 'workflow')
+  artifacts = new Collection<any>(this);
 }

@@ -1,7 +1,7 @@
 import { Entity, PrimaryKey, Property, ManyToOne, OneToMany, Collection, Enum } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { WorkflowMirror } from './workflow-mirror.entity';
-import { AgentToolCall } from './agent-tool-call.entity';
+
 
 export enum SessionStatus {
   RUNNING = 'running',
@@ -141,6 +141,6 @@ export class AgentSession {
   @Property({ nullable: true })
   completedAt?: Date;
 
-  @OneToMany(() => AgentToolCall, (t) => t.session)
-  toolCalls = new Collection<AgentToolCall>(this);
+  @OneToMany('AgentToolCall', 'session')
+  toolCalls = new Collection<any>(this);
 }
