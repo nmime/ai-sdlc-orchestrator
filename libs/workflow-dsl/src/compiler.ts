@@ -32,7 +32,21 @@ export interface CompiledStep {
     terminal?: { cleanupTimeoutHours?: number };
   };
   childSteps?: CompiledStep[];
+  branches?: CompiledBranch[];
+  joinStrategy?: 'wait_all' | 'fail_fast';
+  transitions?: CompiledTransition[];
+  defaultTarget?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface CompiledBranch {
+  id: string;
+  steps: CompiledStep[];
+}
+
+export interface CompiledTransition {
+  condition: string;
+  target: string;
 }
 
 export interface CompiledWorkflow {
@@ -53,6 +67,7 @@ export interface CompiledWorkflow {
     onComplete?: string;
     onFailure?: string;
   };
+  variables?: Record<string, string>;
   checksum: string;
   compiledAt: string;
 }
@@ -80,9 +95,7 @@ export class DslCompiler {
   private compileConfig(config: WorkflowDslConfig, rawYaml: string): CompiledWorkflow {
     const steps = config.steps.map((s) => this.compileStep(s));
     const stepMap: Record<string, CompiledStep> = {};
-    for (const step of steps) {
-      stepMap[step.id] = step;
-    }
+    this.flattenStepMap(steps, stepMap);
 
     return {
       name: config.name,
@@ -98,6 +111,7 @@ export class DslCompiler {
         maxCostPerTaskUsd: config.defaults?.maxCostPerTaskUsd ?? 50,
       },
       hooks: config.hooks,
+      variables: config.variables,
       checksum: this.computeChecksum(rawYaml),
       compiledAt: new Date().toISOString(),
     };
@@ -144,7 +158,35 @@ export class DslCompiler {
       compiled.childSteps = step.steps.map((s: any) => this.compileStep(s));
     }
 
+    if (step.branches) {
+      compiled.branches = step.branches.map((b: any) => ({
+        id: b.id,
+        steps: b.steps.map((s: any) => this.compileStep(s)),
+      }));
+      compiled.joinStrategy = step.join_strategy || 'wait_all';
+    }
+
+    if (step.transitions) {
+      compiled.transitions = step.transitions.map((t: any) => ({
+        condition: t.condition,
+        target: t.target,
+      }));
+      compiled.defaultTarget = step.default_target;
+    }
+
     return compiled;
+  }
+
+  private flattenStepMap(steps: CompiledStep[], map: Record<string, CompiledStep>): void {
+    for (const step of steps) {
+      map[step.id] = step;
+      if (step.childSteps) this.flattenStepMap(step.childSteps, map);
+      if (step.branches) {
+        for (const branch of step.branches) {
+          this.flattenStepMap(branch.steps, map);
+        }
+      }
+    }
   }
 
   private computeChecksum(content: string): string {

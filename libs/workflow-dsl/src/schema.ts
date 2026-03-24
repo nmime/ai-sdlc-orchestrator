@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const loopStrategySchema = z.object({
   max_iterations: z.number().int().min(1).max(50),
   no_progress_limit: z.number().int().min(1).max(10).default(2),
-  regression_action: z.enum(['stop', 'continue']).default('stop'),
+  regression_action: z.enum(['stop', 'continue', 'retry_once']).default('stop'),
   escalation_threshold: z.number().int().min(1).default(3),
 });
 
@@ -21,6 +21,20 @@ export const stepTypeSchema = z.enum([
 ]);
 
 export type StepType = z.infer<typeof stepTypeSchema>;
+
+export const transitionSchema = z.object({
+  condition: z.string(),
+  target: z.string(),
+});
+
+export type Transition = z.infer<typeof transitionSchema>;
+
+export const parallelBranchSchema = z.object({
+  id: z.string(),
+  steps: z.array(z.lazy(() => dslStepSchema)),
+});
+
+export type ParallelBranch = z.infer<typeof parallelBranchSchema>;
 
 export const dslStepSchema: z.ZodType<any> = z.lazy(() => z.object({
   id: z.string().min(1).max(100),
@@ -45,7 +59,11 @@ export const dslStepSchema: z.ZodType<any> = z.lazy(() => z.object({
     recoverable: z.object({ on_unblock: z.string().optional() }).optional(),
     terminal: z.object({ cleanup_timeout_hours: z.number().optional() }).optional(),
   }).optional(),
-  steps: z.array(dslStepSchema).optional(),
+  steps: z.array(z.lazy(() => dslStepSchema)).optional(),
+  branches: z.array(parallelBranchSchema).optional(),
+  join_strategy: z.enum(['wait_all', 'fail_fast']).optional(),
+  transitions: z.array(transitionSchema).optional(),
+  default_target: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 }));
 
@@ -69,6 +87,7 @@ export const workflowDslSchema = z.object({
     onComplete: z.string().optional(),
     onFailure: z.string().optional(),
   }).optional(),
+  variables: z.record(z.string()).optional(),
 });
 
 export type WorkflowDslConfig = z.infer<typeof workflowDslSchema>;

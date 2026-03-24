@@ -1,0 +1,1 @@
+{ "extends": "../../../../../tsconfig.base.json", "compilerOptions": { "outDir": "../../../../../dist/libs/feature/agent/shared/mcp-policy" }, "include": ["src/**/*.ts"] }

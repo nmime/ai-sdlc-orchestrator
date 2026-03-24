@@ -4,6 +4,7 @@ import {
   setHandler,
   condition,
   ApplicationFailure,
+  workflowInfo,
 } from '@temporalio/workflow';
 import type { WorkflowInput, WorkflowResult, StepResult, PublishedArtifact, SessionContext } from '@ai-sdlc/shared-type';
 import type { GateDecision } from '@ai-sdlc/shared-type';
@@ -21,6 +22,8 @@ const {
   verifyAgentOutput,
   collectArtifacts,
   cleanupAndEscalate,
+  checkConcurrency,
+  checkAdmission,
 } = proxyActivities<typeof activitiesType>({
   startToCloseTimeout: '65m',
   retry: {
@@ -42,10 +45,13 @@ export const workflowUnblockSignal = defineSignal<[{ reason: string }]>('workflo
 interface LoopState {
   iteration: number;
   noProgressCount: number;
+  errorsBefore?: number;
+  errorsAfter?: number;
   lastSessionContext?: SessionContext;
 }
 
 export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
+  const wfInfo = workflowInfo();
   const steps: StepResult[] = [];
   let totalAiCostUsd = 0;
   let totalSandboxCostUsd = 0;
@@ -54,7 +60,6 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   const artifacts: PublishedArtifact[] = [];
   let sandboxId: string | undefined;
   let currentStepId = 'implement';
-  let blockedStepId: string | undefined;
 
   let gateDecision: GateDecision | null = null;
   let pipelineSucceeded = false;
@@ -75,7 +80,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
 
   const totalCostUsd = () => totalAiCostUsd + totalSandboxCostUsd;
   const mirrorUpdate = (state: string, extra?: Record<string, unknown>) =>
-    updateWorkflowMirror({ tenantId: input.tenantId, temporalWorkflowId: '', state, currentStepId, ...extra });
+    updateWorkflowMirror({ tenantId: input.tenantId, temporalWorkflowId: wfInfo.workflowId, state, currentStepId, ...extra });
 
   await mirrorUpdate('implementing', {
     taskId: input.taskId,
@@ -86,14 +91,28 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
     dslVersion: input.dslVersion,
   });
 
+  try {
+    await checkConcurrency({ tenantId: input.tenantId, repoId: input.repoId });
+  } catch (error) {
+    await mirrorUpdate('blocked_recoverable', { errorMessage: (error as Error).message });
+    return buildResult(false, steps, 0, 0, artifacts, mrUrl, branchName, (error as Error).message);
+  }
+
   const startBudget = Date.now();
   try {
-    await reserveBudget({ tenantId: input.tenantId, estimatedCostUsd: 50 });
+    await reserveBudget({ tenantId: input.tenantId, estimatedCostUsd: 50, repoId: input.repoId });
     steps.push({ stepName: 'reserve_budget', status: 'completed', durationMs: Date.now() - startBudget, costUsd: 0 });
   } catch (error) {
     steps.push({ stepName: 'reserve_budget', status: 'failed', durationMs: Date.now() - startBudget, costUsd: 0, errorMessage: (error as Error).message });
     await mirrorUpdate('blocked_terminal');
-    return { success: false, steps, totalCostUsd: 0, aiCostUsd: 0, sandboxCostUsd: 0, artifacts, errorMessage: (error as Error).message };
+    return buildResult(false, steps, 0, 0, artifacts, mrUrl, branchName, (error as Error).message);
+  }
+
+  try {
+    await checkAdmission({ tenantId: input.tenantId });
+  } catch (error) {
+    await mirrorUpdate('blocked_recoverable', { errorMessage: (error as Error).message });
+    return buildResult(false, steps, 0, 0, artifacts, mrUrl, branchName, (error as Error).message);
   }
 
   const startSandbox = Date.now();
@@ -104,10 +123,9 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   } catch (error) {
     steps.push({ stepName: 'create_sandbox', status: 'failed', durationMs: Date.now() - startSandbox, costUsd: 0, errorMessage: (error as Error).message });
     await mirrorUpdate('blocked_recoverable');
-    return { success: false, steps, totalCostUsd: 0, aiCostUsd: 0, sandboxCostUsd: 0, artifacts, errorMessage: (error as Error).message };
+    return buildResult(false, steps, 0, 0, artifacts, mrUrl, branchName, (error as Error).message);
   }
 
-  // --- IMPLEMENT ---
   currentStepId = 'implement';
   const implementResult = await runAgentStep({
     stepId: 'implement',
@@ -115,10 +133,11 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
     sandboxId: sandboxId!,
     input,
     steps,
+    temporalWorkflowId: wfInfo.workflowId,
   });
 
   if (!implementResult.success) {
-    await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts);
+    await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
     return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'Implementation failed');
   }
   totalAiCostUsd += implementResult.aiCostUsd;
@@ -127,7 +146,6 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   mrUrl = implementResult.mrUrl;
   if (implementResult.artifacts) artifacts.push(...implementResult.artifacts);
 
-  // --- CI WATCH ---
   currentStepId = 'ci_watch';
   await mirrorUpdate('ci_watch', { branchName, mrUrl });
 
@@ -140,12 +158,11 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   const ciResolved = await condition(() => pipelineSucceeded || pipelineFailed, '2h');
 
   if (!ciResolved) {
-    await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts);
+    await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
     return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'CI watch timed out');
   }
 
   if (pipelineFailed) {
-    // --- CI FIX LOOP ---
     const ciFixResult = await runFixLoop({
       loopId: 'ci_fix',
       mode: 'ci_fix',
@@ -155,17 +172,17 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
       input,
       steps,
       previousContext: implementResult.sessionContext,
+      temporalWorkflowId: wfInfo.workflowId,
     });
     totalAiCostUsd += ciFixResult.totalAiCostUsd;
     totalSandboxCostUsd += ciFixResult.totalSandboxCostUsd;
 
     if (!ciFixResult.success) {
-      await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts);
+      await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
       return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'CI fix loop exhausted');
     }
   }
 
-  // --- VERIFY OUTPUT ---
   currentStepId = 'verify_output';
   const startVerify = Date.now();
   try {
@@ -175,7 +192,6 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
     steps.push({ stepName: 'verify_output', status: 'failed', durationMs: Date.now() - startVerify, costUsd: 0, errorMessage: (error as Error).message });
   }
 
-  // --- REVIEW GATE ---
   currentStepId = 'review_gate';
   await mirrorUpdate('in_review');
   gateDecision = null;
@@ -188,12 +204,11 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
 
   if (!gateResolved) {
     steps.push({ stepName: 'review_gate', status: 'failed', durationMs: 0, costUsd: 0, errorMessage: 'Review gate timed out (72h)' });
-    await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts);
+    await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
     return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'Review gate timed out');
   }
 
   if (changesRequested || (gateDecision && (gateDecision as GateDecision).action === 'request_changes')) {
-    // --- REVIEW FIX LOOP ---
     currentStepId = 'review_fix_loop';
     await mirrorUpdate('review_fixing');
 
@@ -206,38 +221,36 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
       input,
       steps,
       previousContext: implementResult.sessionContext,
+      temporalWorkflowId: wfInfo.workflowId,
     });
     totalAiCostUsd += reviewFixResult.totalAiCostUsd;
     totalSandboxCostUsd += reviewFixResult.totalSandboxCostUsd;
 
     if (!reviewFixResult.success) {
-      await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts);
+      await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
       return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'Review fix loop exhausted');
     }
 
-    // Re-enter CI watch after review fix
     pipelineSucceeded = false;
     pipelineFailed = false;
     await mirrorUpdate('ci_watch');
     const ciResolved2 = await condition(() => pipelineSucceeded || pipelineFailed, '2h');
     if (!ciResolved2 || pipelineFailed) {
-      await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts);
+      await cleanupAndFinish('blocked_terminal', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
       return buildResult(false, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName, 'Post-review CI failed');
     }
   }
 
   steps.push({ stepName: 'review_gate', status: 'completed', durationMs: 0, costUsd: 0 });
 
-  // --- COLLECT ARTIFACTS ---
   if (sandboxId) {
     try {
-      const collected = await collectArtifacts({ sandboxId });
+      const collected = await collectArtifacts({ sandboxId, tenantId: input.tenantId, temporalWorkflowId: wfInfo.workflowId });
       artifacts.push(...collected);
     } catch { /* non-fatal */ }
   }
 
-  // --- DONE ---
-  await cleanupAndFinish('completed', sandboxId, input, steps, artifacts);
+  await cleanupAndFinish('completed', sandboxId, input, steps, artifacts, totalAiCostUsd, totalSandboxCostUsd, wfInfo.workflowId);
   return buildResult(true, steps, totalAiCostUsd, totalSandboxCostUsd, artifacts, mrUrl, branchName);
 }
 
@@ -248,6 +261,8 @@ async function runAgentStep(params: {
   input: WorkflowInput;
   steps: StepResult[];
   previousContext?: SessionContext;
+  temporalWorkflowId: string;
+  loopIteration?: number;
 }): Promise<{
   success: boolean;
   aiCostUsd: number;
@@ -261,10 +276,14 @@ async function runAgentStep(params: {
   try {
     const result = await invokeAgent({
       tenantId: params.input.tenantId,
+      temporalWorkflowId: params.temporalWorkflowId,
       sandboxId: params.sandboxId,
       mode: params.mode,
       repoUrl: params.input.repoUrl,
+      repoId: params.input.repoId,
+      loopIteration: params.loopIteration,
       previousContext: params.previousContext,
+      taskLabel: params.input.labels?.[0],
     });
 
     const aiCost = result.cost?.ai?.usd ?? 0;
@@ -307,6 +326,7 @@ async function runFixLoop(params: {
   input: WorkflowInput;
   steps: StepResult[];
   previousContext?: SessionContext;
+  temporalWorkflowId: string;
 }): Promise<{ success: boolean; totalAiCostUsd: number; totalSandboxCostUsd: number }> {
   let totalAiCostUsd = 0;
   let totalSandboxCostUsd = 0;
@@ -317,7 +337,7 @@ async function runFixLoop(params: {
     try {
       const resumed = await resumeSandbox({ sandboxId: params.sandboxId });
       if (resumed.sandboxId) params.sandboxId = resumed.sandboxId;
-    } catch { /* fresh sandbox needed — handled by invokeAgent */ }
+    } catch { /* fresh sandbox needed */ }
 
     const result = await runAgentStep({
       stepId: `${params.loopId}_${i}`,
@@ -326,6 +346,8 @@ async function runFixLoop(params: {
       input: params.input,
       steps: params.steps,
       previousContext: lastContext,
+      temporalWorkflowId: params.temporalWorkflowId,
+      loopIteration: i,
     });
 
     totalAiCostUsd += result.aiCostUsd;
@@ -347,16 +369,33 @@ async function cleanupAndFinish(
   input: WorkflowInput,
   steps: StepResult[],
   artifacts: PublishedArtifact[],
+  aiCostUsd: number,
+  sandboxCostUsd: number,
+  temporalWorkflowId: string,
 ) {
   if (sandboxId) {
     try { await destroySandbox({ sandboxId }); } catch { /* non-fatal */ }
   }
 
   try {
-    await settleCost({ tenantId: input.tenantId, reservedUsd: 50 });
+    await settleCost({
+      tenantId: input.tenantId,
+      workflowId: temporalWorkflowId,
+      reservedUsd: 50,
+      actualAiCostUsd: aiCostUsd,
+      actualSandboxCostUsd: sandboxCostUsd,
+      actualTotalCostUsd: aiCostUsd + sandboxCostUsd,
+    });
   } catch { /* non-fatal */ }
 
-  await updateWorkflowMirror({ tenantId: input.tenantId, temporalWorkflowId: '', state: finalState });
+  await updateWorkflowMirror({
+    tenantId: input.tenantId,
+    temporalWorkflowId,
+    state: finalState,
+    costUsdTotal: aiCostUsd + sandboxCostUsd,
+    aiCostUsd,
+    sandboxCostUsd,
+  });
 }
 
 function buildResult(
