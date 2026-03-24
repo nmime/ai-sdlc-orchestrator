@@ -3,6 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@ai-sdlc/common';
 import { ApiKeyService } from '../api-key.service';
 
+interface AuthenticatedUser {
+  id: string;
+  email: string;
+  role: string;
+  tenantId?: string;
+}
+
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
@@ -11,7 +18,7 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<{ headers: Record<string, string>; user?: AuthenticatedUser }>();
     const authHeader = request.headers['authorization'];
 
     if (!authHeader) throw new UnauthorizedException('Missing authorization header');
@@ -27,7 +34,7 @@ export class AuthGuard implements CanActivate {
     throw new UnauthorizedException('Unsupported authorization scheme');
   }
 
-  private async validateBearerToken(token: string, request: any): Promise<boolean> {
+  private async validateBearerToken(token: string, request: { user?: AuthenticatedUser }): Promise<boolean> {
     const issuerUrl = this.configService.get('OIDC_ISSUER_URL');
     if (!issuerUrl) {
       request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: 'dev-tenant' };
@@ -44,7 +51,7 @@ export class AuthGuard implements CanActivate {
       const userInfo = await response.json() as { sub: string; email?: string; role?: string; tenant_id?: string };
       request.user = {
         id: userInfo.sub,
-        email: userInfo.email,
+        email: userInfo.email ?? '',
         role: userInfo.role || 'viewer',
         tenantId: userInfo.tenant_id,
       };
@@ -55,7 +62,7 @@ export class AuthGuard implements CanActivate {
     }
   }
 
-  private async validateApiKey(rawKey: string, request: any): Promise<boolean> {
+  private async validateApiKey(rawKey: string, request: { user?: AuthenticatedUser }): Promise<boolean> {
     const result = await this.apiKeyService.validate(rawKey);
     if (result.isErr()) throw new UnauthorizedException(result.error.message);
 

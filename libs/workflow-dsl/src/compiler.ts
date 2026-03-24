@@ -1,12 +1,12 @@
 import { parse as parseYaml } from 'yaml';
 import { Result } from 'neverthrow';
-import { workflowDslSchema, type WorkflowDslConfig, type DslStep } from './schema';
+import { workflowDslSchema, type WorkflowDslConfig, type DslStep, type StepType, type Transition } from './schema';
 import type { AppError } from '@ai-sdlc/common';
 import { ResultUtils } from '@ai-sdlc/common';
 
 export interface CompiledStep {
   id: string;
-  type: string;
+  type: StepType;
   action?: string;
   mode?: string;
   timeoutMs: number;
@@ -155,19 +155,19 @@ export class DslCompiler {
     }
 
     if (step.steps) {
-      compiled.childSteps = step.steps.map((s: any) => this.compileStep(s));
+      compiled.childSteps = step.steps.map((s: DslStep) => this.compileStep(s));
     }
 
     if (step.branches) {
-      compiled.branches = step.branches.map((b: any) => ({
+      compiled.branches = step.branches.map((b) => ({
         id: b.id,
-        steps: b.steps.map((s: any) => this.compileStep(s)),
+        steps: b.steps.map((s: DslStep) => this.compileStep(s)),
       }));
       compiled.joinStrategy = step.join_strategy || 'wait_all';
     }
 
     if (step.transitions) {
-      compiled.transitions = step.transitions.map((t: any) => ({
+      compiled.transitions = step.transitions.map((t: Transition) => ({
         condition: t.condition,
         target: t.target,
       }));

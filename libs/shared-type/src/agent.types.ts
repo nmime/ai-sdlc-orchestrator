@@ -1,4 +1,27 @@
-export type AgentProvider = 'claude' | 'openhands' | 'aider';
+export const AGENT_PROVIDER = {
+  CLAUDE: 'claude',
+  OPENHANDS: 'openhands',
+  AIDER: 'aider',
+} as const;
+
+export type AgentProvider = (typeof AGENT_PROVIDER)[keyof typeof AGENT_PROVIDER];
+
+export const AGENT_RESULT_STATUS = {
+  SUCCESS: 'success',
+  FAILURE: 'failure',
+  COST_LIMIT: 'cost_limit',
+  TURN_LIMIT: 'turn_limit',
+} as const;
+
+export type AgentResultStatus = (typeof AGENT_RESULT_STATUS)[keyof typeof AGENT_RESULT_STATUS];
+
+export const STATIC_ANALYSIS = {
+  PASSED: 'passed',
+  FAILED: 'failed',
+  SKIPPED: 'skipped',
+} as const;
+
+export type StaticAnalysisValue = (typeof STATIC_ANALYSIS)[keyof typeof STATIC_ANALYSIS];
 
 export interface AgentPromptData {
   taskSeed: string;
@@ -71,7 +94,7 @@ export interface AgentResult {
   sessionId: string;
   provider: AgentProvider;
   model: string;
-  status: 'success' | 'failure' | 'cost_limit' | 'turn_limit';
+  status: AgentResultStatus;
   errorCode?: string;
   errorMessage?: string;
   summary: string;
@@ -88,6 +111,6 @@ export interface AgentResult {
   };
   turnCount: number;
   toolCalls: { toolName: string; inputSummary?: Record<string, unknown>; outputSummary?: Record<string, unknown>; status: string; durationMs?: number }[];
-  staticAnalysisResult?: 'passed' | 'failed' | 'skipped';
+  staticAnalysisResult?: StaticAnalysisValue;
   staticAnalysisOutput?: string;
 }

@@ -2,9 +2,9 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import {
   WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant, AgentSession, AgentMode,
   AgentToolCall, ToolCallStatus, SessionStatus, TenantRepoConfig, WorkflowArtifact,
-  ArtifactKind, ArtifactStatus, CostAlert, AlertType,
+  ArtifactKind, ArtifactStatus, CostAlert, AlertType, StaticAnalysisResult,
 } from '@ai-sdlc/db';
-import type { AgentResult, SessionContext, PublishedArtifact, CostSettlement } from '@ai-sdlc/shared-type';
+import type { AgentResult, AgentProvider, StaticAnalysisValue, SessionContext, PublishedArtifact, CostSettlement } from '@ai-sdlc/shared-type';
 import type { SandboxPort } from '@ai-sdlc/feature-agent-registry';
 import type { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
 import type { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
@@ -355,13 +355,13 @@ export async function invokeAgent(input: {
 
   const failureResult = (msg: string, errorCode?: string): AgentResult => ({
     sessionId: session.id,
-    provider: resolved.providerName as any,
+    provider: resolved.providerName as AgentProvider,
     model: resolved.model,
     status: 'failure',
     errorCode,
     errorMessage: msg,
     summary: '',
-    cost: { ai: { inputTokens: 0, outputTokens: 0, usd: 0, provider: resolved.providerName as any, model: resolved.model }, sandbox: { durationSeconds: 0, usd: 0 }, totalUsd: 0 },
+    cost: { ai: { inputTokens: 0, outputTokens: 0, usd: 0, provider: resolved.providerName as AgentProvider, model: resolved.model }, sandbox: { durationSeconds: 0, usd: 0 }, totalUsd: 0 },
     turnCount: 0,
     toolCalls: [],
   });
@@ -394,7 +394,7 @@ export async function invokeAgent(input: {
   if (repoConfig?.staticAnalysisCommand) {
     const saResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && ${repoConfig.staticAnalysisCommand}`);
     if (saResult.isOk()) {
-      session.staticAnalysisResult = saResult.value.exitCode === 0 ? 'passed' as any : 'failed' as any;
+      session.staticAnalysisResult = saResult.value.exitCode === 0 ? StaticAnalysisResult.PASSED : StaticAnalysisResult.FAILED;
       session.staticAnalysisOutput = (saResult.value.stdout + saResult.value.stderr).slice(0, 5000);
     }
   }
@@ -404,7 +404,7 @@ export async function invokeAgent(input: {
   if (promptSanitizer) {
     const scan = promptSanitizer.scanOutput(session.agentSummary || '');
     if (!scan.clean) {
-      session.result = { securityFindings: scan.findings } as any;
+      session.result = { securityFindings: scan.findings };
     }
   }
 
@@ -412,14 +412,14 @@ export async function invokeAgent(input: {
 
   const agentResult: AgentResult = {
     sessionId: session.id,
-    provider: resolved.providerName as any,
+    provider: resolved.providerName as AgentProvider,
     model: resolved.model,
     status: output.success ? 'success' : 'failure',
     errorMessage: output.errorMessage,
     summary: `Agent completed with ${output.filesChanged} files changed`,
     artifacts: output.artifacts,
     cost: {
-      ai: { inputTokens: output.inputTokens, outputTokens: output.outputTokens, usd: output.aiCostUsd, provider: resolved.providerName as any, model: resolved.model },
+      ai: { inputTokens: output.inputTokens, outputTokens: output.outputTokens, usd: output.aiCostUsd, provider: resolved.providerName as AgentProvider, model: resolved.model },
       sandbox: { durationSeconds: 0, usd: output.sandboxCostUsd },
       totalUsd: output.aiCostUsd + output.sandboxCostUsd,
     },
@@ -430,7 +430,7 @@ export async function invokeAgent(input: {
       linesRemoved: 0,
       filesChanged: session.filesModified ?? [],
     },
-    staticAnalysisResult: session.staticAnalysisResult as any,
+    staticAnalysisResult: session.staticAnalysisResult as StaticAnalysisValue | undefined,
     staticAnalysisOutput: session.staticAnalysisOutput,
   };
 
@@ -456,8 +456,8 @@ function calculateQualityScore(session: AgentSession, output: { success: boolean
   else if (output.filesChanged >= 50) { score += 0.3; factors++; }
   else { score += 0; factors++; }
 
-  if (session.staticAnalysisResult === 'passed' as any) { score += 1; factors++; }
-  else if (session.staticAnalysisResult === 'failed' as any) { score += 0; factors++; }
+  if (session.staticAnalysisResult === StaticAnalysisResult.PASSED) { score += 1; factors++; }
+  else if (session.staticAnalysisResult === StaticAnalysisResult.FAILED) { score += 0; factors++; }
 
   if (session.diffLinesChanged && session.diffLinesChanged < 500) { score += 1; factors++; }
   else if (session.diffLinesChanged && session.diffLinesChanged >= 500) { score += 0.5; factors++; }
