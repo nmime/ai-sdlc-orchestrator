@@ -168,8 +168,9 @@ export async function invokeAgent(input: {
   });
 
   const agent = agentRegistry.getOrThrow('claude');
+  const sessionId = `session-${Date.now()}`;
   const result = await agent.invoke({
-    sessionId: `session-${Date.now()}`,
+    sessionId,
     provider: 'claude',
     prompt,
     sandboxId: input.sandboxId,
@@ -178,21 +179,40 @@ export async function invokeAgent(input: {
     credentialProxyUrl: credentialProxy.baseUrl,
   });
 
+  const failureResult = (msg: string): AgentResult => ({
+    sessionId,
+    provider: 'claude',
+    model: 'claude-sonnet-4-20250514',
+    status: 'failure',
+    errorMessage: msg,
+    summary: '',
+    cost: { ai: { inputTokens: 0, outputTokens: 0, usd: 0, provider: 'claude', model: 'claude-sonnet-4-20250514' }, sandbox: { durationSeconds: 0, usd: 0 }, totalUsd: 0 },
+    turnCount: 0,
+    toolCalls: [],
+  });
+
   if (result.isErr()) {
-    return {
-      sessionId: '',
-      provider: 'claude',
-      model: 'claude-sonnet-4-20250514',
-      status: 'failure',
-      errorMessage: result.error.message,
-      summary: '',
-      cost: { ai: { inputTokens: 0, outputTokens: 0, usd: 0, provider: 'claude', model: 'claude-sonnet-4-20250514' }, sandbox: { durationSeconds: 0, usd: 0 }, totalUsd: 0 },
-      turnCount: 0,
-      toolCalls: [],
-    };
+    return failureResult(result.error.message);
   }
 
-  return result.value;
+  const output = result.value;
+  return {
+    sessionId,
+    provider: 'claude',
+    model: 'claude-sonnet-4-20250514',
+    status: output.success ? 'success' : 'failure',
+    errorMessage: output.errorMessage,
+    summary: `Agent completed with ${output.filesChanged} files changed`,
+    artifacts: output.artifacts,
+    cost: {
+      ai: { inputTokens: output.inputTokens, outputTokens: output.outputTokens, usd: output.aiCostUsd, provider: 'claude', model: 'claude-sonnet-4-20250514' },
+      sandbox: { durationSeconds: 0, usd: output.sandboxCostUsd },
+      totalUsd: output.aiCostUsd + output.sandboxCostUsd,
+    },
+    turnCount: 1,
+    toolCalls: [],
+    diffStats: { linesAdded: 0, linesRemoved: 0, filesChanged: [] },
+  };
 }
 
 export async function destroySandbox(input: { sandboxId: string }): Promise<void> {
