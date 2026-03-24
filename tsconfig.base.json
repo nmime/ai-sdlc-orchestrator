@@ -9,7 +9,9 @@
     "importHelpers": true,
     "target": "ES2024",
     "module": "commonjs",
-    "lib": ["ES2024"],
+    "lib": [
+      "ES2024"
+    ],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "strict": true,
@@ -20,26 +22,72 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@ai-sdlc/common": ["libs/common/src/index.ts"],
-      "@ai-sdlc/common/*": ["libs/common/src/*"],
-      "@ai-sdlc/db": ["libs/db/src/index.ts"],
-      "@ai-sdlc/db/*": ["libs/db/src/*"],
-      "@ai-sdlc/shared-type": ["libs/shared-type/src/index.ts"],
-      "@ai-sdlc/shared-type/*": ["libs/shared-type/src/*"],
-      "@ai-sdlc/workflow-dsl": ["libs/workflow-dsl/src/index.ts"],
-      "@ai-sdlc/workflow-dsl/*": ["libs/workflow-dsl/src/*"],
-      "@ai-sdlc/feature-workflow": ["libs/feature/workflow/src/index.ts"],
-      "@ai-sdlc/feature-agent-registry": ["libs/feature/agent/registry/src/index.ts"],
-      "@ai-sdlc/feature-agent-claude-code": ["libs/feature/agent/claude-code/src/index.ts"],
-      "@ai-sdlc/feature-agent-sandbox": ["libs/feature/agent/sandbox/src/index.ts"],
-      "@ai-sdlc/feature-agent-credential-proxy": ["libs/feature/agent/credential-proxy/src/index.ts"],
-      "@ai-sdlc/feature-agent-prompt": ["libs/feature/agent/shared/prompt/src/index.ts"],
-      "@ai-sdlc/feature-agent-mcp-policy": ["libs/feature/agent/shared/mcp-policy/src/index.ts"],
-      "@ai-sdlc/feature-agent-security": ["libs/feature/agent/shared/security/src/index.ts"],
-      "@ai-sdlc/feature-webhook": ["libs/feature/webhook/src/index.ts"],
-      "@ai-sdlc/feature-gate": ["libs/feature/gate/src/index.ts"],
-      "@ai-sdlc/feature-tenant": ["libs/feature/tenant/src/index.ts"]
-    }
+      "@ai-sdlc/common": [
+        "libs/common/src/index.ts"
+      ],
+      "@ai-sdlc/common/*": [
+        "libs/common/src/*"
+      ],
+      "@ai-sdlc/db": [
+        "libs/db/src/index.ts"
+      ],
+      "@ai-sdlc/db/*": [
+        "libs/db/src/*"
+      ],
+      "@ai-sdlc/shared-type": [
+        "libs/shared-type/src/index.ts"
+      ],
+      "@ai-sdlc/shared-type/*": [
+        "libs/shared-type/src/*"
+      ],
+      "@ai-sdlc/workflow-dsl": [
+        "libs/workflow-dsl/src/index.ts"
+      ],
+      "@ai-sdlc/workflow-dsl/*": [
+        "libs/workflow-dsl/src/*"
+      ],
+      "@ai-sdlc/feature-workflow": [
+        "libs/feature/workflow/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-registry": [
+        "libs/feature/agent/registry/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-claude-code": [
+        "libs/feature/agent/claude-code/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-sandbox": [
+        "libs/feature/agent/sandbox/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-credential-proxy": [
+        "libs/feature/agent/credential-proxy/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-prompt": [
+        "libs/feature/agent/shared/prompt/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-mcp-policy": [
+        "libs/feature/agent/shared/mcp-policy/src/index.ts"
+      ],
+      "@ai-sdlc/feature-agent-security": [
+        "libs/feature/agent/shared/security/src/index.ts"
+      ],
+      "@ai-sdlc/feature-webhook": [
+        "libs/feature/webhook/src/index.ts"
+      ],
+      "@ai-sdlc/feature-gate": [
+        "libs/feature/gate/src/index.ts"
+      ],
+      "@ai-sdlc/feature-tenant": [
+        "libs/feature/tenant/src/index.ts"
+      ]
+    },
+    "types": [
+      "vitest/globals"
+    ]
   },
-  "exclude": ["node_modules", "tmp"]
+  "exclude": [
+    "node_modules",
+    "tmp",
+    "dist",
+    "apps/dashboard"
+  ]
 }

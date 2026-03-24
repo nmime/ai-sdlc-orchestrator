@@ -1,8 +1,8 @@
 import { parse as parseYaml } from 'yaml';
 import { Result } from 'neverthrow';
 import { workflowDslSchema, type WorkflowDslConfig, type DslStep } from './schema';
-import type { AppError } from '@ai-sdlc/common/result/app-error';
-import { ResultUtils } from '@ai-sdlc/common/result/result.utils';
+import type { AppError } from '@ai-sdlc/common';
+import { ResultUtils } from '@ai-sdlc/common';
 
 export interface CompiledStep {
   id: string;

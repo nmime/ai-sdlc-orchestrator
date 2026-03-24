@@ -1,21 +1,11 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { DslValidator, DslCompiler, type CompiledWorkflow, type CompiledStep } from '@ai-sdlc/workflow-dsl';
+import { readFile } from './file-reader';
 
 function printUsage(): void {
   console.log(`Usage:
   ai-sdlc validate <file>           Validate a DSL YAML file
   ai-sdlc diff <file1> <file2>      Compare two compiled DSL files
   ai-sdlc drain-status              Show current drain status`);
-}
-
-function readFile(filePath: string): string {
-  const resolved = path.resolve(filePath);
-  if (!fs.existsSync(resolved)) {
-    console.error(`Error: file not found: ${resolved}`);
-    process.exit(1);
-  }
-  return fs.readFileSync(resolved, 'utf-8');
 }
 
 function cmdValidate(file: string): void {
@@ -159,4 +149,4 @@ export function run(args: string[]): void {
   }
 }
 
-run(process.argv.slice(2));
+if (process.env.VITEST === undefined) run(process.argv.slice(2));
