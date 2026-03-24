@@ -3,7 +3,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
-import { WebhookDelivery, DeliveryStatus, Tenant } from '@ai-sdlc/db';
+import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus } from '@ai-sdlc/db';
 import type { WebhookEvent } from '@ai-sdlc/shared-type';
 import { JiraHandler } from './handlers/jira.handler';
 import { GitLabHandler } from './handlers/gitlab.handler';
@@ -42,6 +42,32 @@ export class WebhookService {
     const handler = this.handlers.get(platform);
     if (!handler) {
       return ResultUtils.err('VALIDATION_ERROR', `Unknown platform: ${platform}`);
+    }
+
+    if (platform === 'gitlab') {
+      const ciSignal = this.gitLabHandler.parseCiEvent(body);
+      if (ciSignal) {
+        await this.routeCiSignal(tenantId, ciSignal.branchName, ciSignal.type, ciSignal.details);
+        return ResultUtils.ok({ accepted: true, deliveryId: `ci-signal-${Date.now()}` });
+      }
+      const reviewSignal = this.gitLabHandler.parseReviewEvent(body);
+      if (reviewSignal) {
+        await this.routeReviewSignal(tenantId, reviewSignal.branchName, reviewSignal.type, reviewSignal.reviewer, reviewSignal.comment);
+        return ResultUtils.ok({ accepted: true, deliveryId: `review-signal-${Date.now()}` });
+      }
+    }
+
+    if (platform === 'github') {
+      const ciSignal = this.gitHubHandler.parseCiEvent(headers, body);
+      if (ciSignal) {
+        await this.routeCiSignal(tenantId, ciSignal.branchName, ciSignal.type, ciSignal.details);
+        return ResultUtils.ok({ accepted: true, deliveryId: `ci-signal-${Date.now()}` });
+      }
+      const reviewSignal = this.gitHubHandler.parseReviewEvent(headers, body);
+      if (reviewSignal) {
+        await this.routeReviewSignal(tenantId, reviewSignal.branchName, reviewSignal.type, reviewSignal.reviewer, reviewSignal.comment);
+        return ResultUtils.ok({ accepted: true, deliveryId: `review-signal-${Date.now()}` });
+      }
     }
 
     const parseResult = handler.parse(headers, body, tenantId);
@@ -100,5 +126,69 @@ export class WebhookService {
     }
 
     return ResultUtils.ok({ accepted: true, deliveryId: delivery.id });
+  }
+
+  private async routeCiSignal(tenantId: string, branchName: string, type: string, details: string): Promise<void> {
+    const mirror = await this.em.findOne(WorkflowMirror, {
+      tenant: tenantId,
+      branchName,
+      state: { $in: [WorkflowStatus.CI_WATCH, WorkflowStatus.CI_FIXING] },
+    });
+
+    if (!mirror) {
+      this.logger.warn(`No active workflow found for branch ${branchName} in CI state`);
+      return;
+    }
+
+    try {
+      const client = await this.temporalClient.getClient();
+      const handle = client.workflow.getHandle(mirror.temporalWorkflowId);
+
+      if (type === 'pipeline_succeeded') {
+        await handle.signal('pipelineSucceeded', { details });
+        this.logger.log(`Signaled pipeline succeeded for workflow ${mirror.temporalWorkflowId}`);
+      } else {
+        await handle.signal('pipelineFailed', { details });
+        this.logger.log(`Signaled pipeline failed for workflow ${mirror.temporalWorkflowId}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to signal workflow: ${(error as Error).message}`);
+    }
+  }
+
+  private async routeReviewSignal(
+    tenantId: string, branchName: string, type: string, reviewer: string, comment?: string,
+  ): Promise<void> {
+    const mirror = await this.em.findOne(WorkflowMirror, {
+      tenant: tenantId,
+      branchName,
+      state: { $in: [WorkflowStatus.IN_REVIEW, WorkflowStatus.REVIEW_FIXING] },
+    });
+
+    if (!mirror) {
+      this.logger.warn(`No active workflow found for branch ${branchName} in review state`);
+      return;
+    }
+
+    try {
+      const client = await this.temporalClient.getClient();
+      const handle = client.workflow.getHandle(mirror.temporalWorkflowId);
+
+      if (type === 'approved') {
+        await handle.signal('gateDecision', {
+          workflowId: mirror.temporalWorkflowId,
+          gateId: 'review',
+          action: 'approve',
+          reviewer,
+          timestamp: new Date(),
+        });
+        this.logger.log(`Signaled approval for workflow ${mirror.temporalWorkflowId}`);
+      } else {
+        await handle.signal('changesRequested', { reviewer, comment });
+        this.logger.log(`Signaled changes requested for workflow ${mirror.temporalWorkflowId}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to signal workflow: ${(error as Error).message}`);
+    }
   }
 }

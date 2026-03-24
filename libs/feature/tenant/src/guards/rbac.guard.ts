@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
@@ -17,8 +17,17 @@ export class RbacGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    if (!user?.role) return false;
+    if (!user?.role) throw new ForbiddenException('No role assigned');
 
-    return requiredRoles.includes(user.role);
+    if (!requiredRoles.includes(user.role)) {
+      throw new ForbiddenException(`Role '${user.role}' not authorized. Required: ${requiredRoles.join(', ')}`);
+    }
+
+    const tenantId = request.params?.tenantId;
+    if (tenantId && user.tenantId && user.tenantId !== 'dev-tenant' && user.tenantId !== tenantId) {
+      throw new ForbiddenException('Access denied for this tenant');
+    }
+
+    return true;
   }
 }

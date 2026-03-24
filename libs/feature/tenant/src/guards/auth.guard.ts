@@ -1,38 +1,33 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@ai-sdlc/common';
-
-interface OidcUserInfo {
-  sub: string;
-  email?: string;
-  role?: string;
-  tenant_id?: string;
-}
+import { ApiKeyService } from '../api-key.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly configService: ConfigService<AppConfig, true>) {}
+  constructor(
+    private readonly configService: ConfigService<AppConfig, true>,
+    private readonly apiKeyService: ApiKeyService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers['authorization'];
 
-    if (!authHeader) return false;
+    if (!authHeader) throw new UnauthorizedException('Missing authorization header');
 
     if (authHeader.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      return this.validateToken(token, request);
+      return this.validateBearerToken(authHeader.slice(7), request);
     }
 
     if (authHeader.startsWith('ApiKey ')) {
-      const apiKey = authHeader.slice(7);
-      return this.validateApiKey(apiKey, request);
+      return this.validateApiKey(authHeader.slice(7), request);
     }
 
-    return false;
+    throw new UnauthorizedException('Unsupported authorization scheme');
   }
 
-  private async validateToken(token: string, request: any): Promise<boolean> {
+  private async validateBearerToken(token: string, request: any): Promise<boolean> {
     const issuerUrl = this.configService.get('OIDC_ISSUER_URL');
     if (!issuerUrl) {
       request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: 'dev-tenant' };
@@ -44,9 +39,9 @@ export class AuthGuard implements CanActivate {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!response.ok) return false;
+      if (!response.ok) throw new UnauthorizedException('Invalid OIDC token');
 
-      const userInfo = await response.json() as OidcUserInfo;
+      const userInfo = await response.json() as { sub: string; email?: string; role?: string; tenant_id?: string };
       request.user = {
         id: userInfo.sub,
         email: userInfo.email,
@@ -54,13 +49,23 @@ export class AuthGuard implements CanActivate {
         tenantId: userInfo.tenant_id,
       };
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('OIDC validation failed');
     }
   }
 
-  private async validateApiKey(apiKey: string, request: any): Promise<boolean> {
-    request.user = { id: 'api-user', role: 'operator', tenantId: 'from-api-key' };
+  private async validateApiKey(rawKey: string, request: any): Promise<boolean> {
+    const result = await this.apiKeyService.validate(rawKey);
+    if (result.isErr()) throw new UnauthorizedException(result.error.message);
+
+    const apiKey = result.value;
+    request.user = {
+      id: `apikey:${apiKey.id}`,
+      email: `apikey:${apiKey.name}`,
+      role: apiKey.role,
+      tenantId: apiKey.tenant.id,
+    };
     return true;
   }
 }

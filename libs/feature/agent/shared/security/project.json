@@ -1,0 +1,1 @@
+{ "name": "feature-agent-security", "$schema": "../../../../node_modules/nx/schemas/project-schema.json", "sourceRoot": "libs/feature/agent/shared/security/src", "projectType": "library", "tags": ["scope:shared"] }

@@ -34,6 +34,8 @@
       "@ai-sdlc/feature-agent-sandbox": ["libs/feature/agent/sandbox/src/index.ts"],
       "@ai-sdlc/feature-agent-credential-proxy": ["libs/feature/agent/credential-proxy/src/index.ts"],
       "@ai-sdlc/feature-agent-prompt": ["libs/feature/agent/shared/prompt/src/index.ts"],
+      "@ai-sdlc/feature-agent-mcp-policy": ["libs/feature/agent/shared/mcp-policy/src/index.ts"],
+      "@ai-sdlc/feature-agent-security": ["libs/feature/agent/shared/security/src/index.ts"],
       "@ai-sdlc/feature-webhook": ["libs/feature/webhook/src/index.ts"],
       "@ai-sdlc/feature-gate": ["libs/feature/gate/src/index.ts"],
       "@ai-sdlc/feature-tenant": ["libs/feature/tenant/src/index.ts"]
