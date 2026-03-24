@@ -1,0 +1,17 @@
+{
+  "name": "feature-gate",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/feature/gate/src",
+  "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/gate"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/feature/gate/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/feature/gate/src"
+    }
+  }
+}

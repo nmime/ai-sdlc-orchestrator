@@ -1,0 +1,51 @@
+import { Injectable } from '@nestjs/common';
+import { Result } from 'neverthrow';
+import type { AppError } from '@ai-sdlc/common';
+import { ResultUtils } from '@ai-sdlc/common';
+import type { WebhookEvent } from '@ai-sdlc/shared-type';
+
+@Injectable()
+export class GitHubHandler {
+  parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError> {
+    const eventType = headers['x-github-event'];
+    if (!eventType) return ResultUtils.ok(null);
+
+    const deliveryId = headers['x-github-delivery'] || `github-${Date.now()}`;
+
+    if (eventType === 'issues') {
+      const issue = body['issue'] as Record<string, unknown> || {};
+      const labels = (issue['labels'] as { name: string }[] || []).map(l => l.name);
+      if (!labels.includes('ai-sdlc')) return ResultUtils.ok(null);
+
+      const repo = body['repository'] as Record<string, unknown> || {};
+      const repoUrl = repo['clone_url'] as string || repo['html_url'] as string || '';
+
+      return ResultUtils.ok({
+        source: 'github' as const,
+        eventType,
+        tenantId,
+        deliveryId,
+        taskId: `#${issue['number']}`,
+        taskProvider: 'github',
+        repoUrl,
+        labels,
+        rawPayload: body,
+      });
+    }
+
+    const repo = body['repository'] as Record<string, unknown> || {};
+    const repoUrl = repo['clone_url'] as string || repo['html_url'] as string || '';
+    const attrs = body['check_run'] || body['pull_request'] || body as Record<string, unknown>;
+
+    return ResultUtils.ok({
+      source: 'github' as const,
+      eventType,
+      tenantId,
+      deliveryId,
+      taskId: `#${(attrs as Record<string, unknown>)['id'] || 'unknown'}`,
+      taskProvider: 'github',
+      repoUrl,
+      rawPayload: body,
+    });
+  }
+}

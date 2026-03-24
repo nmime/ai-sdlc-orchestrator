@@ -1,0 +1,17 @@
+{
+  "name": "common",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/common/src",
+  "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/common"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/common/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/common/src"
+    }
+  }
+}

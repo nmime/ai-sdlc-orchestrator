@@ -1,0 +1,19 @@
+{
+  "name": "credential-proxy",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/credential-proxy/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/apps/credential-proxy",
+        "main": "apps/credential-proxy/src/main.ts",
+        "tsConfig": "apps/credential-proxy/tsconfig.json"
+      }
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p apps/credential-proxy/tsconfig.json"
+    }
+  }
+}

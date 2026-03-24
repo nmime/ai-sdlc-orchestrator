@@ -1,0 +1,19 @@
+{
+  "name": "orchestrator-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/orchestrator-api/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "options": {
+        "outputPath": "dist/apps/orchestrator-api",
+        "main": "apps/orchestrator-api/src/main.ts",
+        "tsConfig": "apps/orchestrator-api/tsconfig.json"
+      }
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p apps/orchestrator-api/tsconfig.json"
+    }
+  }
+}

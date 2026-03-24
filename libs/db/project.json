@@ -1,0 +1,17 @@
+{
+  "name": "db",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/db/src",
+  "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/db"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/db/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/db/src"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+version: "1.0"
+name: "default-orchestration"
+description: "Default workflow: code → CI → review → gate → merge"
+taskQueue: "orchestrator-queue"
+timeout: "8h"
+
+defaults:
+  agentProvider: "claude_code"
+  sandboxProvider: "e2b"
+  maxRetries: 3
+  maxCostPerTaskUsd: 50
+
+steps:
+  - name: code
+    type: auto
+    timeout: "30m"
+    retries: 3
+    onFailure: retry
+
+  - name: ci_check
+    type: signal_wait
+    signal: ci_result
+    timeout: "30m"
+    onFailure: fail
+
+  - name: fix_loop
+    type: loop
+    maxIterations: 5
+    noProgressThreshold: 3
+    escalation: gate
+    timeout: "2h"
+    condition: "ci_check.result.passed === false"
+
+  - name: review_gate
+    type: gate
+    timeout: "24h"
+    onFailure: fail
+
+hooks:
+  onStart: "notify_slack"
+  onComplete: "notify_slack"
+  onFailure: "notify_slack_error"

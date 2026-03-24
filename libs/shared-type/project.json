@@ -1,0 +1,14 @@
+{
+  "name": "shared-type",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/shared-type/src",
+  "targets": {
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/shared-type/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/shared-type/src"
+    }
+  }
+}

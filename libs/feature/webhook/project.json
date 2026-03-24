@@ -1,0 +1,17 @@
+{
+  "name": "feature-webhook",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/feature/webhook/src",
+  "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/webhook"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/feature/webhook/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/feature/webhook/src"
+    }
+  }
+}

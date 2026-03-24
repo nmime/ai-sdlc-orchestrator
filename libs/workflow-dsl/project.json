@@ -1,0 +1,17 @@
+{
+  "name": "workflow-dsl",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/workflow-dsl/src",
+  "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/workflow-dsl"
+    },
+    "typecheck": {
+      "command": "tsc --noEmit -p libs/workflow-dsl/tsconfig.json"
+    },
+    "lint": {
+      "command": "eslint libs/workflow-dsl/src"
+    }
+  }
+}
