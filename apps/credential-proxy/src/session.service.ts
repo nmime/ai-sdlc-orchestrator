@@ -1,22 +1,51 @@
-import { Injectable } from '@nestjs/common';
-import { randomBytes, createHmac } from 'crypto';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 
 interface SessionData {
   tenantId: string;
   workflowId: string;
   sessionId: string;
+  scopes: string[];
   expiresAt: number;
+  requestCount: number;
+  createdAt: number;
 }
 
 @Injectable()
-export class SessionService {
+export class SessionService implements OnModuleInit {
   private sessions = new Map<string, SessionData>();
-  private signingKey = process.env['SESSION_SIGNING_KEY'] || randomBytes(32).toString('hex');
+  private signingKey!: Buffer;
+  private cleanupInterval?: ReturnType<typeof setInterval>;
 
-  create(tenantId: string, workflowId: string, sessionId: string, ttlSeconds = 3600): { token: string; expiresAt: string } {
-    const token = this.generateToken(sessionId);
+  onModuleInit() {
+    const keyHex = process.env['SESSION_SIGNING_KEY'] || randomBytes(32).toString('hex');
+    this.signingKey = Buffer.from(keyHex, 'hex');
+    this.cleanupInterval = setInterval(() => this.cleanupExpired(), 60_000);
+  }
+
+  create(
+    tenantId: string,
+    workflowId: string,
+    sessionId: string,
+    ttlSeconds = 3600,
+    scopes: string[] = ['git', 'mcp', 'ai-api'],
+  ): { token: string; expiresAt: string } {
+    const nonce = randomBytes(16).toString('hex');
+    const payload = `${sessionId}:${nonce}:${Date.now()}`;
+    const hmac = createHmac('sha256', this.signingKey).update(payload).digest('hex');
+    const token = `${nonce}.${hmac}`;
+
     const expiresAt = Date.now() + ttlSeconds * 1000;
-    this.sessions.set(token, { tenantId, workflowId, sessionId, expiresAt });
+    this.sessions.set(token, {
+      tenantId,
+      workflowId,
+      sessionId,
+      scopes,
+      expiresAt,
+      requestCount: 0,
+      createdAt: Date.now(),
+    });
+
     return { token, expiresAt: new Date(expiresAt).toISOString() };
   }
 
@@ -27,7 +56,14 @@ export class SessionService {
       this.sessions.delete(token);
       return null;
     }
+    session.requestCount++;
     return session;
+  }
+
+  hasScope(token: string, scope: string): boolean {
+    const session = this.sessions.get(token);
+    if (!session) return false;
+    return session.scopes.includes(scope);
   }
 
   revoke(sessionId: string): void {
@@ -38,9 +74,14 @@ export class SessionService {
     }
   }
 
-  private generateToken(sessionId: string): string {
-    const nonce = randomBytes(16).toString('hex');
-    const hmac = createHmac('sha256', this.signingKey).update(`${sessionId}:${nonce}`).digest('hex');
-    return `${nonce}.${hmac}`;
+  getActiveCount(): number {
+    return this.sessions.size;
+  }
+
+  private cleanupExpired(): void {
+    const now = Date.now();
+    for (const [token, data] of this.sessions) {
+      if (now > data.expiresAt) this.sessions.delete(token);
+    }
   }
 }

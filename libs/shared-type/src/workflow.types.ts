@@ -1,3 +1,18 @@
+export const STEP_RESULT_STATUS = {
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  SKIPPED: 'skipped',
+} as const;
+
+export type StepResultStatus = (typeof STEP_RESULT_STATUS)[keyof typeof STEP_RESULT_STATUS];
+
+export const ARTIFACT_PUB_STATUS = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+} as const;
+
+export type ArtifactPubStatus = (typeof ARTIFACT_PUB_STATUS)[keyof typeof ARTIFACT_PUB_STATUS];
+
 export interface WorkflowInput {
   tenantId: string;
   taskId: string;
@@ -13,7 +28,7 @@ export interface WorkflowInput {
 
 export interface StepResult {
   stepName: string;
-  status: 'completed' | 'failed' | 'skipped';
+  status: StepResultStatus;
   durationMs: number;
   costUsd: number;
   output?: Record<string, unknown>;
@@ -36,7 +51,7 @@ export interface PublishedArtifact {
   kind: string;
   title: string;
   uri: string;
-  status: 'draft' | 'published';
+  status: ArtifactPubStatus;
   mimeType?: string;
   metadata?: Record<string, unknown>;
   content?: string;

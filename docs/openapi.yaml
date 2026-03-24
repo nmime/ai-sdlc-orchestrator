@@ -1,0 +1,750 @@
+openapi: 3.0.3
+info:
+  title: AI SDLC Orchestrator API
+  description: |
+    REST API for the AI SDLC Orchestrator — manages tenants, workflows,
+    agent sessions, gate approvals, cost monitoring, and webhook integrations.
+
+    Auto-generated docs are available at `/api/docs` when the API is running.
+  version: 1.0.0
+  contact:
+    name: Nikita Mejenkov
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+  - url: https://{domain}/api/v1
+    description: Production
+    variables:
+      domain:
+        default: orchestrator.example.com
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+tags:
+  - name: Health
+    description: Liveness and readiness probes
+  - name: Tenants
+    description: Tenant CRUD and configuration
+  - name: Tenant Resources
+    description: Nested tenant resources (repos, webhooks, VCS credentials, MCP servers, API keys, users)
+  - name: Workflows
+    description: Workflow orchestration and status
+  - name: Gate Approvals
+    description: Human-in-the-loop gate approval management
+  - name: Cost
+    description: Cost monitoring and alerts
+  - name: Webhook Deliveries
+    description: Webhook delivery logs
+  - name: Metrics
+    description: Prometheus metrics endpoint
+  - name: SSE
+    description: Server-sent events for real-time updates
+
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /tenants:
+    get:
+      tags: [Tenants]
+      summary: List all tenants
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
+    post:
+      tags: [Tenants]
+      summary: Create a tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantDto'
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+
+  /tenants/{tenantId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenants]
+      summary: Get a tenant by ID
+      responses:
+        '200':
+          description: Tenant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+    patch:
+      tags: [Tenants]
+      summary: Update a tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantDto'
+      responses:
+        '200':
+          description: Tenant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+    delete:
+      tags: [Tenants]
+      summary: Delete a tenant
+      responses:
+        '200':
+          description: Tenant deleted
+
+  /tenants/{tenantId}/repos:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenant Resources]
+      summary: List repo configs for a tenant
+      responses:
+        '200':
+          description: List of repo configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TenantRepoConfig'
+    post:
+      tags: [Tenant Resources]
+      summary: Create a repo config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRepoConfigDto'
+      responses:
+        '201':
+          description: Repo config created
+
+  /tenants/{tenantId}/webhooks:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenant Resources]
+      summary: List webhook configs
+      responses:
+        '200':
+          description: List of webhook configs
+    post:
+      tags: [Tenant Resources]
+      summary: Create a webhook config
+      responses:
+        '201':
+          description: Webhook config created
+
+  /tenants/{tenantId}/vcs-credentials:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenant Resources]
+      summary: List VCS credentials
+      responses:
+        '200':
+          description: List of VCS credentials
+    post:
+      tags: [Tenant Resources]
+      summary: Create a VCS credential
+      responses:
+        '201':
+          description: VCS credential created
+
+  /tenants/{tenantId}/mcp-servers:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenant Resources]
+      summary: List MCP server configs
+      responses:
+        '200':
+          description: List of MCP server configs
+    post:
+      tags: [Tenant Resources]
+      summary: Create an MCP server config
+      responses:
+        '201':
+          description: MCP server config created
+
+  /tenants/{tenantId}/api-keys:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenant Resources]
+      summary: List API keys
+      responses:
+        '200':
+          description: List of API keys
+    post:
+      tags: [Tenant Resources]
+      summary: Create an API key
+      responses:
+        '201':
+          description: API key created (plaintext returned once)
+
+  /tenants/{tenantId}/users:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [Tenant Resources]
+      summary: List tenant users
+      responses:
+        '200':
+          description: List of users
+    post:
+      tags: [Tenant Resources]
+      summary: Add a user to tenant
+      responses:
+        '201':
+          description: User added
+
+  /workflows:
+    get:
+      tags: [Workflows]
+      summary: List workflows
+      parameters:
+        - name: tenantId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [queued, implementing, ci_watch, ci_passed, ci_failed, ci_fixing, in_review, review_fixing, completed, blocked_recoverable, blocked_terminal, cancelled, timed_out]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkflowMirror'
+
+  /workflows/{workflowId}:
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Workflows]
+      summary: Get workflow details
+      responses:
+        '200':
+          description: Workflow details with sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowMirror'
+
+  /workflows/{workflowId}/cancel:
+    parameters:
+      - name: workflowId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Workflows]
+      summary: Cancel a workflow
+      responses:
+        '200':
+          description: Workflow cancelled
+
+  /gates/pending:
+    get:
+      tags: [Gate Approvals]
+      summary: List pending gate approvals
+      parameters:
+        - name: tenantId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of pending gates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GateApproval'
+
+  /gates/{gateId}/approve:
+    parameters:
+      - name: gateId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Gate Approvals]
+      summary: Approve a gate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Gate approved
+
+  /gates/{gateId}/reject:
+    parameters:
+      - name: gateId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Gate Approvals]
+      summary: Reject a gate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Rejection reason
+      responses:
+        '200':
+          description: Gate rejected
+
+  /cost/summary:
+    get:
+      tags: [Cost]
+      summary: Get cost summary
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostSummary'
+
+  /cost/alerts:
+    get:
+      tags: [Cost]
+      summary: List cost alerts
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of cost alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostAlert'
+
+  /cost/alerts/{alertId}/acknowledge:
+    parameters:
+      - name: alertId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Cost]
+      summary: Acknowledge a cost alert
+      responses:
+        '200':
+          description: Alert acknowledged
+
+  /webhook-deliveries:
+    get:
+      tags: [Webhook Deliveries]
+      summary: List webhook deliveries
+      parameters:
+        - name: tenantId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [received, processing, processed, deduplicated, ignored, invalid, failed]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Delivery logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookDelivery'
+
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Prometheus metrics
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /sse/workflows:
+    get:
+      tags: [SSE]
+      summary: SSE stream for workflow updates
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        info:
+          type: object
+        error:
+          type: object
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [pending, provisioning, active, suspended, deactivating, deactivated, deleted]
+        monthlyCostLimitUsd:
+          type: number
+        monthlyCostActualUsd:
+          type: number
+        monthlyCostReservedUsd:
+          type: number
+        mcpServerPolicy:
+          type: string
+          enum: [curated, open]
+        costAlertThresholds:
+          type: array
+          items:
+            type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTenantDto:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        monthlyCostLimitUsd:
+          type: number
+        mcpServerPolicy:
+          type: string
+          enum: [curated, open]
+
+    UpdateTenantDto:
+      type: object
+      properties:
+        name:
+          type: string
+        monthlyCostLimitUsd:
+          type: number
+        mcpServerPolicy:
+          type: string
+          enum: [curated, open]
+        costAlertThresholds:
+          type: array
+          items:
+            type: number
+
+    TenantRepoConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        repoId:
+          type: string
+        repoUrl:
+          type: string
+        costLimitUsd:
+          type: number
+        agentProvider:
+          type: string
+          enum: [claude_code, openhands, aider]
+        agentModel:
+          type: string
+
+    CreateRepoConfigDto:
+      type: object
+      required: [repoId, repoUrl]
+      properties:
+        repoId:
+          type: string
+        repoUrl:
+          type: string
+        costLimitUsd:
+          type: number
+        agentProvider:
+          type: string
+        agentModel:
+          type: string
+
+    WorkflowMirror:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        temporalWorkflowId:
+          type: string
+        temporalRunId:
+          type: string
+        repoId:
+          type: string
+        state:
+          type: string
+          enum: [queued, implementing, ci_watch, ci_passed, ci_failed, ci_fixing, in_review, review_fixing, completed, blocked_recoverable, blocked_terminal, cancelled, timed_out]
+        branchName:
+          type: string
+        mrId:
+          type: string
+        mrUrl:
+          type: string
+        taskId:
+          type: string
+        costUsdTotal:
+          type: number
+        aiCostUsd:
+          type: number
+        sandboxCostUsd:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    GateApproval:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workflowId:
+          type: string
+          format: uuid
+        gateType:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        createdAt:
+          type: string
+          format: date-time
+
+    CostSummary:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        monthlyCostLimitUsd:
+          type: number
+        monthlyCostActualUsd:
+          type: number
+        monthlyAiCostActualUsd:
+          type: number
+        monthlySandboxCostActualUsd:
+          type: number
+
+    CostAlert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        alertType:
+          type: string
+          enum: [task_cost, tenant_ai, tenant_sandbox, tenant_total, system]
+        thresholdPct:
+          type: number
+        actualUsd:
+          type: number
+        limitUsd:
+          type: number
+        acknowledged:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    WebhookDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        platform:
+          type: string
+        deliveryId:
+          type: string
+        eventType:
+          type: string
+        status:
+          type: string
+          enum: [received, processing, processed, deduplicated, ignored, invalid, failed]
+        workflowId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
