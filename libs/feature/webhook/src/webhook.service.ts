@@ -87,12 +87,12 @@ export class WebhookService {
 
     try {
       await this.em.persistAndFlush(delivery);
-    } catch (error: any) {
-      if (error?.code === '23505') {
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && (error as { code: string }).code === '23505') {
         this.logger.warn(`Duplicate webhook ignored: ${event.deliveryId}`);
         return ResultUtils.ok({ accepted: true, deliveryId: 'duplicate' });
       }
-      return ResultUtils.err('INTERNAL_ERROR', error.message);
+      return ResultUtils.err('INTERNAL_ERROR', (error as Error).message);
     }
 
     try {

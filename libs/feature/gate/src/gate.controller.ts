@@ -3,6 +3,18 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { GateService } from './gate.service';
 import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
 import type { GateAction } from '@ai-sdlc/shared-type';
+import type { FastifyRequest } from 'fastify';
+
+interface AuthenticatedUser {
+  id: string;
+  email: string;
+  role: string;
+  tenantId?: string;
+}
+
+interface AuthenticatedRequest extends FastifyRequest {
+  user: AuthenticatedUser;
+}
 
 @ApiTags('gates')
 @Controller('gates')
@@ -30,9 +42,9 @@ export class GateController {
   async approve(
     @Param('workflowId') workflowId: string,
     @Body() body: { comment?: string },
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    const reviewer = req.user?.email || req.user?.id || 'unknown';
+    const reviewer = req.user.email || req.user.id;
     const result = await this.gateService.submitDecision(workflowId, 'approve', reviewer, body.comment);
     if (result.isErr()) throw new Error(result.error.message);
     return result.value;
@@ -45,9 +57,9 @@ export class GateController {
   async requestChanges(
     @Param('workflowId') workflowId: string,
     @Body() body: { comment: string },
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
-    const reviewer = req.user?.email || req.user?.id || 'unknown';
+    const reviewer = req.user.email || req.user.id;
     const result = await this.gateService.submitDecision(workflowId, 'request_changes', reviewer, body.comment);
     if (result.isErr()) throw new Error(result.error.message);
     return result.value;

@@ -9,16 +9,9 @@ export const loopStrategySchema = z.object({
 
 export type LoopStrategy = z.infer<typeof loopStrategySchema>;
 
-export const stepTypeSchema = z.enum([
-  'auto',
-  'signal_wait',
-  'gate',
-  'loop',
-  'terminal',
-  'recovery',
-  'parallel',
-  'conditional',
-]);
+export const STEP_TYPES = ['auto', 'signal_wait', 'gate', 'loop', 'terminal', 'recovery', 'parallel', 'conditional'] as const;
+
+export const stepTypeSchema = z.enum(STEP_TYPES);
 
 export type StepType = z.infer<typeof stepTypeSchema>;
 
@@ -36,7 +29,7 @@ export const parallelBranchSchema = z.object({
 
 export type ParallelBranch = z.infer<typeof parallelBranchSchema>;
 
-export const dslStepSchema: z.ZodType<any> = z.lazy(() => z.object({
+const baseDslStepSchema = z.object({
   id: z.string().min(1).max(100),
   type: stepTypeSchema,
   action: z.string().optional(),
@@ -65,9 +58,40 @@ export const dslStepSchema: z.ZodType<any> = z.lazy(() => z.object({
   transitions: z.array(transitionSchema).optional(),
   default_target: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
-}));
+});
 
-export type DslStep = z.infer<typeof dslStepSchema>;
+export const dslStepSchema: z.ZodType<DslStep, z.ZodTypeDef, unknown> = z.lazy(() => baseDslStepSchema);
+
+export interface DslStep {
+  id: string;
+  type: StepType;
+  action?: string;
+  mode?: 'implement' | 'ci_fix' | 'review_fix';
+  description?: string;
+  timeout_minutes: number;
+  graceful_shutdown_minutes: number;
+  signal?: string;
+  condition?: Record<string, unknown>;
+  on_success?: string;
+  on_failure?: string;
+  on_timeout?: string;
+  on_exhausted?: string;
+  on_approved?: string;
+  on_changes_requested?: string;
+  loop_strategy?: LoopStrategy;
+  require_artifacts?: { kind: string }[];
+  review_context?: { artifacts: string[] };
+  subtypes?: {
+    recoverable?: { on_unblock?: string };
+    terminal?: { cleanup_timeout_hours?: number };
+  };
+  steps?: DslStep[];
+  branches?: ParallelBranch[];
+  join_strategy?: 'wait_all' | 'fail_fast';
+  transitions?: Transition[];
+  default_target?: string;
+  metadata?: Record<string, unknown>;
+}
 
 export const workflowDslSchema = z.object({
   name: z.string().min(1).max(200),
