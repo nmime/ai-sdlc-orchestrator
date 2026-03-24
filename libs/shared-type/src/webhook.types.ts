@@ -1,4 +1,11 @@
-export type WebhookSource = 'jira' | 'gitlab' | 'github' | 'linear';
+export const WEBHOOK_SOURCE = {
+  JIRA: 'jira',
+  GITLAB: 'gitlab',
+  GITHUB: 'github',
+  LINEAR: 'linear',
+} as const;
+
+export type WebhookSource = (typeof WEBHOOK_SOURCE)[keyof typeof WEBHOOK_SOURCE];
 
 export interface WebhookEvent {
   source: WebhookSource;

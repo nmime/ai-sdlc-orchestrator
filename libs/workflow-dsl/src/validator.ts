@@ -1,8 +1,8 @@
 import { Result } from 'neverthrow';
 import { workflowDslSchema } from './schema';
 import { parse as parseYaml } from 'yaml';
-import type { AppError } from '@ai-sdlc/common/result/app-error';
-import { ResultUtils } from '@ai-sdlc/common/result/result.utils';
+import type { AppError } from '@ai-sdlc/common';
+import { ResultUtils } from '@ai-sdlc/common';
 
 export class DslValidator {
   validate(yamlContent: string): Result<true, AppError> {

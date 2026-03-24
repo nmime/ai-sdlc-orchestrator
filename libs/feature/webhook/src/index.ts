@@ -5,3 +5,5 @@ export { JiraHandler } from './handlers/jira.handler';
 export { GitLabHandler } from './handlers/gitlab.handler';
 export { GitHubHandler } from './handlers/github.handler';
 export { LinearHandler } from './handlers/linear.handler';
+export { WebhookRetryService } from './webhook-retry.service';
+export { PollingService } from './polling/polling.service';

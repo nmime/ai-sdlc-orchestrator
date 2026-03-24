@@ -11,4 +11,6 @@ export {
   verifyAgentOutput,
   collectArtifacts,
   cleanupAndEscalate,
+  checkConcurrency,
+  checkAdmission,
 } from './orchestrate-task.activities';

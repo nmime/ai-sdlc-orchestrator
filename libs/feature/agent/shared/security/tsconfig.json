@@ -1,0 +1,1 @@
+{ "extends": "../../../../../tsconfig.base.json", "compilerOptions": { "outDir": "../../../../../dist/libs/feature/agent/shared/security" }, "include": ["src/**/*.ts"] }

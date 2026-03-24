@@ -1,0 +1,1 @@
+{ "name": "feature-agent-mcp-policy", "$schema": "../../../../node_modules/nx/schemas/project-schema.json", "sourceRoot": "libs/feature/agent/shared/mcp-policy/src", "projectType": "library", "tags": ["scope:shared"] }
