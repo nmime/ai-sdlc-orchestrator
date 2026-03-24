@@ -23,3 +23,29 @@ spec:
     matchLabels:
       app.kubernetes.io/component: worker
       {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ai-sdlc.fullname" . }}-credential-proxy
+  labels:
+    {{- include "ai-sdlc.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: credential-proxy
+      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ai-sdlc.fullname" . }}-dashboard
+  labels:
+    {{- include "ai-sdlc.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: dashboard
+      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
