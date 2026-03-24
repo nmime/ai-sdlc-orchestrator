@@ -2,9 +2,23 @@ import { useState } from 'react';
 import { WorkflowList } from './components/WorkflowList';
 import { CostDashboard } from './components/CostDashboard';
 import { GatePanel } from './components/GatePanel';
+import { TenantConfig } from './components/TenantConfig';
+import { SessionViewer } from './components/SessionViewer';
+import { DslEditor } from './components/DslEditor';
+
+type Tab = 'workflows' | 'costs' | 'gates' | 'tenants' | 'sessions' | 'dsl-editor';
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'workflows', label: 'Workflows' },
+  { key: 'costs', label: 'Costs' },
+  { key: 'gates', label: 'Gates' },
+  { key: 'tenants', label: 'Tenants' },
+  { key: 'sessions', label: 'Sessions' },
+  { key: 'dsl-editor', label: 'DSL Editor' },
+];
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'workflows' | 'costs' | 'gates'>('workflows');
+  const [activeTab, setActiveTab] = useState<Tab>('workflows');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -12,17 +26,17 @@ export function App() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">AI SDLC Orchestrator</h1>
           <nav className="flex gap-4">
-            {(['workflows', 'costs', 'gates'] as const).map((tab) => (
+            {TABS.map(({ key, label }) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                key={key}
+                onClick={() => setActiveTab(key)}
                 className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  activeTab === tab
+                  activeTab === key
                     ? 'bg-indigo-100 text-indigo-700'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {label}
               </button>
             ))}
           </nav>
@@ -32,6 +46,9 @@ export function App() {
         {activeTab === 'workflows' && <WorkflowList />}
         {activeTab === 'costs' && <CostDashboard />}
         {activeTab === 'gates' && <GatePanel />}
+        {activeTab === 'tenants' && <TenantConfig />}
+        {activeTab === 'sessions' && <SessionViewer />}
+        {activeTab === 'dsl-editor' && <DslEditor />}
       </main>
     </div>
   );
