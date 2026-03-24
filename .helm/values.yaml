@@ -1,0 +1,80 @@
+nameOverride: ""
+fullnameOverride: ""
+
+api:
+  replicas: 2
+  image:
+    repository: ai-sdlc/orchestrator-api
+    tag: latest
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+worker:
+  replicas: 2
+  image:
+    repository: ai-sdlc/orchestrator-worker
+    tag: latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+credentialProxy:
+  replicas: 2
+  image:
+    repository: ai-sdlc/credential-proxy
+    tag: latest
+  signingKey: ""
+
+postgresql:
+  host: postgresql
+  port: "5432"
+  database: ai_sdlc
+  password: ""
+
+temporal:
+  address: temporal:7233
+  namespace: default
+
+redis:
+  url: redis://redis:6379
+
+minio:
+  endpoint: http://minio:9000
+  bucket: ai-sdlc-artifacts
+
+e2b:
+  apiKey: ""
+
+anthropic:
+  apiKey: ""
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ai-sdlc.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  tls:
+    - secretName: ai-sdlc-tls
+      hosts:
+        - ai-sdlc.example.com
+
+autoscaling:
+  enabled: false
+  maxReplicas: 10
+  workerMaxReplicas: 8
+  targetCPUUtilization: 70
+
+monitoring:
+  enabled: false
+
+logLevel: info

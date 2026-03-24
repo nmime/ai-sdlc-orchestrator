@@ -1,0 +1,84 @@
+import { PromptFormatter } from '../prompt-formatter';
+
+describe('PromptFormatter', () => {
+  const formatter = new PromptFormatter();
+
+  const baseData = {
+    taskSeed: 'Fix the login bug on mobile devices',
+    repoInfo: {
+      url: 'https://github.com/org/repo.git',
+      branch: 'fix/login-bug',
+      defaultBranch: 'main',
+    },
+    workflowInstructions: {
+      qualityGates: ['npm run build', 'npm test', 'npm run lint'],
+      maxDiffLines: 500,
+      commitMessagePattern: 'feat: <description>',
+      mrDescriptionTemplate: '## Summary\n- Changes',
+      staticAnalysisCommand: 'npm run lint',
+    },
+    mcpServers: [{ name: 'git', transport: 'sse' as const, url: 'http://localhost:3001' }],
+    previousContext: {
+      summary: 'Tests still failing',
+      filesModified: ['src/auth.ts'],
+      toolCallsSummary: ['read_file', 'write_file'],
+      branchName: 'fix/login-bug',
+      testOutputSnippet: 'FAIL src/auth.test.ts',
+    },
+  };
+
+  it('should format a Claude prompt with all fields', () => {
+    const result = formatter.format('claude', baseData);
+
+    expect(result).toContain('# Task');
+    expect(result).toContain('Fix the login bug on mobile devices');
+    expect(result).toContain('https://github.com/org/repo.git');
+    expect(result).toContain('fix/login-bug');
+    expect(result).toContain('`npm run build`');
+    expect(result).toContain('`npm test`');
+    expect(result).toContain('`npm run lint`');
+    expect(result).toContain('git (sse: http://localhost:3001)');
+    expect(result).toContain('Tests still failing');
+    expect(result).toContain('Security Rules');
+  });
+
+  it('should format minimal prompt', () => {
+    const result = formatter.format('claude', {
+      taskSeed: 'Simple task',
+      repoInfo: { url: 'https://github.com/org/repo.git', branch: 'main', defaultBranch: 'main' },
+      workflowInstructions: { qualityGates: [] },
+      mcpServers: [],
+    });
+
+    expect(result).toContain('# Task');
+    expect(result).toContain('Simple task');
+    expect(result).not.toContain('Previous Attempt');
+  });
+
+  it('should format openhands prompt', () => {
+    const result = formatter.format('openhands', baseData);
+
+    expect(result).toContain('Task:');
+    expect(result).toContain('Repository:');
+    expect(result).toContain('Tests still failing');
+  });
+
+  it('should format aider prompt', () => {
+    const result = formatter.format('aider', baseData);
+
+    expect(result).toContain('Fix the login bug on mobile devices');
+    expect(result).toContain('Repo:');
+  });
+
+  it('should default to claude format for unknown providers', () => {
+    const result = formatter.format('unknown_provider', {
+      taskSeed: 'Test task',
+      repoInfo: { url: 'https://github.com/org/repo.git', branch: 'main', defaultBranch: 'main' },
+      workflowInstructions: { qualityGates: [] },
+      mcpServers: [],
+    });
+
+    expect(result).toContain('# Task');
+    expect(result).toContain('Security Rules');
+  });
+});

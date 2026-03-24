@@ -1,0 +1,36 @@
+import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { v4 } from 'uuid';
+import { Tenant } from './tenant.entity';
+
+export enum TenantRole {
+  ADMIN = 'admin',
+  OPERATOR = 'operator',
+  VIEWER = 'viewer',
+}
+
+@Entity({ tableName: 'tenant_user' })
+export class TenantUser {
+  @PrimaryKey({ type: 'uuid' })
+  id: string = v4();
+
+  @ManyToOne(() => Tenant)
+  tenant!: Tenant;
+
+  @Property()
+  externalId!: string;
+
+  @Property()
+  provider!: string;
+
+  @Property()
+  email!: string;
+
+  @Enum(() => TenantRole)
+  role: TenantRole = TenantRole.VIEWER;
+
+  @Property({ type: 'jsonb', nullable: true })
+  repoAccess?: string[];
+
+  @Property()
+  createdAt: Date = new Date();
+}

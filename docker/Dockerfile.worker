@@ -1,0 +1,17 @@
+FROM node:24-slim AS builder
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/orchestrator-worker/package.json apps/orchestrator-worker/
+COPY libs/ libs/
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm nx build orchestrator-worker
+
+FROM node:24-slim
+WORKDIR /app
+RUN corepack enable
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+CMD ["node", "dist/apps/orchestrator-worker/src/main.js"]

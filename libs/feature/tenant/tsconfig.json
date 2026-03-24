@@ -1,0 +1,6 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "../../../dist/libs/feature/tenant" },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/__tests__"]
+}
