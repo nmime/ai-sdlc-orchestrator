@@ -12,6 +12,7 @@ import { CostController } from './cost.controller';
 import { WebhookDeliveryController } from './webhook-delivery.controller';
 import { TestController } from './test.controller';
 import { SseController } from './sse.controller';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SseController } from './sse.controller';
     WebhookModule,
     GateModule,
     WorkflowModule,
+    MetricsModule,
   ],
   controllers: [HealthController, WorkflowsController, CostController, WebhookDeliveryController, TestController, SseController],
   providers: [BootstrapService],
