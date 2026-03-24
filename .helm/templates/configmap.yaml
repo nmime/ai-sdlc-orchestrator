@@ -8,6 +8,7 @@ data:
   DATABASE_HOST: {{ .Values.postgresql.host | quote }}
   DATABASE_PORT: {{ .Values.postgresql.port | quote }}
   DATABASE_NAME: {{ .Values.postgresql.database | quote }}
+  DATABASE_USER: {{ .Values.postgresql.user | default "orchestrator" | quote }}
   TEMPORAL_ADDRESS: {{ .Values.temporal.address | quote }}
   TEMPORAL_NAMESPACE: {{ .Values.temporal.namespace | quote }}
   REDIS_URL: {{ .Values.redis.url | quote }}

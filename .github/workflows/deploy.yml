@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: Docker image tag to deploy
+        required: true
+        default: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.0
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+      - name: Helm upgrade
+        run: |
+          helm upgrade --install ai-sdlc .helm/ \
+            --namespace ai-sdlc-${{ inputs.environment }} \
+            --create-namespace \
+            --set api.image.tag=${{ inputs.image_tag }} \
+            --set worker.image.tag=${{ inputs.image_tag }} \
+            --set credentialProxy.image.tag=${{ inputs.image_tag }} \
+            --set dashboard.image.tag=${{ inputs.image_tag }} \
+            --set postgresql.password=${{ secrets.DATABASE_PASSWORD }} \
+            --set e2b.apiKey=${{ secrets.E2B_API_KEY }} \
+            --set anthropic.apiKey=${{ secrets.ANTHROPIC_API_KEY }} \
+            --set credentialProxy.signingKey=${{ secrets.CREDENTIAL_PROXY_SIGNING_KEY }} \
+            --values .helm/values-${{ inputs.environment }}.yaml \
+            --wait --timeout 5m
+
+      - name: Verify deployment
+        run: kubectl rollout status deployment -l app.kubernetes.io/instance=ai-sdlc -n ai-sdlc-${{ inputs.environment }} --timeout=300s
