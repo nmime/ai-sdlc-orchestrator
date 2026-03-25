@@ -79,7 +79,7 @@ export class WebhookService {
     }
 
     const delivery = new WebhookDelivery();
-    delivery.tenant = this.em.getReference(Tenant, tenantId) as any;
+    delivery.tenant = this.em.getReference(Tenant, tenantId);
     delivery.platform = platform;
     delivery.eventType = event.eventType;
     delivery.deliveryId = event.deliveryId;

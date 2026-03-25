@@ -1,5 +1,4 @@
 import { WebhookService } from '../webhook.service';
-import { DeliveryStatus } from '@ai-sdlc/db';
 
 const mockEm = {
   getReference: vi.fn().mockReturnValue({ id: 'ref' }),

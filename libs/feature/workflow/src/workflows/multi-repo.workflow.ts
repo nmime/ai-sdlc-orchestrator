@@ -5,7 +5,7 @@ import {
   setHandler,
   CancellationScope,
 } from '@temporalio/workflow';
-import type { WorkflowInput, WorkflowResult, PublishedArtifact } from '@ai-sdlc/shared-type';
+import type { PublishedArtifact } from '@ai-sdlc/shared-type';
 import type * as activitiesType from '../activities';
 import { orchestrateTaskWorkflow } from './orchestrate-task.workflow';
 
@@ -147,7 +147,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
 
   return {
     success: allSuccess,
-    results: results.map(({ costUsd, ...rest }) => rest),
+    results: results.map(({ costUsd: _, ...rest }) => rest),
     totalCostUsd: totalCost,
     artifacts: allArtifacts,
   };

@@ -3,7 +3,7 @@ import {
   defineSignal,
   setHandler,
   condition,
-  ApplicationFailure,
+
   workflowInfo,
 } from '@temporalio/workflow';
 import type { WorkflowInput, WorkflowResult, StepResult, PublishedArtifact, SessionContext } from '@ai-sdlc/shared-type';
@@ -21,7 +21,7 @@ const {
   resumeSandbox,
   verifyAgentOutput,
   collectArtifacts,
-  cleanupAndEscalate,
+
   checkConcurrency,
   checkAdmission,
 } = proxyActivities<typeof activitiesType>({
@@ -42,13 +42,6 @@ export const mrMergedSignal = defineSignal<[{ mrUrl: string }]>('mrMerged');
 export const taskUpdatedSignal = defineSignal<[{ payload: Record<string, unknown> }]>('taskUpdated');
 export const workflowUnblockSignal = defineSignal<[{ reason: string }]>('workflowUnblock');
 
-interface LoopState {
-  iteration: number;
-  noProgressCount: number;
-  errorsBefore?: number;
-  errorsAfter?: number;
-  lastSessionContext?: SessionContext;
-}
 
 export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
   const wfInfo = workflowInfo();
@@ -64,21 +57,21 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   let gateDecision: GateDecision | null = null;
   let pipelineSucceeded = false;
   let pipelineFailed = false;
-  let pipelineDetails = '';
+  let _pipelineDetails = '';
   let changesRequested = false;
-  let changesReviewer = '';
-  let changesComment = '';
-  let unblockRequested = false;
-  let unblockReason = '';
+  let _changesReviewer = '';
+  let _changesComment = '';
+  let _unblockRequested = false;
+  let _unblockReason = '';
 
   setHandler(gateDecisionSignal, (d) => { gateDecision = d; });
-  setHandler(pipelineSucceededSignal, (d) => { pipelineSucceeded = true; pipelineDetails = d.details; });
-  setHandler(pipelineFailedSignal, (d) => { pipelineFailed = true; pipelineDetails = d.details; });
-  setHandler(changesRequestedSignal, (d) => { changesRequested = true; changesReviewer = d.reviewer; changesComment = d.comment ?? ''; });
+  setHandler(pipelineSucceededSignal, (d) => { pipelineSucceeded = true; _pipelineDetails = d.details; });
+  setHandler(pipelineFailedSignal, (d) => { pipelineFailed = true; _pipelineDetails = d.details; });
+  setHandler(changesRequestedSignal, (d) => { changesRequested = true; _changesReviewer = d.reviewer; _changesComment = d.comment ?? ''; });
   setHandler(taskUpdatedSignal, () => {});
-  setHandler(workflowUnblockSignal, (d) => { unblockRequested = true; unblockReason = d.reason; });
+  setHandler(workflowUnblockSignal, (d) => { _unblockRequested = true; _unblockReason = d.reason; });
 
-  const totalCostUsd = () => totalAiCostUsd + totalSandboxCostUsd;
+  const _totalCostUsd = () => totalAiCostUsd + totalSandboxCostUsd;
   const mirrorUpdate = (state: string, extra?: Record<string, unknown>) =>
     updateWorkflowMirror({ tenantId: input.tenantId, temporalWorkflowId: wfInfo.workflowId, state, currentStepId, ...extra });
 

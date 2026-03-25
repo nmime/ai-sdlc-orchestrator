@@ -9,7 +9,8 @@
       "options": {
         "outputPath": "dist/apps/orchestrator-worker",
         "main": "apps/orchestrator-worker/src/main.ts",
-        "tsConfig": "apps/orchestrator-worker/tsconfig.json"
+        "tsConfig": "apps/orchestrator-worker/tsconfig.json",
+        "rootDir": "."
       }
     },
     "typecheck": {

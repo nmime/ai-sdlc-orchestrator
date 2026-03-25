@@ -9,7 +9,8 @@
       "options": {
         "outputPath": "dist/apps/cli",
         "main": "apps/cli/src/main.ts",
-        "tsConfig": "apps/cli/tsconfig.json"
+        "tsConfig": "apps/cli/tsconfig.json",
+        "rootDir": "."
       }
     },
     "typecheck": {

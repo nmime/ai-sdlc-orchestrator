@@ -7,7 +7,7 @@ import { WorkflowMirror, WorkflowStatus } from '../entities/workflow-mirror.enti
 import { WorkflowDsl } from '../entities/workflow-dsl.entity';
 import { AgentSession, SessionStatus } from '../entities/agent-session.entity';
 import { AgentToolCall, ToolCallStatus } from '../entities/agent-tool-call.entity';
-import { CostAlert, AlertType } from '../entities/cost-alert.entity';
+import { CostAlert } from '../entities/cost-alert.entity';
 import { PollingSchedule } from '../entities/polling-schedule.entity';
 import { McpServerRegistry } from '../entities/mcp-server-registry.entity';
 

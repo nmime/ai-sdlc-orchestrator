@@ -31,7 +31,7 @@ export interface CreateRepoConfigDto {
   sparseCheckoutPaths?: string[];
 }
 
-export interface UpdateRepoConfigDto extends Partial<CreateRepoConfigDto> {}
+export type UpdateRepoConfigDto = Partial<CreateRepoConfigDto>;
 
 @Injectable()
 export class TenantRepoConfigService {

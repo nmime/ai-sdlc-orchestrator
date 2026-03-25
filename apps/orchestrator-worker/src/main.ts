@@ -10,6 +10,7 @@ import { E2bSandboxAdapter } from '@ai-sdlc/feature-agent-sandbox';
 import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
 import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 import { PinoLoggerService } from '@ai-sdlc/common';
+import type { AppConfig } from '@ai-sdlc/common';
 import { ConfigService } from '@nestjs/config';
 
 const ROOT = path.resolve(__dirname, '../../..');
@@ -39,11 +40,11 @@ async function run() {
   const orm = await MikroORM.init(ormConfig);
   const em = orm.em.fork();
   const pinoLogger = new PinoLoggerService();
-  const configService = new ConfigService(process.env);
+  const configService = new ConfigService<AppConfig, true>(process.env as Record<string, string>);
 
-  const sandboxAdapter = new E2bSandboxAdapter(configService as any, pinoLogger);
+  const sandboxAdapter = new E2bSandboxAdapter(configService, pinoLogger);
   const agentRegistry = new AgentProviderRegistry();
-  const claudeAdapter = new ClaudeAgentAdapter(configService as any, pinoLogger);
+  const claudeAdapter = new ClaudeAgentAdapter(configService, pinoLogger);
   agentRegistry.register(claudeAdapter);
 
   const promptFormatter = new PromptFormatter();

@@ -28,7 +28,7 @@ export class AlertService {
       });
       if (!existing) {
         const alert = new CostAlert();
-        alert.tenant = this.em.getReference(Tenant, tenantId) as any;
+        alert.tenant = this.em.getReference(Tenant, tenantId);
         alert.alertType = AlertType.SYSTEM;
         alert.thresholdPct = 0;
         alert.actualUsd = Number(wf.costUsdTotal);

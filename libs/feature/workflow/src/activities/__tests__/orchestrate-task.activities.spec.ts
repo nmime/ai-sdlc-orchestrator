@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { createMockEm, createMockSandboxAdapter, createMockAgentRegistry, createMockPromptFormatter, createMockCredentialProxy, createMockMcpPolicyService, createMockPromptSanitizer } from '@ai-sdlc/common/__tests__/test-utils';
 import {
   initActivities,
