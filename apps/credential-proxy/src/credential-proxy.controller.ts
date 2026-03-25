@@ -18,7 +18,12 @@ export class CredentialProxyController {
   ) {}
 
   @Post('sessions')
-  createSession(@Body() body: { tenantId: string; workflowId: string; sessionId: string; ttlSeconds?: number; scopes?: string[] }) {
+  createSession(
+    @Headers('x-internal-token') internalToken: string,
+    @Body() body: { tenantId: string; workflowId: string; sessionId: string; ttlSeconds?: number; scopes?: string[] },
+  ) {
+    const expected = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
+    if (expected && internalToken !== expected) throw new UnauthorizedException('Invalid internal token');
     if (!body.tenantId || !body.sessionId) throw new BadRequestException('tenantId and sessionId required');
     return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds, body.scopes);
   }

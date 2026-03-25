@@ -3,7 +3,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, TemporalClientService } from '@app/common';
 import type { AppError } from '@app/common';
-import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus } from '@app/db';
+import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus, TenantWebhookConfig, WebhookPlatform } from '@app/db';
 import type { WebhookEvent } from '@app/shared-type';
 import { JiraHandler } from './handlers/jira.handler';
 import { GitLabHandler } from './handlers/gitlab.handler';
@@ -31,6 +31,14 @@ export class WebhookService {
       ['github', this.gitHubHandler],
       ['linear', this.linearHandler],
     ]);
+  }
+
+  async getWebhookSecret(platform: string, tenantId: string): Promise<string | null> {
+    const config = await this.em.findOne(TenantWebhookConfig, {
+      tenant: tenantId,
+      platform: platform as WebhookPlatform,
+    });
+    return config?.secretRef || null;
   }
 
   async processWebhook(
@@ -76,6 +84,10 @@ export class WebhookService {
     const event = parseResult.value;
     if (!event) {
       return ResultUtils.ok({ accepted: true, deliveryId: 'ignored' });
+    }
+
+    if (platform === 'linear' && !event.repoUrl) {
+      event.repoUrl = await this.linearHandler.resolveRepoUrl(tenantId, body);
     }
 
     const delivery = new WebhookDelivery();

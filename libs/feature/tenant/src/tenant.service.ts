@@ -4,28 +4,8 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { Tenant, TenantStatus, TenantUser, TenantRole } from '@app/db';
-
-export interface CreateTenantDto {
-  slug: string;
-  name: string;
-  monthlyCostLimitUsd?: number;
-  defaultAgentProvider?: string;
-  defaultAgentModel?: string;
-  meta?: Record<string, unknown>;
-}
-
-export interface UpdateTenantDto {
-  name?: string;
-  monthlyCostLimitUsd?: number;
-  monthlyAiCostLimitUsd?: number;
-  monthlySandboxCostLimitUsd?: number;
-  defaultAgentProvider?: string;
-  defaultAgentModel?: string;
-  maxConcurrentWorkflows?: number;
-  maxConcurrentSandboxes?: number;
-  meta?: Record<string, unknown>;
-  status?: TenantStatus;
-}
+import { CreateTenantDto, UpdateTenantDto } from './dto';
+export { CreateTenantDto, UpdateTenantDto } from './dto';
 
 @Injectable()
 export class TenantService {

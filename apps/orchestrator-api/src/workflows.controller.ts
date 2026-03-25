@@ -1,15 +1,18 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
+import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { WorkflowMirror, WorkflowEvent, AgentSession, AgentToolCall, WorkflowArtifact } from '@app/db';
 
 @ApiTags('workflows')
-@Controller('api/v1/workflows')
+@Controller('workflows')
 @ApiBearerAuth()
+@UseGuards(AuthGuard, RbacGuard)
 export class WorkflowsController {
   constructor(private readonly em: EntityManager) {}
 
   @Get()
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflows with pagination and filters' })
   async list(
     @Query('tenantId') tenantId?: string,
@@ -33,6 +36,7 @@ export class WorkflowsController {
   }
 
   @Get(':id')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow detail' })
   async detail(@Param('id') id: string): Promise<{ workflow: WorkflowMirror; events: WorkflowEvent[]; sessions: AgentSession[]; artifacts: WorkflowArtifact[] }> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
@@ -44,6 +48,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/events')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events timeline' })
   async events(@Param('id') id: string): Promise<WorkflowEvent[]> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
@@ -51,6 +56,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/sessions')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for workflow' })
   async sessions(@Param('id') id: string): Promise<Record<string, unknown>[]> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
@@ -67,6 +73,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/artifacts')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
   async artifacts(@Param('id') id: string): Promise<WorkflowArtifact[]> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
@@ -74,6 +81,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/cost')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow cost breakdown' })
   async cost(@Param('id') id: string): Promise<Record<string, unknown>> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
