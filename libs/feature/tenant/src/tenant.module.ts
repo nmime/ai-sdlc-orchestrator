@@ -14,6 +14,8 @@ import {
 } from './tenant-resource.controllers';
 import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
+import { ApiKeyController } from './api-key.controller';
+import { UserController } from './user.controller';
 
 @Module({
   controllers: [
@@ -22,6 +24,8 @@ import { RbacGuard } from './guards/rbac.guard';
     TenantVcsCredentialController,
     TenantRepoConfigController,
     TenantWebhookConfigController,
+    ApiKeyController,
+    UserController,
   ],
   providers: [
     TenantService,

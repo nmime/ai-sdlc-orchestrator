@@ -5,7 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
-import { PinoLoggerService } from '@app/common';
+import { PinoLoggerService, AppErrorExceptionFilter } from '@app/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -21,15 +21,18 @@ async function bootstrap() {
   app.useLogger(logger);
 
   const fastify = app.getHttpAdapter().getInstance();
-  await fastify.register(helmet, { contentSecurityPolicy: false });
+  await fastify.register(helmet, {
+    contentSecurityPolicy: process.env['NODE_ENV'] === 'production',
+  });
   await fastify.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
+    max: parseInt(process.env['RATE_LIMIT_MAX'] || '100', 10),
+    timeWindow: process.env['RATE_LIMIT_WINDOW'] || '1 minute',
   });
 
   app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalFilters(new AppErrorExceptionFilter());
 
   app.enableCors({
     origin: process.env['CORS_ORIGINS']?.split(',') || ['http://localhost:5173'],

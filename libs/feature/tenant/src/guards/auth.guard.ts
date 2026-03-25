@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as jose from 'jose';
 import type { AppConfig } from '@app/common';
 import { ApiKeyService } from '../api-key.service';
 
@@ -12,6 +13,8 @@ interface AuthenticatedUser {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
+
   constructor(
     private readonly configService: ConfigService<AppConfig, true>,
     private readonly apiKeyService: ApiKeyService,
@@ -37,28 +40,44 @@ export class AuthGuard implements CanActivate {
   private async validateBearerToken(token: string, request: { user?: AuthenticatedUser }): Promise<boolean> {
     const issuerUrl = this.configService.get('OIDC_ISSUER_URL');
     if (!issuerUrl) {
+      const nodeEnv = this.configService.get('NODE_ENV');
+      if (nodeEnv !== 'development' && nodeEnv !== 'test') {
+        throw new UnauthorizedException('OIDC not configured');
+      }
       request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: 'dev-tenant' };
       return true;
     }
 
     try {
-      const response = await fetch(`${issuerUrl}/userinfo`, {
-        headers: { Authorization: `Bearer ${token}` },
+      if (!this.jwks) {
+        this.jwks = jose.createRemoteJWKSet(new URL(`${issuerUrl}/.well-known/jwks.json`));
+      }
+
+      const audience = this.configService.get('OIDC_CLIENT_ID');
+      const { payload } = await jose.jwtVerify(token, this.jwks, {
+        issuer: issuerUrl,
+        ...(audience ? { audience } : {}),
       });
 
-      if (!response.ok) throw new UnauthorizedException('Invalid OIDC token');
-
-      const userInfo = await response.json() as { sub: string; email?: string; role?: string; tenant_id?: string };
       request.user = {
-        id: userInfo.sub,
-        email: userInfo.email ?? '',
-        role: userInfo.role || 'viewer',
-        tenantId: userInfo.tenant_id,
+        id: payload.sub ?? '',
+        email: (payload['email'] as string) ?? '',
+        role: (payload['role'] as string) || (payload['roles'] as string) || 'viewer',
+        tenantId: (payload['tenant_id'] as string) || (payload['tenantId'] as string),
       };
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
-      throw new UnauthorizedException('OIDC validation failed');
+      if (error instanceof jose.errors.JWSSignatureVerificationFailed) {
+        throw new UnauthorizedException('Invalid token signature');
+      }
+      if (error instanceof jose.errors.JWTExpired) {
+        throw new UnauthorizedException('Token expired');
+      }
+      if (error instanceof jose.errors.JWTClaimValidationFailed) {
+        throw new UnauthorizedException(`Token claim validation failed: ${error.message}`);
+      }
+      throw new UnauthorizedException('Token validation failed');
     }
   }
 

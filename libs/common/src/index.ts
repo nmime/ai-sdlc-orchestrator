@@ -4,5 +4,7 @@ export { TemporalModule, TemporalClientService } from './temporal/temporal.modul
 export { DatabaseModule } from './database/database.module';
 export { BootstrapService } from './bootstrap/bootstrap.service';
 export { ResultUtils } from './result/result.utils';
+export { AppErrorExceptionFilter } from './filters/app-error-exception.filter';
 export { ERROR_CODE } from './result/app-error';
 export type { AppError, ErrorCode } from './result/app-error';
+export { EncryptionService } from './encryption/encryption.service';

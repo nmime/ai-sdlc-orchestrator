@@ -1,7 +1,9 @@
 import { Controller, Post, Get, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { GateService } from './gate.service';
+import { ResultUtils } from '@app/common';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { GateDecisionDto, GateCommentDto, GateRequireCommentDto, CancelWorkflowDto } from '@app/feature-tenant';
 import type { GateAction } from '@app/shared-type';
 import type { FastifyRequest } from 'fastify';
 
@@ -28,11 +30,9 @@ export class GateController {
   @ApiOperation({ summary: 'Submit gate decision for a workflow' })
   async decide(
     @Param('workflowId') workflowId: string,
-    @Body() body: { action: GateAction; reviewer: string; comment?: string },
+    @Body() body: GateDecisionDto,
   ) {
-    const result = await this.gateService.submitDecision(workflowId, body.action, body.reviewer, body.comment);
-    if (result.isErr()) throw new Error(result.error.message);
-    return result.value;
+    return ResultUtils.unwrapOrThrow(await this.gateService.submitDecision(workflowId, body.action as GateAction, body.reviewer, body.comment));
   }
 
   @Post(':workflowId/approve')
@@ -41,13 +41,11 @@ export class GateController {
   @ApiOperation({ summary: 'Approve a workflow gate' })
   async approve(
     @Param('workflowId') workflowId: string,
-    @Body() body: { comment?: string },
+    @Body() body: GateCommentDto,
     @Req() req: AuthenticatedRequest,
   ) {
     const reviewer = req.user.email || req.user.id;
-    const result = await this.gateService.submitDecision(workflowId, 'approve', reviewer, body.comment);
-    if (result.isErr()) throw new Error(result.error.message);
-    return result.value;
+    return ResultUtils.unwrapOrThrow(await this.gateService.submitDecision(workflowId, 'approve', reviewer, body.comment));
   }
 
   @Post(':workflowId/request-changes')
@@ -56,21 +54,17 @@ export class GateController {
   @ApiOperation({ summary: 'Request changes on a workflow' })
   async requestChanges(
     @Param('workflowId') workflowId: string,
-    @Body() body: { comment: string },
+    @Body() body: GateRequireCommentDto,
     @Req() req: AuthenticatedRequest,
   ) {
     const reviewer = req.user.email || req.user.id;
-    const result = await this.gateService.submitDecision(workflowId, 'request_changes', reviewer, body.comment);
-    if (result.isErr()) throw new Error(result.error.message);
-    return result.value;
+    return ResultUtils.unwrapOrThrow(await this.gateService.submitDecision(workflowId, 'request_changes', reviewer, body.comment));
   }
 
   @Get(':workflowId/status')
   @ApiOperation({ summary: 'Get workflow status' })
   async getStatus(@Param('workflowId') workflowId: string) {
-    const result = await this.gateService.getWorkflowStatus(workflowId);
-    if (result.isErr()) throw new Error(result.error.message);
-    return result.value;
+    return ResultUtils.unwrapOrThrow(await this.gateService.getWorkflowStatus(workflowId));
   }
 
   @Post(':workflowId/cancel')
@@ -79,10 +73,9 @@ export class GateController {
   @ApiOperation({ summary: 'Cancel a workflow' })
   async cancel(
     @Param('workflowId') workflowId: string,
-    @Body() body: { reason: string },
+    @Body() body: CancelWorkflowDto,
   ) {
-    const result = await this.gateService.cancelWorkflow(workflowId, body.reason);
-    if (result.isErr()) throw new Error(result.error.message);
+    ResultUtils.unwrapOrThrow(await this.gateService.cancelWorkflow(workflowId, body.reason));
     return { cancelled: true };
   }
 }

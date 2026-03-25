@@ -24,7 +24,7 @@ export class RbacGuard implements CanActivate {
     }
 
     const tenantId = request.params?.tenantId;
-    if (tenantId && user.tenantId && user.tenantId !== 'dev-tenant' && user.tenantId !== tenantId) {
+    if (tenantId && user.tenantId && user.tenantId !== tenantId) {
       throw new ForbiddenException('Access denied for this tenant');
     }
 
