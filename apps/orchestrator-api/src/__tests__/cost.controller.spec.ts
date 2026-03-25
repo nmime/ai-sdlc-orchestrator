@@ -11,7 +11,7 @@ describe('CostController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new CostController(mockEm as any);
+    controller = new CostController(mockEm);
   });
 
   describe('GET /costs/tenants/:tenantId', () => {
@@ -65,7 +65,7 @@ describe('CostController (integration)', () => {
       ]);
       const result = await controller.getWorkflowCost('wf-1');
       expect(result.totalCostUsd).toBe(5);
-      expect((result.sessions as any)[0].duration).toBe(300);
+      expect((result.sessions as unknown as Array<{ duration: number }>)[0].duration).toBe(300);
     });
   });
 

@@ -1,20 +1,23 @@
+import type { ConfigService } from '@nestjs/config';
+import type { ExecutionContext } from '@nestjs/common';
+import type { ApiKeyService } from '../api-key.service';
 import { AuthGuard } from '../guards/auth.guard';
 import { UnauthorizedException } from '@nestjs/common';
 
-const mockApiKeyService = {
+const mockApiKeyService: Record<string, ReturnType<typeof vi.fn>> = {
   validate: vi.fn(),
 };
 
-const mockConfigService = {
+const mockConfigService: Record<string, ReturnType<typeof vi.fn>> = {
   get: vi.fn(),
 };
 
-function mockContext(headers: Record<string, string> = {}): any {
-  const request = { headers, user: undefined as any };
+function mockContext(headers: Record<string, string> = {}) {
+  const request: { headers: Record<string, string>; user?: unknown } = { headers };
   return {
     switchToHttp: () => ({ getRequest: () => request }),
     _request: request,
-  };
+  } as unknown as ExecutionContext & { _request: typeof request };
 }
 
 describe('AuthGuard', () => {
@@ -22,7 +25,10 @@ describe('AuthGuard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    guard = new AuthGuard(mockConfigService as any, mockApiKeyService as any);
+    guard = new AuthGuard(
+      mockConfigService as unknown as ConfigService,
+      mockApiKeyService as unknown as ApiKeyService,
+    );
   });
 
   it('throws when no authorization header', async () => {
@@ -59,8 +65,9 @@ describe('AuthGuard', () => {
     const ctx = mockContext({ authorization: 'ApiKey raw-key-value' });
     const result = await guard.canActivate(ctx);
     expect(result).toBe(true);
-    expect(ctx._request.user.role).toBe('operator');
-    expect(ctx._request.user.tenantId).toBe('tenant-abc');
+    const user = ctx._request.user as Record<string, unknown>;
+    expect(user.role).toBe('operator');
+    expect(user.tenantId).toBe('tenant-abc');
   });
 
   it('throws when API key validation fails', async () => {

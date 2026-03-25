@@ -10,7 +10,7 @@ describe('WebhookController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new WebhookController(mockWebhookService as any);
+    controller = new WebhookController(mockWebhookService);
   });
 
   it('returns accepted response on valid webhook', async () => {

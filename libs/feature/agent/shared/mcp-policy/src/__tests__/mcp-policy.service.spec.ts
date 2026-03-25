@@ -12,7 +12,7 @@ describe('McpPolicyService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new McpPolicyService(mockEm as any, mockLogger as any);
+    service = new McpPolicyService(mockEm, mockLogger);
   });
 
   it('returns all enabled servers for OPEN policy', async () => {

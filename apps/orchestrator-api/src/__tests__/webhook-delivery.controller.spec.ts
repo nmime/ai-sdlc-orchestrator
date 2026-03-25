@@ -11,7 +11,7 @@ describe('WebhookDeliveryController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new WebhookDeliveryController(mockEm as any);
+    controller = new WebhookDeliveryController(mockEm);
   });
 
   describe('GET /', () => {

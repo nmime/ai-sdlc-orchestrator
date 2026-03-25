@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
+import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
 import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus } from '@ai-sdlc/db';
@@ -71,7 +71,7 @@ export class WebhookService {
     }
 
     const parseResult = handler.parse(headers, body, tenantId);
-    if (parseResult.isErr()) return parseResult as unknown as Result<never, AppError>;
+    if (parseResult.isErr()) return err(parseResult.error);
 
     const event = parseResult.value;
     if (!event) {

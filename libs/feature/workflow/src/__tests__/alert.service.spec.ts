@@ -10,7 +10,7 @@ describe('AlertService', () => {
   beforeEach(() => {
     mockEm = createMockEm();
     mockLogger = createMockLogger();
-    service = new AlertService(mockEm, mockLogger as any);
+    service = new AlertService(mockEm, mockLogger);
   });
 
   describe('checkStuckWorkflows', () => {

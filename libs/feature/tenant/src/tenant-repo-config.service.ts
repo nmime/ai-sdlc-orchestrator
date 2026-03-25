@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
+import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
 import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@ai-sdlc/db';
@@ -83,7 +83,7 @@ export class TenantRepoConfigService {
 
   async delete(tenantId: string, id: string): Promise<Result<void, AppError>> {
     const findResult = await this.findById(tenantId, id);
-    if (findResult.isErr()) return findResult as unknown as Result<void, AppError>;
+    if (findResult.isErr()) return err(findResult.error);
     await this.em.removeAndFlush(findResult.value);
     return ResultUtils.ok(undefined);
   }
