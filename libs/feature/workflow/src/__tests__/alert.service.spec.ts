@@ -1,6 +1,6 @@
-import { createMockEm, createMockLogger } from '@ai-sdlc/common/__tests__/test-utils';
+import { createMockEm, createMockLogger } from '@app/common/__tests__/test-utils';
 import { AlertService } from '../alert.service';
-import { WorkflowStatus } from '@ai-sdlc/db';
+import { WorkflowStatus } from '@app/db';
 
 describe('AlertService', () => {
   let service: AlertService;

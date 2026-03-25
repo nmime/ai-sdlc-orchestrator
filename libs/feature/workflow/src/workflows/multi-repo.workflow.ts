@@ -5,7 +5,7 @@ import {
   setHandler,
   CancellationScope,
 } from '@temporalio/workflow';
-import type { PublishedArtifact } from '@ai-sdlc/shared-type';
+import type { PublishedArtifact } from '@app/shared-type';
 import type * as activitiesType from '../activities';
 import { orchestrateTaskWorkflow } from './orchestrate-task.workflow';
 

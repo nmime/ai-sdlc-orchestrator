@@ -1,7 +1,7 @@
 import { Controller, Sse, Query, MessageEvent } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { WorkflowEvent } from '@ai-sdlc/db';
+import { WorkflowEvent } from '@app/db';
 import { Observable, interval, switchMap, map, from } from 'rxjs';
 
 @ApiTags('sse')

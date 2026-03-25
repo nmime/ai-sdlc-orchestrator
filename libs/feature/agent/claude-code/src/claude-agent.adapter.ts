@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError, AppConfig } from '@ai-sdlc/common';
-import type { AiAgentPort } from '@ai-sdlc/feature-agent-registry';
-import type { AgentInvokeInput, AgentInvokeOutput } from '@ai-sdlc/shared-type';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError, AppConfig } from '@app/common';
+import type { AiAgentPort } from '@app/feature-agent-registry';
+import type { AgentInvokeInput, AgentInvokeOutput } from '@app/shared-type';
 
 @Injectable()
 export class ClaudeAgentAdapter implements AiAgentPort {

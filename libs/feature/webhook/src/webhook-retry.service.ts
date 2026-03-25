@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import { WebhookDelivery, DeliveryStatus } from '@ai-sdlc/db';
+import { PinoLoggerService, TemporalClientService } from '@app/common';
+import { WebhookDelivery, DeliveryStatus } from '@app/db';
 
 @Injectable()
 export class WebhookRetryService implements OnModuleInit, OnModuleDestroy {

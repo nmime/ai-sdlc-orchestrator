@@ -1,5 +1,5 @@
 import { McpPolicyService } from '../mcp-policy.service';
-import { McpServerPolicy } from '@ai-sdlc/db';
+import { McpServerPolicy } from '@app/db';
 
 const mockEm = {
   find: vi.fn(),

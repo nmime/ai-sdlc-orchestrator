@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantApiKey, Tenant, ApiKeyRole } from '@ai-sdlc/db';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantApiKey, Tenant, ApiKeyRole } from '@app/db';
 import { randomBytes, createHash } from 'crypto';
 
 @Injectable()

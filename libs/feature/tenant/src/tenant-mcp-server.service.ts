@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantMcpServer, Tenant, McpTransport } from '@ai-sdlc/db';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantMcpServer, Tenant, McpTransport } from '@app/db';
 
 export interface CreateMcpServerDto {
   name: string;

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { AppConfigModule, LoggerModule, DatabaseModule, TemporalModule } from '@ai-sdlc/common';
-import { BootstrapService } from '@ai-sdlc/common';
-import { TenantModule } from '@ai-sdlc/feature-tenant';
-import { WebhookModule } from '@ai-sdlc/feature-webhook';
-import { GateModule } from '@ai-sdlc/feature-gate';
-import { WorkflowModule } from '@ai-sdlc/feature-workflow';
+import { AppConfigModule, LoggerModule, DatabaseModule, TemporalModule } from '@app/common';
+import { BootstrapService } from '@app/common';
+import { TenantModule } from '@app/feature-tenant';
+import { WebhookModule } from '@app/feature-webhook';
+import { GateModule } from '@app/feature-gate';
+import { WorkflowModule } from '@app/feature-workflow';
 import { HealthController } from './health.controller';
 import { WorkflowsController } from './workflows.controller';
 import { CostController } from './cost.controller';

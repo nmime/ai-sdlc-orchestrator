@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AgentPromptData } from '@ai-sdlc/shared-type';
+import type { AgentPromptData } from '@app/shared-type';
 
 @Injectable()
 export class PromptFormatter {

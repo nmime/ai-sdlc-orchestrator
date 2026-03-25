@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AppConfig } from '@ai-sdlc/common';
+import type { AppConfig } from '@app/common';
 import { ApiKeyService } from '../api-key.service';
 
 interface AuthenticatedUser {

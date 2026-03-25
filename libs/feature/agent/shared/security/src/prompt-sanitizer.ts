@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PinoLoggerService } from '@ai-sdlc/common';
+import { PinoLoggerService } from '@app/common';
 
 const INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?previous\s+instructions/i,

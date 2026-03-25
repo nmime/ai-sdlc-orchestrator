@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError } from '@app/common';
 
 export interface SessionToken {
   token: string;

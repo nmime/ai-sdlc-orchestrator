@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService } from '@ai-sdlc/common';
-import { CostAlert, AlertType, Tenant, WorkflowMirror, WorkflowStatus, AgentSession } from '@ai-sdlc/db';
+import { PinoLoggerService } from '@app/common';
+import { CostAlert, AlertType, Tenant, WorkflowMirror, WorkflowStatus, AgentSession } from '@app/db';
 
 @Injectable()
 export class AlertService {

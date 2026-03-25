@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
-import { WorkflowMirror, AgentSession, CostAlert, Tenant } from '@ai-sdlc/db';
+import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { WorkflowMirror, AgentSession, CostAlert, Tenant } from '@app/db';
 
 @ApiTags('costs')
 @Controller('costs')

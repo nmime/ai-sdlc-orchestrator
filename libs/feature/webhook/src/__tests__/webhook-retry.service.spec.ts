@@ -1,5 +1,5 @@
 import { WebhookRetryService } from '../webhook-retry.service';
-import { DeliveryStatus } from '@ai-sdlc/db';
+import { DeliveryStatus } from '@app/db';
 
 const mockFork = {
   find: vi.fn(),

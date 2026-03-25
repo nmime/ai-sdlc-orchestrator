@@ -1,4 +1,4 @@
-import type { GateAction } from '@ai-sdlc/shared-type';
+import type { GateAction } from '@app/shared-type';
 import type { GateService } from '../gate.service';
 import { GateController } from '../gate.controller';
 import { ok, err } from 'neverthrow';
