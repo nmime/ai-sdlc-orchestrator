@@ -1,7 +1,7 @@
 import { RbacGuard } from '../guards/rbac.guard';
 import { ForbiddenException } from '@nestjs/common';
 
-const ROLES_KEY = 'roles';
+const _ROLES_KEY = 'roles';
 
 function createGuard(requiredRoles: string[] | undefined) {
   const reflector = {

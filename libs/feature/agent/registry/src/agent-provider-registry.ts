@@ -43,9 +43,10 @@ export class AgentProviderRegistry {
     return { provider, providerName, model };
   }
 
-  private resolveModel(input: ProviderResolutionInput, providerName: string): string {
+  private resolveModel(input: ProviderResolutionInput, _providerName: string): string {
     if (input.taskLabel && input.repoModelRouting?.[input.taskLabel]) {
-      return input.repoModelRouting[input.taskLabel];
+      const routed = input.repoModelRouting[input.taskLabel];
+      if (routed) return routed;
     }
     return input.repoAgentModel || input.tenantDefaultModel || this.systemDefaultModel;
   }

@@ -79,9 +79,9 @@ export class CredentialProxyController {
     const session = this.requireSession(auth, 'ai-api');
     this.requireRateLimit(session.sessionId);
 
-    const url = (request as any).url as string;
+    const url = request.url;
     const pathAfterProvider = url.replace(`/ai-api/${provider}`, '');
-    const body = (request as any).body;
+    const body = request.body;
     const headers = request.headers as Record<string, string>;
 
     try {

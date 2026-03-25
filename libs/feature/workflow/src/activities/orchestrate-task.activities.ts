@@ -1,7 +1,7 @@
 import { EntityManager } from '@mikro-orm/postgresql';
 import {
   WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant, AgentSession, AgentMode,
-  AgentToolCall, ToolCallStatus, SessionStatus, TenantRepoConfig, WorkflowArtifact,
+  SessionStatus, TenantRepoConfig, WorkflowArtifact,
   ArtifactKind, ArtifactStatus, CostAlert, AlertType, StaticAnalysisResult,
 } from '@ai-sdlc/db';
 import type { AgentResult, AgentProvider, StaticAnalysisValue, SessionContext, PublishedArtifact, CostSettlement } from '@ai-sdlc/shared-type';
@@ -62,7 +62,7 @@ export async function updateWorkflowMirror(input: {
 
   if (!mirror) {
     mirror = new WorkflowMirror();
-    mirror.tenant = em.getReference(Tenant, input.tenantId) as any;
+    mirror.tenant = em.getReference(Tenant, input.tenantId);
     mirror.temporalWorkflowId = input.temporalWorkflowId;
     mirror.temporalRunId = '';
     mirror.repoId = input.repoId || '';
@@ -326,7 +326,7 @@ export async function invokeAgent(input: {
   };
 
   const session = new AgentSession();
-  session.workflow = mirror ?? em.getReference(WorkflowMirror, input.temporalWorkflowId) as any;
+  session.workflow = mirror ?? em.getReference(WorkflowMirror, input.temporalWorkflowId);
   session.provider = resolved.providerName;
   session.mode = modeMap[input.mode] || AgentMode.IMPLEMENT;
   session.loopIteration = input.loopIteration ?? 0;
@@ -437,7 +437,7 @@ export async function invokeAgent(input: {
   return agentResult;
 }
 
-async function createSessionToken(tenantId: string, workflowId: string, sessionId: string): Promise<string | null> {
+async function createSessionToken(tenantId: string, _workflowId: string, _sessionId: string): Promise<string | null> {
   try {
     const result = await credentialProxy.createSession(tenantId, ['git', 'mcp', 'ai-api']);
     if (result.isOk()) return result.value.token;
@@ -536,7 +536,7 @@ export async function collectArtifacts(input: {
         for (const artifact of artifacts) {
           const entity = new WorkflowArtifact();
           entity.workflow = mirror;
-          entity.tenant = em.getReference(Tenant, input.tenantId) as any;
+          entity.tenant = em.getReference(Tenant, input.tenantId);
           entity.kind = (artifact.kind as ArtifactKind) || ArtifactKind.OTHER;
           entity.title = artifact.title;
           entity.uri = artifact.uri;

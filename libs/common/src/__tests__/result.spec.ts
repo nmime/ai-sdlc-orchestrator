@@ -1,5 +1,4 @@
 import { ResultUtils } from '../result/result.utils';
-import type { AppError } from '../result/app-error';
 
 describe('ResultUtils', () => {
   it('should create an ok result', () => {
