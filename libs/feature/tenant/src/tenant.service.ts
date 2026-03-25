@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { Tenant, TenantStatus, TenantUser, TenantRole } from '@ai-sdlc/db';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError } from '@app/common';
+import { Tenant, TenantStatus, TenantUser, TenantRole } from '@app/db';
 
 export interface CreateTenantDto {
   slug: string;

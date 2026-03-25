@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Sandbox } from 'e2b';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError, AppConfig } from '@ai-sdlc/common';
-import type { SandboxPort, SandboxExecResult } from '@ai-sdlc/feature-agent-registry';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError, AppConfig } from '@app/common';
+import type { SandboxPort, SandboxExecResult } from '@app/feature-agent-registry';
 
 @Injectable()
 export class E2bSandboxAdapter implements SandboxPort {

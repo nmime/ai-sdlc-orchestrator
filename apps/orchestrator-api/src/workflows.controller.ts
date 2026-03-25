@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { WorkflowMirror, WorkflowEvent, AgentSession, AgentToolCall, WorkflowArtifact } from '@ai-sdlc/db';
+import { WorkflowMirror, WorkflowEvent, AgentSession, AgentToolCall, WorkflowArtifact } from '@app/db';
 
 @ApiTags('workflows')
 @Controller('api/v1/workflows')

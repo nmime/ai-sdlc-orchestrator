@@ -6,8 +6,8 @@ import {
 
   workflowInfo,
 } from '@temporalio/workflow';
-import type { WorkflowInput, WorkflowResult, StepResult, PublishedArtifact, SessionContext } from '@ai-sdlc/shared-type';
-import type { GateDecision } from '@ai-sdlc/shared-type';
+import type { WorkflowInput, WorkflowResult, StepResult, PublishedArtifact, SessionContext } from '@app/shared-type';
+import type { GateDecision } from '@app/shared-type';
 import type * as activitiesType from '../activities';
 
 const {

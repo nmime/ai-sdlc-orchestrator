@@ -1,6 +1,6 @@
 import { Controller, Post, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
+import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 
 @ApiTags('test')
 @Controller('test')

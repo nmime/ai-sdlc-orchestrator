@@ -3,14 +3,14 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import { MikroORM, Options } from '@mikro-orm/postgresql';
 import pino from 'pino';
 
-import { initActivities, activities } from '@ai-sdlc/feature-workflow';
-import { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
-import { ClaudeAgentAdapter } from '@ai-sdlc/feature-agent-claude-code';
-import { E2bSandboxAdapter } from '@ai-sdlc/feature-agent-sandbox';
-import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
-import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
-import { PinoLoggerService } from '@ai-sdlc/common';
-import type { AppConfig } from '@ai-sdlc/common';
+import { initActivities, activities } from '@app/feature-workflow';
+import { AgentProviderRegistry } from '@app/feature-agent-registry';
+import { ClaudeAgentAdapter } from '@app/feature-agent-claude-code';
+import { E2bSandboxAdapter } from '@app/feature-agent-sandbox';
+import { PromptFormatter } from '@app/feature-agent-prompt';
+import { CredentialProxyClient } from '@app/feature-agent-credential-proxy';
+import { PinoLoggerService } from '@app/common';
+import type { AppConfig } from '@app/common';
 import { ConfigService } from '@nestjs/config';
 
 const ROOT = path.resolve(__dirname, '../../..');
@@ -75,7 +75,7 @@ async function run() {
         config.resolve = config.resolve || {};
         config.resolve.alias = {
           ...config.resolve.alias,
-          '@ai-sdlc/shared-type': path.resolve(ROOT, 'libs/shared-type/src'),
+          '@app/shared-type': path.resolve(ROOT, 'libs/shared-type/src'),
         };
         return config;
       },

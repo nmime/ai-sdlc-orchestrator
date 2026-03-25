@@ -1,4 +1,4 @@
-import { DslValidator, DslCompiler, type CompiledWorkflow, type CompiledStep } from '@ai-sdlc/workflow-dsl';
+import { DslValidator, DslCompiler, type CompiledWorkflow, type CompiledStep } from '@app/workflow-dsl';
 import { readFile } from './file-reader';
 
 function printUsage(): void {

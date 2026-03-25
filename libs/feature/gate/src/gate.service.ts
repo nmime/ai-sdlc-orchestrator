@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import type { GateDecision, GateAction } from '@ai-sdlc/shared-type';
+import { ResultUtils, PinoLoggerService, TemporalClientService } from '@app/common';
+import type { AppError } from '@app/common';
+import type { GateDecision, GateAction } from '@app/shared-type';
 
 @Injectable()
 export class GateService {

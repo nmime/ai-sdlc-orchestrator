@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import type { SandboxPort } from '@ai-sdlc/feature-agent-registry';
+import type { PinoLoggerService, TemporalClientService } from '@app/common';
+import type { SandboxPort } from '@app/feature-agent-registry';
 
 
 export function createMockEm(overrides: Record<string, unknown> = {}) {

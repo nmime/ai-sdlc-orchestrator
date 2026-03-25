@@ -3,14 +3,14 @@ import {
   WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant, AgentSession, AgentMode,
   SessionStatus, TenantRepoConfig, WorkflowArtifact,
   ArtifactKind, ArtifactStatus, CostAlert, AlertType, StaticAnalysisResult,
-} from '@ai-sdlc/db';
-import type { AgentResult, AgentProvider, StaticAnalysisValue, SessionContext, PublishedArtifact, CostSettlement } from '@ai-sdlc/shared-type';
-import type { SandboxPort } from '@ai-sdlc/feature-agent-registry';
-import type { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
-import type { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
-import type { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
-import type { McpPolicyService } from '@ai-sdlc/feature-agent-mcp-policy';
-import type { PromptSanitizer } from '@ai-sdlc/feature-agent-security';
+} from '@app/db';
+import type { AgentResult, AgentProvider, StaticAnalysisValue, SessionContext, PublishedArtifact, CostSettlement } from '@app/shared-type';
+import type { SandboxPort } from '@app/feature-agent-registry';
+import type { AgentProviderRegistry } from '@app/feature-agent-registry';
+import type { PromptFormatter } from '@app/feature-agent-prompt';
+import type { CredentialProxyClient } from '@app/feature-agent-credential-proxy';
+import type { McpPolicyService } from '@app/feature-agent-mcp-policy';
+import type { PromptSanitizer } from '@app/feature-agent-security';
 
 let em: EntityManager;
 let sandboxAdapter: SandboxPort;

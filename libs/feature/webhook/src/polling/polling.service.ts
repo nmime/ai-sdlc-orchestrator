@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import { PollingSchedule, WorkflowMirror } from '@ai-sdlc/db';
+import { PinoLoggerService, TemporalClientService } from '@app/common';
+import { PollingSchedule, WorkflowMirror } from '@app/db';
 
 export interface PollResult {
   taskId: string;

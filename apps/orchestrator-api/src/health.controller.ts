@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { HealthCheckService, HealthCheck, MikroOrmHealthIndicator } from '@nestjs/terminus';
-import { TemporalClientService } from '@ai-sdlc/common';
+import { TemporalClientService } from '@app/common';
 
 @ApiTags('health')
 @Controller('health')

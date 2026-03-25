@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService } from '@ai-sdlc/common';
-import { TenantMcpServer, McpServerRegistry, McpServerPolicy } from '@ai-sdlc/db';
-import type { McpServerConfig } from '@ai-sdlc/shared-type';
+import { PinoLoggerService } from '@app/common';
+import { TenantMcpServer, McpServerRegistry, McpServerPolicy } from '@app/db';
+import type { McpServerConfig } from '@app/shared-type';
 
 @Injectable()
 export class McpPolicyService {

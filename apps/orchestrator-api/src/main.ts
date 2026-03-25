@@ -5,7 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
-import { PinoLoggerService } from '@ai-sdlc/common';
+import { PinoLoggerService } from '@app/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(

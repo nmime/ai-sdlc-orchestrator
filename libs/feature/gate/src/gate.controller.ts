@@ -1,8 +1,8 @@
 import { Controller, Post, Get, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { GateService } from './gate.service';
-import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
-import type { GateAction } from '@ai-sdlc/shared-type';
+import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import type { GateAction } from '@app/shared-type';
 import type { FastifyRequest } from 'fastify';
 
 interface AuthenticatedUser {

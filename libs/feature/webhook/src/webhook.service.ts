@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus } from '@ai-sdlc/db';
-import type { WebhookEvent } from '@ai-sdlc/shared-type';
+import { ResultUtils, PinoLoggerService, TemporalClientService } from '@app/common';
+import type { AppError } from '@app/common';
+import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus } from '@app/db';
+import type { WebhookEvent } from '@app/shared-type';
 import { JiraHandler } from './handlers/jira.handler';
 import { GitLabHandler } from './handlers/gitlab.handler';
 import { GitHubHandler } from './handlers/github.handler';

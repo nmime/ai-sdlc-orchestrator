@@ -1,6 +1,6 @@
 import { Result } from 'neverthrow';
-import type { AppError } from '@ai-sdlc/common';
-import type { AgentInvokeInput, AgentInvokeOutput } from '@ai-sdlc/shared-type';
+import type { AppError } from '@app/common';
+import type { AgentInvokeInput, AgentInvokeOutput } from '@app/shared-type';
 
 export interface AiAgentPort {
   readonly name: string;
