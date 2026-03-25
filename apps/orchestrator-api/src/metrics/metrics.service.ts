@@ -41,7 +41,8 @@ export class MetricsService {
   setGauge(name: string, value: number, labels: Record<string, string> = {}): void {
     const key = this.labelKey(labels);
     if (!this.gauges.has(name)) this.gauges.set(name, new Map());
-    this.gauges.get(name)!.set(key, value);
+    const gauge = this.gauges.get(name);
+    if (gauge) gauge.set(key, value);
   }
 
   serialize(): string {

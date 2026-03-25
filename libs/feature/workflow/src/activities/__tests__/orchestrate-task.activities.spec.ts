@@ -35,13 +35,13 @@ beforeEach(() => {
   mockSanitizer = createMockPromptSanitizer();
 
   initActivities({
-    em: mockEm as any,
-    sandboxAdapter: mockSandbox as any,
-    agentRegistry: mockRegistry as any,
-    promptFormatter: mockFormatter as any,
-    credentialProxy: mockCredProxy as any,
-    mcpPolicyService: mockMcpPolicy as any,
-    promptSanitizer: mockSanitizer as any,
+    em: mockEm,
+    sandboxAdapter: mockSandbox,
+    agentRegistry: mockRegistry,
+    promptFormatter: mockFormatter,
+    credentialProxy: mockCredProxy,
+    mcpPolicyService: mockMcpPolicy,
+    promptSanitizer: mockSanitizer,
   });
 });
 

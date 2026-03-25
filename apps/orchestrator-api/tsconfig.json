@@ -4,6 +4,11 @@
     "outDir": "../../dist/apps/orchestrator-api",
     "rootDir": "../.."
   },
-  "include": ["src/**/*.ts"],
-  "references": []
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [],
+  "exclude": [
+    "src/__tests__/**"
+  ]
 }

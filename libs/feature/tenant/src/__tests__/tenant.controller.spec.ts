@@ -1,7 +1,8 @@
+import type { TenantService, CreateTenantDto, UpdateTenantDto } from '../tenant.service';
 import { TenantController } from '../tenant.controller';
 import { ok, err } from 'neverthrow';
 
-const mockTenantService = {
+const mockTenantService: Record<string, ReturnType<typeof vi.fn>> = {
   create: vi.fn(),
   list: vi.fn(),
   findById: vi.fn(),
@@ -14,13 +15,14 @@ describe('TenantController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new TenantController(mockTenantService as any);
+    controller = new TenantController(mockTenantService as unknown as TenantService);
   });
 
   it('creates tenant', async () => {
     const tenant = { id: 't-1', slug: 'test', name: 'Test' };
     mockTenantService.create.mockResolvedValue(ok(tenant));
-    const result = await controller.create({ slug: 'test', name: 'Test' } as any);
+    const dto: CreateTenantDto = { slug: 'test', name: 'Test' };
+    const result = await controller.create(dto);
     expect(result).toEqual(tenant);
   });
 
@@ -43,7 +45,8 @@ describe('TenantController (integration)', () => {
 
   it('updates tenant', async () => {
     mockTenantService.update.mockResolvedValue(ok({ id: 't-1', name: 'Updated' }));
-    const result = await controller.update('t-1', { name: 'Updated' } as any);
+    const dto: UpdateTenantDto = { name: 'Updated' };
+    const result = await controller.update('t-1', dto);
     expect(result.name).toBe('Updated');
   });
 
@@ -54,6 +57,7 @@ describe('TenantController (integration)', () => {
 
   it('throws on create error', async () => {
     mockTenantService.create.mockResolvedValue(err({ code: 'CONFLICT', message: 'slug exists' }));
-    await expect(controller.create({ slug: 'dup', name: 'Dup' } as any)).rejects.toThrow('slug exists');
+    const dto: CreateTenantDto = { slug: 'dup', name: 'Dup' };
+    await expect(controller.create(dto)).rejects.toThrow('slug exists');
   });
 });

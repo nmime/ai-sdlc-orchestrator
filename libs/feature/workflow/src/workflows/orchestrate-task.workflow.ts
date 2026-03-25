@@ -48,8 +48,8 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   const steps: StepResult[] = [];
   let totalAiCostUsd = 0;
   let totalSandboxCostUsd = 0;
-  let mrUrl: string | undefined; // eslint-disable-line prefer-const
-  let branchName: string | undefined; // eslint-disable-line prefer-const
+  let mrUrl: string | undefined = undefined;
+  let branchName: string | undefined = undefined;
   const artifacts: PublishedArtifact[] = [];
   let sandboxId: string | undefined;
   let currentStepId = 'implement';

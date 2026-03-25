@@ -4,5 +4,6 @@
     "outDir": "../../dist/apps/credential-proxy",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/__tests__/**"]
 }

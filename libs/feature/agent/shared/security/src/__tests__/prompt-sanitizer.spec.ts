@@ -6,7 +6,7 @@ describe('PromptSanitizer', () => {
   let sanitizer: PromptSanitizer;
 
   beforeEach(() => {
-    sanitizer = new PromptSanitizer(mockLogger as any);
+    sanitizer = new PromptSanitizer(mockLogger);
   });
 
   describe('sanitizeInput', () => {

@@ -11,7 +11,7 @@ describe('WorkflowsController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new WorkflowsController(mockEm as any);
+    controller = new WorkflowsController(mockEm);
   });
 
   describe('GET /', () => {
@@ -67,7 +67,7 @@ describe('WorkflowsController (integration)', () => {
         .mockResolvedValueOnce([{ id: 'tc-1', toolName: 'bash' }]);
       const result = await controller.sessions('wf-1');
       expect(result).toHaveLength(1);
-      expect((result[0] as any).toolCalls).toHaveLength(1);
+      expect((result[0] as unknown as { toolCalls: unknown[] }).toolCalls).toHaveLength(1);
     });
   });
 
@@ -86,7 +86,7 @@ describe('WorkflowsController (integration)', () => {
       mockEm.find.mockResolvedValue([{ id: 's-1', provider: 'claude', model: 'sonnet', mode: 'implement', aiCostUsd: 7, sandboxCostUsd: 3 }]);
       const result = await controller.cost('wf-1');
       expect(result.totalCostUsd).toBe(10);
-      expect((result.bySession as any)).toHaveLength(1);
+      expect((result.bySession as unknown as unknown[])).toHaveLength(1);
     });
   });
 });

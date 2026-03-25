@@ -31,10 +31,10 @@ describe('CredentialProxyController (integration)', () => {
     vi.clearAllMocks();
     mockRateLimiter.check.mockReturnValue({ allowed: true, remaining: 99 });
     controller = new CredentialProxyController(
-      mockCredService as any,
-      mockSessionService as any,
-      mockRateLimiter as any,
-      mockAudit as any,
+      mockCredService,
+      mockSessionService,
+      mockRateLimiter,
+      mockAudit,
     );
   });
 

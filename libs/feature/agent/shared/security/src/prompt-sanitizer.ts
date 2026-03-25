@@ -41,8 +41,7 @@ export class PromptSanitizer {
       warnings.push(`Input truncated to ${MAX_INPUT_LENGTH} characters`);
     }
 
-    // eslint-disable-next-line no-control-regex
-    text = text.replace(/\x00/g, '');
+    text = text.replace(/\u0000/g, '');
 
     for (const pattern of INJECTION_PATTERNS) {
       if (pattern.test(text)) {

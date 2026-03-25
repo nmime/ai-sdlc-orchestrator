@@ -23,7 +23,7 @@ describe('WebhookRetryService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new WebhookRetryService(mockEm as any, mockLogger as any, mockTemporal as any);
+    service = new WebhookRetryService(mockEm, mockLogger, mockTemporal);
   });
 
   it('retries failed deliveries', async () => {
