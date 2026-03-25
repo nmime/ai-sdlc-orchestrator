@@ -119,11 +119,13 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
     return buildResult(false, steps, 0, 0, artifacts, mrUrl, branchName, (error as Error).message);
   }
 
+  const activeSandboxId = sandboxId as string;
+
   currentStepId = 'implement';
   const implementResult = await runAgentStep({
     stepId: 'implement',
     mode: 'implement',
-    sandboxId: sandboxId!,
+    sandboxId: activeSandboxId,
     input,
     steps,
     temporalWorkflowId: wfInfo.workflowId,
@@ -161,7 +163,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
       mode: 'ci_fix',
       maxIterations: 5,
       noProgressLimit: 2,
-      sandboxId: sandboxId!,
+      sandboxId: activeSandboxId,
       input,
       steps,
       previousContext: implementResult.sessionContext,
@@ -179,7 +181,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   currentStepId = 'verify_output';
   const startVerify = Date.now();
   try {
-    await verifyAgentOutput({ sandboxId: sandboxId!, repoUrl: input.repoUrl, branchName });
+    await verifyAgentOutput({ sandboxId: activeSandboxId, repoUrl: input.repoUrl, branchName });
     steps.push({ stepName: 'verify_output', status: 'completed', durationMs: Date.now() - startVerify, costUsd: 0 });
   } catch (error) {
     steps.push({ stepName: 'verify_output', status: 'failed', durationMs: Date.now() - startVerify, costUsd: 0, errorMessage: (error as Error).message });
@@ -210,7 +212,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
       mode: 'review_fix',
       maxIterations: 5,
       noProgressLimit: 2,
-      sandboxId: sandboxId!,
+      sandboxId: activeSandboxId,
       input,
       steps,
       previousContext: implementResult.sessionContext,
