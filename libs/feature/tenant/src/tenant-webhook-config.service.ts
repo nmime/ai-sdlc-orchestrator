@@ -4,18 +4,40 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantWebhookConfig, Tenant, WebhookPlatform, WebhookConfigStatus } from '@app/db';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
 
-export interface CreateWebhookConfigDto {
-  platform: WebhookPlatform;
+export class CreateWebhookConfigDto {
+  @IsEnum(WebhookPlatform)
+  platform!: WebhookPlatform;
+
+  @IsOptional()
+  @IsString()
   webhookId?: string;
+
+  @IsOptional()
+  @IsString()
   webhookUrl?: string;
+
+  @IsOptional()
+  @IsString()
   secretRef?: string;
 }
 
-export interface UpdateWebhookConfigDto {
+export class UpdateWebhookConfigDto {
+  @IsOptional()
+  @IsString()
   webhookId?: string;
+
+  @IsOptional()
+  @IsString()
   webhookUrl?: string;
+
+  @IsOptional()
+  @IsEnum(WebhookConfigStatus)
   status?: WebhookConfigStatus;
+
+  @IsOptional()
+  @IsString()
   secretRef?: string;
 }
 

@@ -4,34 +4,205 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@app/db';
+import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min } from 'class-validator';
 
-export interface CreateRepoConfigDto {
-  repoId: string;
-  repoUrl: string;
+export class CreateRepoConfigDto {
+  @IsString()
+  repoId!: string;
+
+  @IsString()
+  repoUrl!: string;
+
+  @IsOptional()
+  @IsString()
   branchPrefix?: string;
+
+  @IsOptional()
+  @IsString()
   setupCommand?: string;
+
+  @IsOptional()
+  @IsString()
   testCommand?: string;
+
+  @IsOptional()
+  @IsString()
   lintCommand?: string;
+
+  @IsOptional()
+  @IsString()
   typecheckCommand?: string;
+
+  @IsOptional()
+  @IsString()
   buildCommand?: string;
+
+  @IsOptional()
+  @IsString()
   agentTemplateId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   maxConcurrentWorkflows?: number;
+
+  @IsOptional()
+  @IsEnum(AgentProvider)
   agentProvider?: AgentProvider;
+
+  @IsOptional()
+  @IsString()
   agentModel?: string;
+
+  @IsOptional()
+  @IsObject()
   modelRouting?: Record<string, string>;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   costLimitUsd?: number;
+
+  @IsOptional()
+  @IsObject()
   costTiers?: Record<string, number>;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   maxDiffLines?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   allowedPaths?: string[];
+
+  @IsOptional()
+  @IsString()
   commitMessagePattern?: string;
+
+  @IsOptional()
+  @IsString()
   mrDescriptionTemplate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   qualityGateCommands?: string[];
+
+  @IsOptional()
+  @IsString()
   staticAnalysisCommand?: string;
+
+  @IsOptional()
+  @IsEnum(CloneStrategy)
   cloneStrategy?: CloneStrategy;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   sparseCheckoutPaths?: string[];
 }
 
-export type UpdateRepoConfigDto = Partial<CreateRepoConfigDto>;
+export class UpdateRepoConfigDto {
+  @IsOptional()
+  @IsString()
+  repoId?: string;
+
+  @IsOptional()
+  @IsString()
+  repoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  branchPrefix?: string;
+
+  @IsOptional()
+  @IsString()
+  setupCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  testCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  lintCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  typecheckCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  buildCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  agentTemplateId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxConcurrentWorkflows?: number;
+
+  @IsOptional()
+  @IsEnum(AgentProvider)
+  agentProvider?: AgentProvider;
+
+  @IsOptional()
+  @IsString()
+  agentModel?: string;
+
+  @IsOptional()
+  @IsObject()
+  modelRouting?: Record<string, string>;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  costLimitUsd?: number;
+
+  @IsOptional()
+  @IsObject()
+  costTiers?: Record<string, number>;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxDiffLines?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedPaths?: string[];
+
+  @IsOptional()
+  @IsString()
+  commitMessagePattern?: string;
+
+  @IsOptional()
+  @IsString()
+  mrDescriptionTemplate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  qualityGateCommands?: string[];
+
+  @IsOptional()
+  @IsString()
+  staticAnalysisCommand?: string;
+
+  @IsOptional()
+  @IsEnum(CloneStrategy)
+  cloneStrategy?: CloneStrategy;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sparseCheckoutPaths?: string[];
+}
 
 @Injectable()
 export class TenantRepoConfigService {
@@ -88,7 +259,7 @@ export class TenantRepoConfigService {
     return ResultUtils.ok(undefined);
   }
 
-  private applyDto(config: TenantRepoConfig, dto: Partial<CreateRepoConfigDto>): void {
+  private applyDto(config: TenantRepoConfig, dto: UpdateRepoConfigDto): void {
     if (dto.repoId !== undefined) config.repoId = dto.repoId;
     if (dto.repoUrl !== undefined) config.repoUrl = dto.repoUrl;
     if (dto.branchPrefix !== undefined) config.branchPrefix = dto.branchPrefix;

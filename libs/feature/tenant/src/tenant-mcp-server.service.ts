@@ -4,26 +4,73 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantMcpServer, Tenant, McpTransport } from '@app/db';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsObject } from 'class-validator';
 
-export interface CreateMcpServerDto {
-  name: string;
-  transport: McpTransport;
+export class CreateMcpServerDto {
+  @IsString()
+  name!: string;
+
+  @IsEnum(McpTransport)
+  transport!: McpTransport;
+
+  @IsOptional()
+  @IsString()
   url?: string;
+
+  @IsOptional()
+  @IsString()
   command?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   args?: string[];
+
+  @IsOptional()
+  @IsObject()
   headersSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
   envSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsBoolean()
   isEnabled?: boolean;
 }
 
-export interface UpdateMcpServerDto {
+export class UpdateMcpServerDto {
+  @IsOptional()
+  @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsEnum(McpTransport)
   transport?: McpTransport;
+
+  @IsOptional()
+  @IsString()
   url?: string;
+
+  @IsOptional()
+  @IsString()
   command?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   args?: string[];
+
+  @IsOptional()
+  @IsObject()
   headersSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
   envSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsBoolean()
   isEnabled?: boolean;
 }
 

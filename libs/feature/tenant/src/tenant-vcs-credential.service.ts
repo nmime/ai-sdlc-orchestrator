@@ -4,15 +4,26 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantVcsCredential, Tenant, VcsProvider } from '@app/db';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
 
-export interface CreateVcsCredentialDto {
-  provider: VcsProvider;
-  host: string;
-  secretRef: string;
+export class CreateVcsCredentialDto {
+  @IsEnum(VcsProvider)
+  provider!: VcsProvider;
+
+  @IsString()
+  host!: string;
+
+  @IsString()
+  secretRef!: string;
 }
 
-export interface UpdateVcsCredentialDto {
+export class UpdateVcsCredentialDto {
+  @IsOptional()
+  @IsString()
   host?: string;
+
+  @IsOptional()
+  @IsString()
   secretRef?: string;
 }
 
