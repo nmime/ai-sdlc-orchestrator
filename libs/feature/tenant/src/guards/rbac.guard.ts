@@ -25,7 +25,7 @@ export class RbacGuard implements CanActivate {
     if (!user?.role) throw new ForbiddenException('No role assigned');
 
     if (!requiredRoles.includes(user.role)) {
-      throw new ForbiddenException(`Role '${user.role}' not authorized. Required: ${requiredRoles.join(', ')}`);
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     const tenantId = request.params?.tenantId;

@@ -75,7 +75,7 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('Token expired');
       }
       if (error instanceof jose.errors.JWTClaimValidationFailed) {
-        throw new UnauthorizedException(`Token claim validation failed: ${error.message}`);
+        throw new UnauthorizedException('Token validation failed');
       }
       throw new UnauthorizedException('Token validation failed');
     }

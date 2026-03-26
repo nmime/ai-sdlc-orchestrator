@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeRecord } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantMcpServer, Tenant, McpTransport } from '@app/db';
 import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsObject, MaxLength, ArrayMaxSize } from 'class-validator';
@@ -102,8 +102,8 @@ export class TenantMcpServerService {
     if (dto.url !== undefined) server.url = dto.url;
     if (dto.command !== undefined) server.command = dto.command;
     if (dto.args !== undefined) server.args = dto.args;
-    if (dto.headersSecretRef !== undefined) server.headersSecretRef = dto.headersSecretRef;
-    if (dto.envSecretRef !== undefined) server.envSecretRef = dto.envSecretRef;
+    if (dto.headersSecretRef !== undefined) server.headersSecretRef = sanitizeRecord(dto.headersSecretRef) as Record<string, string>;
+    if (dto.envSecretRef !== undefined) server.envSecretRef = sanitizeRecord(dto.envSecretRef) as Record<string, string>;
     if (dto.isEnabled !== undefined) server.isEnabled = dto.isEnabled;
 
     await this.em.persistAndFlush(server);
@@ -132,8 +132,8 @@ export class TenantMcpServerService {
     if (dto.url !== undefined) server.url = dto.url;
     if (dto.command !== undefined) server.command = dto.command;
     if (dto.args !== undefined) server.args = dto.args;
-    if (dto.headersSecretRef !== undefined) server.headersSecretRef = dto.headersSecretRef;
-    if (dto.envSecretRef !== undefined) server.envSecretRef = dto.envSecretRef;
+    if (dto.headersSecretRef !== undefined) server.headersSecretRef = sanitizeRecord(dto.headersSecretRef) as Record<string, string>;
+    if (dto.envSecretRef !== undefined) server.envSecretRef = sanitizeRecord(dto.envSecretRef) as Record<string, string>;
     if (dto.isEnabled !== undefined) server.isEnabled = dto.isEnabled;
 
     await this.em.flush();
