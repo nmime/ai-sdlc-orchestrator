@@ -259,6 +259,11 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
+  const SAFE_REPO_URL = /^(https:\/\/[a-zA-Z0-9._\-]+\.[a-zA-Z]{2,}\/|git@[a-zA-Z0-9._\-]+:)/;
+  if (!SAFE_REPO_URL.test(input.repoUrl)) {
+    throw new Error('Invalid repository URL scheme');
+  }
+
   let cloneCmd = `git clone -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`;
   if (input.cloneStrategy === 'shallow') {
     cloneCmd = `git clone --depth=1 --shallow-since="30 days ago" -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`;
