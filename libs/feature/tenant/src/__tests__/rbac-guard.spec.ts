@@ -64,4 +64,18 @@ describe('RbacGuard', () => {
     const guard = createGuard(['admin']);
     expect(guard.canActivate(mockContext({ role: 'admin', tenantId: 'tenant-a' }))).toBe(true);
   });
+
+  it('denies when user has no tenantId but route has tenantId param', () => {
+    const guard = createGuard(['admin']);
+    expect(() => guard.canActivate(
+      mockContext({ role: 'admin' }, { tenantId: 'tenant-a' }),
+    )).toThrow('Tenant context required');
+  });
+
+  it('allows same-tenant access', () => {
+    const guard = createGuard(['admin']);
+    expect(guard.canActivate(
+      mockContext({ role: 'admin', tenantId: 'tenant-a' }, { tenantId: 'tenant-a' }),
+    )).toBe(true);
+  });
 });
