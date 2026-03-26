@@ -49,7 +49,7 @@ describe('AuthGuard', () => {
     expect(ctx._request.user).toEqual({
       id: 'dev-user',
       email: 'dev@local',
-      role: 'admin',
+      role: 'viewer',
       tenantId: 'dev-tenant',
     });
   });

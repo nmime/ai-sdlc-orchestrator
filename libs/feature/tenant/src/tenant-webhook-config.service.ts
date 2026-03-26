@@ -4,7 +4,7 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantWebhookConfig, Tenant, WebhookPlatform, WebhookConfigStatus } from '@app/db';
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
 
 export class CreateWebhookConfigDto {
   @IsEnum(WebhookPlatform)
@@ -12,24 +12,29 @@ export class CreateWebhookConfigDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   webhookId?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   webhookUrl?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   secretRef?: string;
 }
 
 export class UpdateWebhookConfigDto {
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   webhookId?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   webhookUrl?: string;
 
   @IsOptional()
@@ -38,6 +43,7 @@ export class UpdateWebhookConfigDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   secretRef?: string;
 }
 

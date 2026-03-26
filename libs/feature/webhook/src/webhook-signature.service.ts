@@ -19,7 +19,7 @@ export class WebhookSignatureService {
   }
 
   verifyJira(payload: string, signatureHeader: string | undefined, secret: string): void {
-    if (!signatureHeader) return;
+    if (!signatureHeader) throw new BadRequestException('Missing x-atlassian-webhook-signature header');
     const expected = createHmac('sha256', secret).update(payload).digest('hex');
     if (!this.safeCompare(expected, signatureHeader)) {
       throw new BadRequestException('Invalid Jira webhook signature');

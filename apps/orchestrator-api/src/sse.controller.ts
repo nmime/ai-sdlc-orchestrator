@@ -24,7 +24,7 @@ export class SseController {
   events(@Req() req: FastifyRequest): Observable<MessageEvent> {
     const tenantId = (req as any).user?.tenantId;
     if (!tenantId) {
-      return EMPTY;
+      throw new ForbiddenException('Tenant context required');
     }
 
     let lastEventId: string | undefined;
@@ -39,7 +39,7 @@ export class SseController {
         return from(fork.find(WorkflowEvent, where, {
           orderBy: { createdAt: 'ASC' },
           limit: 50,
-        }));
+        }).finally(() => fork.clear()));
       }),
       exhaustMap(events => {
         if (events.length > 0) {

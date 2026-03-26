@@ -1,13 +1,18 @@
 import type { Reflector } from '@nestjs/core';
 import type { ExecutionContext } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import { RbacGuard } from '../guards/rbac.guard';
 import { ForbiddenException } from '@nestjs/common';
+
+const mockConfigService = {
+  get: vi.fn().mockReturnValue('development'),
+};
 
 function createGuard(requiredRoles: string[] | undefined) {
   const reflector = {
     getAllAndOverride: vi.fn().mockReturnValue(requiredRoles),
   };
-  return new RbacGuard(reflector as unknown as Reflector);
+  return new RbacGuard(reflector as unknown as Reflector, mockConfigService as unknown as ConfigService);
 }
 
 function mockContext(user: { role?: string; tenantId?: string } | undefined, params: Record<string, string> = {}) {

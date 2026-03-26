@@ -44,7 +44,7 @@ export class AuthGuard implements CanActivate {
       if (nodeEnv !== 'development' && nodeEnv !== 'test') {
         throw new UnauthorizedException('OIDC not configured');
       }
-      request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: 'dev-tenant' };
+      request.user = { id: 'dev-user', email: 'dev@local', role: 'viewer', tenantId: 'dev-tenant' };
       return true;
     }
 

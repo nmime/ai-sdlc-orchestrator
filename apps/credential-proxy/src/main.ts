@@ -8,7 +8,7 @@ import { CredentialProxyModule } from './credential-proxy.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     CredentialProxyModule,
-    new FastifyAdapter({ logger: false }),
+    new FastifyAdapter({ logger: false, bodyLimit: 65_536 }),
   );
 
   const fastify = app.getHttpAdapter().getInstance();
@@ -31,4 +31,7 @@ async function bootstrap() {
   new Logger('CredentialProxy').log(`Listening on :${port}`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Failed to start credential-proxy:', err);
+  process.exit(1);
+});

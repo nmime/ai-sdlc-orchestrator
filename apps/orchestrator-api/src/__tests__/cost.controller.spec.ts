@@ -1,10 +1,18 @@
 import { ForbiddenException } from '@nestjs/common';
 import { CostController } from '../cost.controller';
 
+const mockQb = {
+  select: vi.fn().mockReturnThis(),
+  where: vi.fn().mockReturnThis(),
+  groupBy: vi.fn().mockReturnThis(),
+  execute: vi.fn(),
+};
+
 const mockEm = {
   find: vi.fn(),
   findOneOrFail: vi.fn(),
   findAndCount: vi.fn(),
+  createQueryBuilder: vi.fn().mockReturnValue(mockQb),
 };
 
 const mockReq = (tenantId: string) => ({ user: { tenantId } }) as any;
@@ -22,10 +30,7 @@ describe('CostController (integration)', () => {
       mockEm.findOneOrFail.mockResolvedValue({
         monthlyCostLimitUsd: 100, monthlyCostReservedUsd: 10, monthlyCostActualUsd: 50,
       });
-      mockEm.find.mockResolvedValue([
-        { aiCostUsd: 3, sandboxCostUsd: 1 },
-        { aiCostUsd: 5, sandboxCostUsd: 2 },
-      ]);
+      mockQb.execute.mockResolvedValue({ count: '2', total_ai: '8', total_sandbox: '3' });
       const result = await controller.getTenantCosts('t-1', mockReq('t-1'));
       expect(result.tenantId).toBe('t-1');
       expect(result.aiCostUsd).toBe(8);
@@ -86,10 +91,9 @@ describe('CostController (integration)', () => {
 
   describe('GET /costs/tenants/:tenantId/by-repo', () => {
     it('groups costs by repo', async () => {
-      mockEm.find.mockResolvedValue([
-        { repoId: 'repo-1', aiCostUsd: 3, sandboxCostUsd: 1 },
-        { repoId: 'repo-1', aiCostUsd: 2, sandboxCostUsd: 1 },
-        { repoId: 'repo-2', aiCostUsd: 5, sandboxCostUsd: 3 },
+      mockQb.execute.mockResolvedValue([
+        { repo_id: 'repo-1', ai: '5', sandbox: '2', count: '2' },
+        { repo_id: 'repo-2', ai: '5', sandbox: '3', count: '1' },
       ]);
       const result = await controller.getCostsByRepo('t-1', mockReq('t-1'));
       expect(result).toHaveLength(2);

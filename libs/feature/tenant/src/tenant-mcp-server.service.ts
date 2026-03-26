@@ -4,10 +4,11 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantMcpServer, Tenant, McpTransport } from '@app/db';
-import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsObject, MaxLength, ArrayMaxSize } from 'class-validator';
 
 export class CreateMcpServerDto {
   @IsString()
+  @MaxLength(255)
   name!: string;
 
   @IsEnum(McpTransport)
@@ -15,14 +16,17 @@ export class CreateMcpServerDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   url?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   command?: string;
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @IsString({ each: true })
   args?: string[];
 
@@ -42,6 +46,7 @@ export class CreateMcpServerDto {
 export class UpdateMcpServerDto {
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @IsOptional()
@@ -50,14 +55,17 @@ export class UpdateMcpServerDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   url?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   command?: string;
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @IsString({ each: true })
   args?: string[];
 
