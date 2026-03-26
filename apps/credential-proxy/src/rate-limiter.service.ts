@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 
 interface RateLimitEntry {
   count: number;
@@ -6,7 +6,7 @@ interface RateLimitEntry {
 }
 
 @Injectable()
-export class RateLimiterService {
+export class RateLimiterService implements OnModuleDestroy {
   private limits = new Map<string, RateLimitEntry>();
   private readonly windowMs = parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10);
   private readonly defaultMax = parseInt(process.env['RATE_LIMIT_MAX'] || '100', 10);

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsObject, MinLength, Min } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsObject, MinLength, Min, IsIn } from 'class-validator';
 import type { TenantStatus } from '@app/db';
 
 export class CreateTenantDto {
@@ -71,7 +71,7 @@ export class UpdateTenantDto {
   meta?: Record<string, unknown>;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['active', 'suspended', 'deleted'])
   status?: TenantStatus;
 }
 
@@ -81,12 +81,12 @@ export class CreateApiKeyDto {
   name!: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['admin', 'operator', 'viewer'])
   role?: string;
 }
 
 export class GateDecisionDto {
-  @IsString()
+  @IsIn(['approve', 'request_changes', 'reject'])
   action!: string;
 
   @IsString()

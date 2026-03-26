@@ -1,8 +1,9 @@
-import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { WorkflowMirror, WorkflowEvent, AgentSession, AgentToolCall, WorkflowArtifact } from '@app/db';
+import type { FastifyRequest } from 'fastify';
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -11,20 +12,26 @@ import { WorkflowMirror, WorkflowEvent, AgentSession, AgentToolCall, WorkflowArt
 export class WorkflowsController {
   constructor(private readonly em: EntityManager) {}
 
+  private getTenantId(req: FastifyRequest): string {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('Tenant context required');
+    return tenantId;
+  }
+
   @Get()
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflows with pagination and filters' })
   async list(
-    @Query('tenantId') tenantId?: string,
+    @Req() req: FastifyRequest,
     @Query('status') status?: string,
     @Query('repoId') repoId?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<{ data: WorkflowMirror[]; total: number; limit: number; offset: number }> {
+    const tenantId = this.getTenantId(req);
     const parsedLimit = Math.min(parseInt(limit || '50', 10), 200);
     const parsedOffset = Math.max(parseInt(offset || '0', 10), 0);
-    const where: Record<string, unknown> = {};
-    if (tenantId) where['tenant'] = tenantId;
+    const where: Record<string, unknown> = { tenant: tenantId };
     if (status) where['state'] = status;
     if (repoId) where['repoId'] = repoId;
 
@@ -40,8 +47,9 @@ export class WorkflowsController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow detail' })
-  async detail(@Param('id') id: string): Promise<{ workflow: WorkflowMirror; events: WorkflowEvent[]; sessions: AgentSession[]; artifacts: WorkflowArtifact[] }> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
+  async detail(@Req() req: FastifyRequest, @Param('id') id: string): Promise<{ workflow: WorkflowMirror; events: WorkflowEvent[]; sessions: AgentSession[]; artifacts: WorkflowArtifact[] }> {
+    const tenantId = this.getTenantId(req);
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const events: WorkflowEvent[] = await this.em.find(WorkflowEvent, { workflow: mirror.id }, { orderBy: { createdAt: 'ASC' } });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, { orderBy: { startedAt: 'ASC' } });
     const artifacts: WorkflowArtifact[] = await this.em.find(WorkflowArtifact, { workflow: mirror.id });
@@ -52,16 +60,18 @@ export class WorkflowsController {
   @Get(':id/events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events timeline' })
-  async events(@Param('id') id: string): Promise<WorkflowEvent[]> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
+  async events(@Req() req: FastifyRequest, @Param('id') id: string): Promise<WorkflowEvent[]> {
+    const tenantId = this.getTenantId(req);
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     return this.em.find(WorkflowEvent, { workflow: mirror.id }, { orderBy: { createdAt: 'ASC' } });
   }
 
   @Get(':id/sessions')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for workflow' })
-  async sessions(@Param('id') id: string): Promise<Record<string, unknown>[]> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
+  async sessions(@Req() req: FastifyRequest, @Param('id') id: string): Promise<Record<string, unknown>[]> {
+    const tenantId = this.getTenantId(req);
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, {
       orderBy: { startedAt: 'ASC' },
     });
@@ -77,16 +87,18 @@ export class WorkflowsController {
   @Get(':id/artifacts')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
-  async artifacts(@Param('id') id: string): Promise<WorkflowArtifact[]> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
+  async artifacts(@Req() req: FastifyRequest, @Param('id') id: string): Promise<WorkflowArtifact[]> {
+    const tenantId = this.getTenantId(req);
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     return this.em.find(WorkflowArtifact, { workflow: mirror.id });
   }
 
   @Get(':id/cost')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow cost breakdown' })
-  async cost(@Param('id') id: string): Promise<Record<string, unknown>> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id });
+  async cost(@Req() req: FastifyRequest, @Param('id') id: string): Promise<Record<string, unknown>> {
+    const tenantId = this.getTenantId(req);
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id });
 
     return {

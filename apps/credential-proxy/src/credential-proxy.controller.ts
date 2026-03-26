@@ -202,8 +202,8 @@ export class CredentialProxyController {
 
   private requireInternalToken(internalToken: string): void {
     const expected = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
-    if (expected && internalToken !== expected) {
-      throw new UnauthorizedException('Invalid internal token');
+    if (!expected || internalToken !== expected) {
+      throw new UnauthorizedException('Invalid or missing internal token');
     }
   }
 

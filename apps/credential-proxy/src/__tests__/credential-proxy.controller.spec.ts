@@ -1,6 +1,8 @@
 import { CredentialProxyController } from '../credential-proxy.controller';
 import { UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
 
+const INTERNAL_TOKEN = 'test-internal-token-123';
+
 const mockCredService = {
   getGitCredential: vi.fn().mockResolvedValue({ username: 'x-access-token', password: 'ghp_test' }),
   getMcpToken: vi.fn().mockResolvedValue({ token: 'mcp-tok' }),
@@ -27,6 +29,14 @@ const mockAudit = {
 describe('CredentialProxyController (integration)', () => {
   let controller: CredentialProxyController;
 
+  beforeAll(() => {
+    process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'] = INTERNAL_TOKEN;
+  });
+
+  afterAll(() => {
+    delete process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockRateLimiter.check.mockReturnValue({ allowed: true, remaining: 99 });
@@ -40,19 +50,24 @@ describe('CredentialProxyController (integration)', () => {
 
   describe('POST /sessions', () => {
     it('creates session', () => {
-      const result = controller.createSession(undefined, { tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' });
+      const result = controller.createSession(INTERNAL_TOKEN, { tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' });
       expect(result.token).toBe('tok-1');
     });
 
     it('throws BadRequest when missing tenantId', () => {
-      expect(() => controller.createSession(undefined, { tenantId: '', workflowId: 'wf-1', sessionId: 's-1' }))
+      expect(() => controller.createSession(INTERNAL_TOKEN, { tenantId: '', workflowId: 'wf-1', sessionId: 's-1' }))
         .toThrow(BadRequestException);
+    });
+
+    it('throws Unauthorized with wrong internal token', () => {
+      expect(() => controller.createSession('wrong-token', { tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' }))
+        .toThrow(UnauthorizedException);
     });
   });
 
   describe('POST /sessions/:id/revoke', () => {
     it('revokes session', () => {
-      controller.revokeSession(undefined, 's-1');
+      controller.revokeSession(INTERNAL_TOKEN, 's-1');
       expect(mockSessionService.revoke).toHaveBeenCalledWith('s-1');
     });
   });
@@ -125,7 +140,7 @@ describe('CredentialProxyController (integration)', () => {
 
   describe('POST /internal/sessions/:id/cost', () => {
     it('records cost', () => {
-      const result = controller.recordSessionCost(undefined, 's-1', {
+      const result = controller.recordSessionCost(INTERNAL_TOKEN, 's-1', {
         inputTokens: 1000, outputTokens: 500, provider: 'anthropic', model: 'claude-sonnet-4-20250514',
       });
       expect(result).toMatchObject({ recorded: true, sessionId: 's-1' });
