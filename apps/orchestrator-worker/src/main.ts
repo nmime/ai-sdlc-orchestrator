@@ -52,7 +52,7 @@ async function run() {
   agentRegistry.register(claudeAdapter);
 
   const promptFormatter = new PromptFormatter();
-  const credentialProxy = new CredentialProxyClient(pinoLogger);
+  const credentialProxy = new CredentialProxyClient(pinoLogger, configService);
 
   initActivities({
     em,

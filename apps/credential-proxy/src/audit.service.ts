@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { appendFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve } from 'path';
 
 export interface AuditEntry {
   timestamp: string;
@@ -16,7 +17,14 @@ export interface AuditEntry {
 export class AuditService implements OnModuleInit {
   private entries: AuditEntry[] = [];
   private readonly maxEntries = 10_000;
-  private readonly logDir = process.env['AUDIT_LOG_DIR'] || '/var/log/credential-proxy';
+  private readonly logDir: string;
+
+  constructor(private readonly configService: ConfigService) {
+    const raw = this.configService.get<string>('AUDIT_LOG_DIR') || '/var/log/credential-proxy';
+    const base = '/var/log';
+    const resolved = resolve(base, raw);
+    this.logDir = resolved.startsWith(base) ? resolved : '/var/log/credential-proxy';
+  }
 
   async onModuleInit(): Promise<void> {
     try {

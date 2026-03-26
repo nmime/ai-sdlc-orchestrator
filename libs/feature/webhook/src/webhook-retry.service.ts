@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { PinoLoggerService, TemporalClientService, sanitizeLog } from '@app/common';
 import { WebhookDelivery, DeliveryStatus } from '@app/db';
@@ -6,16 +7,20 @@ import { WebhookDelivery, DeliveryStatus } from '@app/db';
 @Injectable()
 export class WebhookRetryService implements OnModuleInit, OnModuleDestroy {
   private interval?: ReturnType<typeof setInterval>;
-  private readonly maxRetries = parseInt(process.env['WEBHOOK_MAX_RETRIES'] || '5', 10);
-  private readonly retryIntervalMs = parseInt(process.env['WEBHOOK_RETRY_INTERVAL_MS'] || '60000', 10);
-  private readonly retryBatchSize = parseInt(process.env['WEBHOOK_RETRY_BATCH_SIZE'] || '10', 10);
+  private readonly maxRetries: number;
+  private readonly retryIntervalMs: number;
+  private readonly retryBatchSize: number;
 
   constructor(
     private readonly em: EntityManager,
     private readonly logger: PinoLoggerService,
     private readonly temporalClient: TemporalClientService,
+    private readonly configService: ConfigService,
   ) {
     this.logger.setContext('WebhookRetryService');
+    this.maxRetries = parseInt(this.configService.get<string>('WEBHOOK_MAX_RETRIES') || '5', 10);
+    this.retryIntervalMs = parseInt(this.configService.get<string>('WEBHOOK_RETRY_INTERVAL_MS') || '60000', 10);
+    this.retryBatchSize = parseInt(this.configService.get<string>('WEBHOOK_RETRY_BATCH_SIZE') || '10', 10);
   }
 
   onModuleInit() {

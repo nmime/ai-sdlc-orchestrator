@@ -1,10 +1,12 @@
+import { ConfigService } from '@nestjs/config';
 import { AuditService, type AuditEntry } from '../audit.service';
 
 describe('AuditService', () => {
   let service: AuditService;
 
   beforeEach(() => {
-    service = new AuditService();
+    const configService = { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+    service = new AuditService(configService);
   });
 
   const makeEntry = (overrides: Partial<AuditEntry> = {}): AuditEntry => ({
