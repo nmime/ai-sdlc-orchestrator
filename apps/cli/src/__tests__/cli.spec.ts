@@ -115,7 +115,7 @@ describe('CLI', () => {
   describe('drain-status', () => {
     it('should print drain status', () => {
       try { run(['drain-status']); } catch { /* exit */ }
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Drain status'));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Temporal'));
     });
   });
 

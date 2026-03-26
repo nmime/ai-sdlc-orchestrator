@@ -10,6 +10,7 @@ import { GitLabHandler } from './handlers/gitlab.handler';
 import { GitHubHandler } from './handlers/github.handler';
 import { LinearHandler } from './handlers/linear.handler';
 import { v4 } from 'uuid';
+import { createHash } from 'crypto';
 
 @Injectable()
 export class WebhookService {
@@ -25,7 +26,7 @@ export class WebhookService {
     private readonly linearHandler: LinearHandler,
   ) {
     this.logger.setContext('WebhookService');
-    this.handlers = new Map([
+    this.handlers = new Map<string, { parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError> }>([
       ['jira', this.jiraHandler],
       ['gitlab', this.gitLabHandler],
       ['github', this.gitHubHandler],
@@ -95,6 +96,7 @@ export class WebhookService {
     delivery.platform = platform;
     delivery.eventType = event.eventType;
     delivery.deliveryId = event.deliveryId;
+    delivery.payloadHash = createHash("sha256").update(JSON.stringify(body)).digest("hex");
     delivery.status = DeliveryStatus.RECEIVED;
 
     try {

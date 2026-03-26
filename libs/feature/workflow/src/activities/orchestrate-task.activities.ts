@@ -78,7 +78,11 @@ export async function updateWorkflowMirror(input: {
   mirror.state = input.state as WorkflowStatus;
   if (input.currentStepId) mirror.currentStepId = input.currentStepId;
   if (input.branchName) mirror.branchName = input.branchName;
-  if (input.mrUrl) mirror.mrUrl = input.mrUrl;
+  if (input.mrUrl) {
+    mirror.mrUrl = input.mrUrl;
+    const mrIdMatch = input.mrUrl.match(/\/(?:merge_requests|pull)\/(\d+)/);  
+    if (mrIdMatch) mirror.mrId = mrIdMatch[1];
+  }
   if (input.costUsdTotal !== undefined) mirror.costUsdTotal = input.costUsdTotal;
   if (input.aiCostUsd !== undefined) mirror.aiCostUsd = input.aiCostUsd;
   if (input.sandboxCostUsd !== undefined) mirror.sandboxCostUsd = input.sandboxCostUsd;

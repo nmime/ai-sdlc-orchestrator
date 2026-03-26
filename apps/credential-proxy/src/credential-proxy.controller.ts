@@ -171,7 +171,28 @@ export class CredentialProxyController {
     @Param('sessionId') sessionId: string,
     @Body() body: { inputTokens: number; outputTokens: number; provider: string; model: string },
   ) {
-    return { recorded: true, sessionId };
+    this.audit.log({
+      timestamp: new Date().toISOString(),
+      sessionId,
+      tenantId: 'system',
+      action: 'record-cost',
+      resource: body.provider,
+      status: 'success',
+      metadata: {
+        inputTokens: body.inputTokens,
+        outputTokens: body.outputTokens,
+        provider: body.provider,
+        model: body.model,
+      },
+    });
+    return {
+      recorded: true,
+      sessionId,
+      inputTokens: body.inputTokens,
+      outputTokens: body.outputTokens,
+      provider: body.provider,
+      model: body.model,
+    };
   }
 
   private requireSession(auth: string, scope: string): { tenantId: string; workflowId: string; sessionId: string } {

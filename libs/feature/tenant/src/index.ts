@@ -6,3 +6,5 @@ export { AuthGuard } from './guards/auth.guard';
 export { RbacGuard } from './guards/rbac.guard';
 export { Roles } from './decorators/roles.decorator';
 export { CreateTenantDto, UpdateTenantDto, CreateApiKeyDto, GateDecisionDto, GateCommentDto, GateRequireCommentDto, CancelWorkflowDto } from './dto';
+export { DslController } from './dsl.controller';
+export { PollingScheduleController } from './polling-schedule.controller';

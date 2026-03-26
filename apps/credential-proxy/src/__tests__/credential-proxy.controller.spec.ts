@@ -128,7 +128,7 @@ describe('CredentialProxyController (integration)', () => {
       const result = controller.recordSessionCost('s-1', {
         inputTokens: 1000, outputTokens: 500, provider: 'anthropic', model: 'claude-sonnet-4-20250514',
       });
-      expect(result).toEqual({ recorded: true, sessionId: 's-1' });
+      expect(result).toMatchObject({ recorded: true, sessionId: 's-1' });
     });
   });
 });
