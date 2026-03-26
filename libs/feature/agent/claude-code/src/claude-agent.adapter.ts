@@ -245,15 +245,15 @@ ${result.stdout}${result.stderr ? '\nSTDERR:\n' + result.stderr : ''}`;
         return res.ok ? await res.text() : `Failed: ${await res.text()}`;
       }
       case 'search_files': {
-        const safePattern = String(args['pattern']).replace(/[`$\\]/g, '\\$&');
+        const safePattern = String(args['pattern']).replace(/'/g, "'\\''").replace(/[`$\\]/g, '\\$&');
         const safeInclude = args['include'] ? `--include=${String(args['include']).replace(/[^a-zA-Z0-9.*?_\-/]/g, '')}` : '';
         const sanitizedSearchPath = this.sanitizePath(String(args['path'] || '.'), '/home/user/repo');
-        const cmd = `grep -rn ${safeInclude} -- '${safePattern}' ${sanitizedSearchPath} | head -50`;
+        const cmd = `grep -rn ${safeInclude} -- '${safePattern}' '${sanitizedSearchPath}' | head -50`;
         return this.executeTool('execute_command', { command: cmd }, sandboxId, credentialProxyUrl);
       }
       case 'list_files': {
         const sanitizedListPath = this.sanitizePath(String(args['path'] || '.'), '/home/user/repo');
-        const cmd = args['recursive'] ? `find ${sanitizedListPath} -type f | head -100` : `ls -la ${sanitizedListPath}`;
+        const cmd = args['recursive'] ? `find '${sanitizedListPath}' -type f | head -100` : `ls -la '${sanitizedListPath}'`;
         return this.executeTool('execute_command', { command: cmd }, sandboxId, credentialProxyUrl);
       }
       default:
