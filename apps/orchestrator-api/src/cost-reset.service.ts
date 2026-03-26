@@ -16,18 +16,16 @@ export class CostResetService {
   @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async resetMonthlyCosts(): Promise<void> {
     const fork = this.em.fork();
-    const tenants = await fork.find(Tenant, {});
-    let count = 0;
-
-    for (const tenant of tenants) {
-      tenant.monthlyCostActualUsd = 0;
-      tenant.monthlyCostReservedUsd = 0;
-      tenant.monthlyAiCostActualUsd = 0;
-      tenant.monthlySandboxCostActualUsd = 0;
-      count++;
-    }
-
-    await fork.flush();
+    const count = await fork.nativeUpdate(
+      Tenant,
+      {},
+      {
+        monthlyCostActualUsd: 0,
+        monthlyCostReservedUsd: 0,
+        monthlyAiCostActualUsd: 0,
+        monthlySandboxCostActualUsd: 0,
+      },
+    );
     this.logger.log(`Reset monthly costs for ${count} tenants`);
   }
 }

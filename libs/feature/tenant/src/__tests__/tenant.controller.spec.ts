@@ -10,6 +10,8 @@ const mockTenantService: Record<string, ReturnType<typeof vi.fn>> = {
   delete: vi.fn(),
 };
 
+const mockReq = { user: { tenantId: 't-1', id: 'u-1', email: 'test@test.com', role: 'admin' } } as any;
+
 describe('TenantController (integration)', () => {
   let controller: TenantController;
 
@@ -27,20 +29,24 @@ describe('TenantController (integration)', () => {
   });
 
   it('lists tenants', async () => {
-    mockTenantService.list.mockResolvedValue(ok([{ id: 't-1' }]));
-    const result = await controller.list();
+    mockTenantService.findById.mockResolvedValue(ok({ id: 't-1' }));
+    const result = await controller.list(mockReq);
     expect(result).toHaveLength(1);
   });
 
   it('finds by id', async () => {
     mockTenantService.findById.mockResolvedValue(ok({ id: 't-1', slug: 'test' }));
-    const result = await controller.findById('t-1');
+    const result = await controller.findById(mockReq, 't-1');
     expect(result.slug).toBe('test');
   });
 
   it('throws on not found', async () => {
     mockTenantService.findById.mockResolvedValue(err({ code: 'NOT_FOUND', message: 'not found' }));
-    await expect(controller.findById('missing')).rejects.toThrow('not found');
+    await expect(controller.findById(mockReq, 't-1')).rejects.toThrow('not found');
+  });
+
+  it('throws on tenant mismatch for findById', async () => {
+    await expect(controller.findById(mockReq, 't-2')).rejects.toThrow('Access denied');
   });
 
   it('updates tenant', async () => {

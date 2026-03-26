@@ -21,6 +21,9 @@ export class CostController {
 
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
 
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const qb = this.em.createQueryBuilder(WorkflowMirror, 'wm');
     const result = await qb
       .select([
@@ -28,7 +31,7 @@ export class CostController {
         'COALESCE(SUM(wm.ai_cost_usd), 0) as total_ai',
         'COALESCE(SUM(wm.sandbox_cost_usd), 0) as total_sandbox',
       ])
-      .where({ tenant: tenantId })
+      .where({ tenant: tenantId, createdAt: { $gte: startOfMonth } })
       .execute('get') as { count: string; total_ai: string; total_sandbox: string };
 
     const totalAi = Number(result.total_ai);

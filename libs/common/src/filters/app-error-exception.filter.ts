@@ -1,6 +1,7 @@
-import { Catch, ExceptionFilter, ArgumentsHost, HttpStatus } from '@nestjs/common';
+import { Catch, ExceptionFilter, ArgumentsHost, HttpStatus, NotFoundException } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import type { ErrorCode } from '../result/app-error';
+import { NotFoundError } from '@mikro-orm/core';
 
 const ERROR_CODE_TO_HTTP: Record<ErrorCode, number> = {
   VALIDATION_ERROR: HttpStatus.BAD_REQUEST,
@@ -19,12 +20,31 @@ const ERROR_CODE_TO_HTTP: Record<ErrorCode, number> = {
 };
 
 const ERROR_CODE_RE = /^\[([A-Z_]+)] (.+)$/;
+const UNIQUE_VIOLATION_CODE = '23505';
 
 @Catch(Error)
 export class AppErrorExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const reply = ctx.getResponse<FastifyReply>();
+
+    if (exception instanceof NotFoundError) {
+      reply.status(HttpStatus.NOT_FOUND).send({
+        error: 'NOT_FOUND',
+        message: 'Resource not found',
+        statusCode: HttpStatus.NOT_FOUND,
+      });
+      return;
+    }
+
+    if ((exception as any).code === UNIQUE_VIOLATION_CODE) {
+      reply.status(HttpStatus.CONFLICT).send({
+        error: 'CONFLICT',
+        message: 'Resource already exists',
+        statusCode: HttpStatus.CONFLICT,
+      });
+      return;
+    }
 
     const match = ERROR_CODE_RE.exec(exception.message);
     if (match) {

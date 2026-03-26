@@ -86,14 +86,14 @@ async function run() {
 
   const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   shutdownSignals.forEach((signal) => {
-    process.on(signal, async () => {
+    process.on(signal, () => {
       logger.info(`Received ${signal}, shutting down...`);
       worker.shutdown();
-      await orm.close();
     });
   });
 
   await worker.run();
+  await orm.close();
 }
 
 run().catch((err) => {

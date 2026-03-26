@@ -12,7 +12,7 @@ import type { CredentialProxyClient } from '@app/feature-agent-credential-proxy'
 import type { McpPolicyService } from '@app/feature-agent-mcp-policy';
 import type { PromptSanitizer } from '@app/feature-agent-security';
 
-let em: EntityManager;
+let emFactory: () => EntityManager;
 let sandboxAdapter: SandboxPort;
 let agentRegistry: AgentProviderRegistry;
 let promptFormatter: PromptFormatter;
@@ -29,7 +29,7 @@ export function initActivities(deps: {
   mcpPolicyService?: McpPolicyService;
   promptSanitizer?: PromptSanitizer;
 }) {
-  em = deps.em;
+  emFactory = () => deps.em.fork();
   sandboxAdapter = deps.sandboxAdapter;
   agentRegistry = deps.agentRegistry;
   promptFormatter = deps.promptFormatter;
@@ -58,6 +58,7 @@ export async function updateWorkflowMirror(input: {
   reviewAttemptCount?: number;
   errorMessage?: string;
 }): Promise<void> {
+  const em = emFactory();
   let mirror = await em.findOne(WorkflowMirror, { temporalWorkflowId: input.temporalWorkflowId });
 
   if (!mirror) {
@@ -108,6 +109,7 @@ export async function reserveBudget(input: {
   estimatedCostUsd: number;
   repoId?: string;
 }): Promise<void> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   if (input.repoId) {
@@ -143,6 +145,7 @@ export async function reserveBudget(input: {
 }
 
 async function checkCostAlerts(tenant: Tenant, currentTotal: number): Promise<void> {
+  const em = emFactory();
   if (!tenant.costAlertThresholds?.length || Number(tenant.monthlyCostLimitUsd) <= 0) return;
 
   const pct = (currentTotal / Number(tenant.monthlyCostLimitUsd)) * 100;
@@ -168,6 +171,7 @@ async function checkCostAlerts(tenant: Tenant, currentTotal: number): Promise<vo
 }
 
 export async function settleCost(input: CostSettlement): Promise<void> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   await em.nativeUpdate(
@@ -184,6 +188,7 @@ export async function settleCost(input: CostSettlement): Promise<void> {
 }
 
 export async function checkConcurrency(input: { tenantId: string; repoId: string }): Promise<void> {
+  const em = emFactory();
   const repoConfig = await em.findOne(TenantRepoConfig, { tenant: input.tenantId, repoId: input.repoId });
   const maxConcurrent = repoConfig?.maxConcurrentWorkflows ?? 1;
 
@@ -202,6 +207,7 @@ export async function checkConcurrency(input: { tenantId: string; repoId: string
 }
 
 export async function checkAdmission(input: { tenantId: string }): Promise<void> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   const activeSandboxCount = await em.count(AgentSession, {
@@ -222,6 +228,7 @@ export async function createSandbox(input: {
   sparseCheckoutPaths?: string[];
   env?: Record<string, string>;
 }): Promise<{ sandboxId: string }> {
+  const em = emFactory();
   const sandboxEnv: Record<string, string> = {
     REPO_URL: input.repoUrl,
     ...input.env,
@@ -294,6 +301,7 @@ export async function invokeAgent(input: {
   previousContext?: SessionContext;
   taskLabel?: string;
 }): Promise<AgentResult> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
   const repoConfig = await em.findOne(TenantRepoConfig, { tenant: input.tenantId, repoId: input.repoId });
   const mirror = await em.findOne(WorkflowMirror, { temporalWorkflowId: input.temporalWorkflowId });
@@ -499,6 +507,7 @@ export async function verifyAgentOutput(input: {
   maxDiffLines?: number;
   allowedPaths?: string[];
 }): Promise<void> {
+  const em = emFactory();
   if (!input.branchName) return;
 
   const diffResult = await sandboxAdapter.exec(input.sandboxId, 'cd /workspace && git diff --stat origin/main...HEAD');
@@ -543,6 +552,7 @@ export async function collectArtifacts(input: {
   tenantId: string;
   temporalWorkflowId: string;
 }): Promise<PublishedArtifact[]> {
+  const em = emFactory();
   try {
     const result = await sandboxAdapter.exec(input.sandboxId, 'cat /workspace/.artifacts/manifest.json');
     if (result.isOk() && result.value.stdout) {
@@ -580,6 +590,7 @@ export async function cleanupAndEscalate(input: {
   repoUrl: string;
   errorMessage?: string;
 }): Promise<void> {
+  const em = emFactory();
   await updateWorkflowMirror({
     tenantId: input.tenantId,
     temporalWorkflowId: input.workflowId,
