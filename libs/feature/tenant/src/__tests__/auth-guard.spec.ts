@@ -42,7 +42,7 @@ describe('AuthGuard', () => {
   });
 
   it('allows dev mode when no OIDC issuer', async () => {
-    mockConfigService.get.mockImplementation((key: string) => key === 'NODE_ENV' ? 'test' : undefined);
+    mockConfigService.get.mockImplementation((key: string) => ({ NODE_ENV: 'test', ALLOW_DEV_AUTH_BYPASS: 'true' })[key]);
     const ctx = mockContext({ authorization: 'Bearer some-token' });
     const result = await guard.canActivate(ctx);
     expect(result).toBe(true);

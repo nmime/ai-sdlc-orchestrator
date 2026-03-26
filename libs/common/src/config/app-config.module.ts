@@ -48,6 +48,7 @@ export const appConfigSchema = z.object({
   WEBHOOK_RETRY_BATCH_SIZE: z.coerce.number().default(10),
   POLLING_INTERVAL_MS: z.coerce.number().default(60000),
   SANITIZER_MODE: z.enum(['block', 'warn', 'off']).default('block'),
+  ALLOW_DEV_AUTH_BYPASS: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
