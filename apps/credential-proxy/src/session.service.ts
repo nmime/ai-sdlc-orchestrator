@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes, createHmac } from 'crypto';
 
 interface SessionData {
@@ -11,7 +12,11 @@ interface SessionData {
 @Injectable()
 export class SessionService {
   private sessions = new Map<string, SessionData>();
-  private signingKey = process.env['SESSION_SIGNING_KEY'] || randomBytes(32).toString('hex');
+  private signingKey: string;
+
+  constructor(private readonly config: ConfigService) {
+    this.signingKey = this.config.get<string>('SESSION_SIGNING_KEY') || randomBytes(32).toString('hex');
+  }
 
   create(tenantId: string, workflowId: string, sessionId: string, ttlSeconds = 3600): { token: string; expiresAt: string } {
     const token = this.generateToken(sessionId);
