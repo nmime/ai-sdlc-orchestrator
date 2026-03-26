@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { WebhookRetryService } from '../webhook-retry.service';
 import { DeliveryStatus } from '@app/db';
 
@@ -18,12 +19,14 @@ const mockTemporal = {
 
 const mockLogger = { setContext: vi.fn(), log: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
+const mockConfigService = { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+
 describe('WebhookRetryService', () => {
   let service: WebhookRetryService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new WebhookRetryService(mockEm, mockLogger, mockTemporal);
+    service = new WebhookRetryService(mockEm as any, mockLogger as any, mockTemporal as any, mockConfigService);
   });
 
   it('retries failed deliveries', async () => {

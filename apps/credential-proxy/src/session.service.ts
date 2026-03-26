@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 
 interface SessionData {
@@ -11,16 +12,20 @@ interface SessionData {
   createdAt: number;
 }
 
+const MAX_SESSIONS = 10_000;
+
 @Injectable()
 export class SessionService implements OnModuleInit, OnModuleDestroy {
   private sessions = new Map<string, SessionData>();
   private signingKey!: Buffer;
   private cleanupInterval?: ReturnType<typeof setInterval>;
 
+  constructor(private readonly configService: ConfigService) {}
+
   onModuleInit() {
-    const keyHex = process.env['SESSION_SIGNING_KEY'];
+    const keyHex = this.configService.get<string>('SESSION_SIGNING_KEY');
     if (!keyHex) {
-      const nodeEnv = process.env['NODE_ENV'];
+      const nodeEnv = this.configService.get<string>('NODE_ENV');
       if (nodeEnv !== 'development' && nodeEnv !== 'test') {
         throw new Error('SESSION_SIGNING_KEY is required in production');
       }
@@ -36,6 +41,10 @@ export class SessionService implements OnModuleInit, OnModuleDestroy {
     ttlSeconds = 3600,
     scopes: string[] = ['git', 'mcp', 'ai-api'],
   ): { token: string; expiresAt: string } {
+    if (this.sessions.size >= MAX_SESSIONS) {
+      throw new Error('Global session limit reached');
+    }
+
     const tenantSessions = Array.from(this.sessions.values()).filter(s => s.tenantId === tenantId).length;
     if (tenantSessions >= 100) {
       throw new Error(`Session limit exceeded for tenant ${tenantId}`);

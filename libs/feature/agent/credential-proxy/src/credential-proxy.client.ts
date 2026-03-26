@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
@@ -16,10 +17,13 @@ export class CredentialProxyClient {
 
   private readonly internalToken: string;
 
-  constructor(private readonly logger: PinoLoggerService) {
+  constructor(
+    private readonly logger: PinoLoggerService,
+    private readonly configService: ConfigService<Record<string, unknown>, boolean>,
+  ) {
     this.logger.setContext('CredentialProxyClient');
-    this.baseUrl = process.env['CREDENTIAL_PROXY_URL'] || 'http://localhost:4000';
-    this.internalToken = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'] ?? '';
+    this.baseUrl = this.configService.get<string>('CREDENTIAL_PROXY_URL') || 'http://localhost:4000';
+    this.internalToken = this.configService.get<string>('CREDENTIAL_PROXY_INTERNAL_TOKEN') ?? '';
   }
 
   async createSession(tenantId: string, scopes: string[]): Promise<Result<SessionToken, AppError>> {
