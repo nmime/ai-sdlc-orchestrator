@@ -41,6 +41,8 @@ export class WebhookController {
       case 'linear':
         this.signatureService.verifyLinear(rawBody, headers['linear-signature'], secret);
         break;
+      default:
+        throw new BadRequestException(`unsupported platform: ${platform}`);
     }
 
     return ResultUtils.unwrapOrThrow(await this.webhookService.processWebhook(platform, tenantId, headers, body));

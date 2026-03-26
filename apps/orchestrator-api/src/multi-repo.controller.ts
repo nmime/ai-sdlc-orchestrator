@@ -21,6 +21,8 @@ class RepoInput {
 
   @IsOptional()
   @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(50)
   labels?: string[];
 }
 

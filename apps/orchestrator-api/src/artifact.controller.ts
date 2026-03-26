@@ -53,8 +53,8 @@ export class ArtifactController {
       endPoint: this.configService.get('MINIO_ENDPOINT', { infer: true }) || 'localhost',
       port: parseInt(this.configService.get('MINIO_PORT', { infer: true }) || '9000', 10),
       useSSL: this.configService.get('MINIO_USE_SSL', { infer: true }) === 'true',
-      accessKey: this.configService.get('MINIO_ACCESS_KEY', { infer: true }) || 'minioadmin',
-      secretKey: this.configService.get('MINIO_SECRET_KEY', { infer: true }) || '',
+      accessKey: (() => { const k = this.configService.get('MINIO_ACCESS_KEY', { infer: true }); if (!k) throw new Error('MINIO_ACCESS_KEY not configured'); return k; })(),
+      secretKey: (() => { const k = this.configService.get('MINIO_SECRET_KEY', { infer: true }); if (!k) throw new Error('MINIO_SECRET_KEY not configured'); return k; })(),
     });
     this.bucket = this.configService.get('MINIO_BUCKET', { infer: true }) || 'artifacts';
   }
