@@ -202,7 +202,7 @@ export class WebhookService {
         this.logger.log(`Signaled changes requested for workflow ${sanitizeLog(mirror.temporalWorkflowId)}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to signal workflow: ${(error as Error).message}`);
+      this.logger.error(`Failed to signal workflow: ${sanitizeLog((error as Error).message)}`);
     }
   }
 }

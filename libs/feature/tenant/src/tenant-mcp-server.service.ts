@@ -28,6 +28,7 @@ export class CreateMcpServerDto {
   @IsArray()
   @ArrayMaxSize(50)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   args?: string[];
 
   @IsOptional()
@@ -67,6 +68,7 @@ export class UpdateMcpServerDto {
   @IsArray()
   @ArrayMaxSize(50)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   args?: string[];
 
   @IsOptional()

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsObject, MinLength, Min, IsIn, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsObject, MinLength, Min, IsIn, MaxLength, Max } from 'class-validator';
 import type { TenantStatus } from '@app/db';
 
 export class CreateTenantDto {
@@ -15,6 +15,7 @@ export class CreateTenantDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   monthlyCostLimitUsd?: number;
 
   @IsOptional()
@@ -41,16 +42,19 @@ export class UpdateTenantDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   monthlyCostLimitUsd?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   monthlyAiCostLimitUsd?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   monthlySandboxCostLimitUsd?: number;
 
   @IsOptional()
@@ -66,11 +70,13 @@ export class UpdateTenantDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Max(1000)
   maxConcurrentWorkflows?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Max(1000)
   maxConcurrentSandboxes?: number;
 
   @IsOptional()

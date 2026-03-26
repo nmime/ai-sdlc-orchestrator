@@ -70,7 +70,7 @@
     "class-validator": "^0.14.1",
     "dotenv": "^17.3.1",
     "e2b": "^1.4.1",
-    "fastify": "^5.3.0",
+    "fastify": "^5.8.4",
     "jose": "^6.2.2",
     "js-yaml": "^4.1.0",
     "minio": "^8.0.7",
@@ -121,5 +121,16 @@
     "typescript-eslint": "^8.57.2",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch": ">=9.0.7",
+      "serialize-javascript": ">=7.0.3",
+      "picomatch": ">=4.0.4",
+      "undici": ">=6.24.0",
+      "ajv": ">=8.18.0",
+      "koa": ">=3.1.2",
+      "fastify": ">=5.8.3"
+    }
   }
 }
