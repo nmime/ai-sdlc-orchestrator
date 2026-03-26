@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import { AllExceptionsFilter } from '@ai-sdlc/common';
 import { CredentialProxyModule } from './credential-proxy.module';
 
 async function bootstrap() {
@@ -13,7 +14,16 @@ async function bootstrap() {
   );
 
   const fastify = app.getHttpAdapter().getInstance();
-  await fastify.register(helmet, { contentSecurityPolicy: false });
+  await fastify.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+  });
   await fastify.register(rateLimit, { max: 60, timeWindow: '1 minute' });
 
   app.enableCors({ origin: false });
@@ -21,6 +31,8 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
   const config = app.get(ConfigService);
+  app.useGlobalFilters(new AllExceptionsFilter(config));
+
   const port = parseInt(config.get<string>('CREDENTIAL_PROXY_PORT') || '4000', 10);
   const bindAddress = config.get<string>('CREDENTIAL_PROXY_BIND') || '127.0.0.1';
   await app.listen(port, bindAddress);

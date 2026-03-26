@@ -45,6 +45,38 @@ interface LoopState {
   lastSessionContext?: SessionContext;
 }
 
+const VALID_GATE_ACTIONS = new Set(["approve", "request_changes"]);
+
+function validateGateDecision(d: unknown): GateDecision {
+  if (d === null || d === undefined || typeof d !== "object") {
+    throw ApplicationFailure.nonRetryable("Invalid gate decision: not an object");
+  }
+  const obj = d as Record<string, unknown>;
+  if (typeof obj.action !== "string" || !VALID_GATE_ACTIONS.has(obj.action)) {
+    throw ApplicationFailure.nonRetryable("Invalid gate decision: action must be approve or request_changes");
+  }
+  if (typeof obj.workflowId !== "string" || obj.workflowId.length === 0 || obj.workflowId.length > 128) {
+    throw ApplicationFailure.nonRetryable("Invalid gate decision: workflowId must be 1-128 chars");
+  }
+  if (typeof obj.gateId !== "string" || obj.gateId.length === 0 || obj.gateId.length > 128) {
+    throw ApplicationFailure.nonRetryable("Invalid gate decision: gateId must be 1-128 chars");
+  }
+  if (typeof obj.reviewer !== "string" || obj.reviewer.length === 0 || obj.reviewer.length > 128) {
+    throw ApplicationFailure.nonRetryable("Invalid gate decision: reviewer must be 1-128 chars");
+  }
+  if (obj.comment !== undefined && (typeof obj.comment !== "string" || obj.comment.length > 2000)) {
+    throw ApplicationFailure.nonRetryable("Invalid gate decision: comment must be string ≤2000 chars");
+  }
+  return {
+    workflowId: obj.workflowId,
+    gateId: obj.gateId,
+    action: obj.action as GateDecision["action"],
+    reviewer: obj.reviewer,
+    comment: typeof obj.comment === "string" ? obj.comment : undefined,
+    timestamp: obj.timestamp instanceof Date ? obj.timestamp : new Date(),
+  };
+}
+
 export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
   const steps: StepResult[] = [];
   let totalAiCostUsd = 0;
@@ -66,12 +98,12 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   let unblockRequested = false;
   let unblockReason = '';
 
-  setHandler(gateDecisionSignal, (d) => { gateDecision = d; });
+  setHandler(gateDecisionSignal, (d) => { gateDecision = validateGateDecision(d); });
   setHandler(pipelineSucceededSignal, (d) => { pipelineSucceeded = true; pipelineDetails = d.details; });
   setHandler(pipelineFailedSignal, (d) => { pipelineFailed = true; pipelineDetails = d.details; });
   setHandler(changesRequestedSignal, (d) => { changesRequested = true; changesReviewer = d.reviewer; changesComment = d.comment ?? ''; });
   setHandler(taskUpdatedSignal, () => {});
-  setHandler(workflowUnblockSignal, (d) => { unblockRequested = true; unblockReason = d.reason; });
+  setHandler(workflowUnblockSignal, (d) => { const reason = typeof d?.reason === "string" ? d.reason.slice(0, 500) : ""; unblockRequested = true; unblockReason = reason; });
 
   const totalCostUsd = () => totalAiCostUsd + totalSandboxCostUsd;
   const mirrorUpdate = (state: string, extra?: Record<string, unknown>) =>

@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
-import { PinoLoggerService } from '@ai-sdlc/common';
+import { PinoLoggerService, AllExceptionsFilter } from '@ai-sdlc/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -24,7 +24,22 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   const fastify = app.getHttpAdapter().getInstance();
-  await fastify.register(helmet, { contentSecurityPolicy: false });
+  await fastify.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+  });
   await fastify.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
@@ -33,10 +48,14 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  app.useGlobalFilters(new AllExceptionsFilter(config));
 
+  const origins = config.get<string>('CORS_ORIGINS')?.split(',') || ['http://localhost:5173'];
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGINS')?.split(',') || ['http://localhost:5173'],
+    origin: origins,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
+    maxAge: 86400,
   });
 
   if (config.get<string>('NODE_ENV') !== 'production') {

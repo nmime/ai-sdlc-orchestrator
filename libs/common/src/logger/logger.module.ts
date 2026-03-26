@@ -2,6 +2,28 @@ import { Module, Global, LoggerService, Injectable, Scope } from '@nestjs/common
 import { ConfigService } from '@nestjs/config';
 import pino from 'pino';
 
+const REDACT_PATHS = [
+  'password',
+  'token',
+  'secret',
+  'apiKey',
+  'api_key',
+  'authorization',
+  'cookie',
+  'accessToken',
+  'refreshToken',
+  'DATABASE_PASSWORD',
+  'MINIO_SECRET_KEY',
+  'E2B_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'OIDC_CLIENT_SECRET',
+  'CREDENTIAL_PROXY_INTERNAL_TOKEN',
+  'DEFAULT_VCS_TOKEN',
+  'SESSION_SIGNING_KEY',
+  'req.headers.authorization',
+  'req.headers.cookie',
+];
+
 let loggerInstance: pino.Logger | undefined;
 
 function getLogger(): pino.Logger {
@@ -9,6 +31,10 @@ function getLogger(): pino.Logger {
     const config = new ConfigService(process.env);
     loggerInstance = pino({
       level: config.get<string>('WORKER_LOG_LEVEL') || 'info',
+      redact: {
+        paths: REDACT_PATHS,
+        censor: '[REDACTED]',
+      },
       transport:
         config.get<string>('NODE_ENV') !== 'production'
           ? { target: 'pino-pretty', options: { colorize: true } }

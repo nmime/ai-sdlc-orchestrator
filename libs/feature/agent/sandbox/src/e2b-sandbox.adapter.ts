@@ -6,6 +6,9 @@ import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
 import type { AppError, AppConfig } from '@ai-sdlc/common';
 import type { SandboxPort, SandboxExecResult } from '@ai-sdlc/feature-agent-registry';
 
+const MAX_TIMEOUT_MS = 300_000;
+const MAX_EXEC_TIMEOUT_MS = 120_000;
+
 @Injectable()
 export class E2bSandboxAdapter implements SandboxPort {
   readonly name = 'e2b';
@@ -24,9 +27,11 @@ export class E2bSandboxAdapter implements SandboxPort {
     env?: Record<string, string>;
   }): Promise<Result<{ sandboxId: string }, AppError>> {
     try {
+      const timeoutMs = Math.min(config.timeoutMs || MAX_TIMEOUT_MS, MAX_TIMEOUT_MS);
+
       const sandbox = await Sandbox.create(config.templateId || 'base', {
         apiKey: this.configService.get('E2B_API_KEY'),
-        timeoutMs: config.timeoutMs || 600_000,
+        timeoutMs,
         envs: config.env,
       });
 
@@ -44,7 +49,8 @@ export class E2bSandboxAdapter implements SandboxPort {
     if (!sandbox) return ResultUtils.err('NOT_FOUND', `Sandbox ${sandboxId} not found`);
 
     try {
-      const result = await sandbox.commands.run(command, { timeoutMs: timeoutMs || 60_000 });
+      const clampedTimeout = Math.min(timeoutMs || 60_000, MAX_EXEC_TIMEOUT_MS);
+      const result = await sandbox.commands.run(command, { timeoutMs: clampedTimeout });
       return ResultUtils.ok({
         stdout: result.stdout,
         stderr: result.stderr,
