@@ -24,6 +24,13 @@ export const appConfigSchema = z.object({
   API_PORT: z.coerce.number().default(3000),
   WORKER_LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  CORS_ORIGINS: z.string().default('http://localhost:3001'),
+  CREDENTIAL_PROXY_BIND: z.string().default('127.0.0.1'),
+  CREDENTIAL_PROXY_INTERNAL_TOKEN: z.string().optional(),
+  CREDENTIAL_PROXY_PORT: z.coerce.number().default(3002),
+  CREDENTIAL_PROXY_URL: z.string().default('http://localhost:3002'),
+  DEFAULT_VCS_TOKEN: z.string().optional(),
+  SESSION_SIGNING_KEY: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

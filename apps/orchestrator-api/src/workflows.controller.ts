@@ -1,9 +1,10 @@
-import { Controller, Get, Param, Post, Body, Query, UseGuards, BadRequestException, ForbiddenException, Req } from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, Query, UseGuards, BadRequestException, Req, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService } from '@ai-sdlc/common';
 import { WorkflowMirror, WorkflowEvent, WorkflowArtifact, AgentSession } from '@ai-sdlc/db';
 import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
+import { WorkflowRetryDto } from '@ai-sdlc/common';
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -21,19 +22,20 @@ export class WorkflowsController {
   async list(
     @Req() req: any,
     @Query('state') state?: string,
-    @Query('limit') limit: number = 50,
-    @Query('offset') offset: number = 0,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit?: number,
+    @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset?: number,
   ) {
     const where: Record<string, unknown> = { tenant: req.user.tenantId };
     if (state) where['state'] = state;
+    const safeLimit = Math.min(limit ?? 50, 100);
 
     const [items, total] = await this.em.findAndCount(WorkflowMirror, where, {
-      limit: Math.min(limit, 100),
-      offset,
+      limit: safeLimit,
+      offset: offset ?? 0,
       orderBy: { createdAt: 'DESC' },
     });
 
-    return { items, total, limit: Math.min(limit, 100), offset };
+    return { items, total, limit: safeLimit, offset };
   }
 
   @Get(':id')
@@ -79,7 +81,7 @@ export class WorkflowsController {
   async retry(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { fromStep?: string },
+    @Body() body: WorkflowRetryDto,
   ) {
     const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     if (!workflow.state.startsWith('blocked')) {

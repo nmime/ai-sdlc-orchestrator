@@ -5,3 +5,4 @@ export { DatabaseModule } from './database/database.module';
 export { BootstrapService } from './bootstrap/bootstrap.service';
 export { ResultUtils } from './result/result.utils';
 export type { AppError, ErrorCode } from './result/app-error';
+export * from './dto/common.dto';

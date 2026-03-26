@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
 import { CredentialProxyService } from './credential-proxy.service';
 import { SessionService } from './session.service';
+import { CreateSessionDto, ResolveHostDto, RecordCostDto } from '@ai-sdlc/common';
 
 @Controller()
 export class CredentialProxyController {
@@ -15,7 +16,7 @@ export class CredentialProxyController {
   @Post('sessions')
   async createSession(
     @Headers('x-internal-token') internalToken: string,
-    @Body() body: { tenantId: string; workflowId: string; sessionId: string; ttlSeconds?: number },
+    @Body() body: CreateSessionDto,
   ) {
     this.requireInternalToken(internalToken);
     return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds);
@@ -34,7 +35,7 @@ export class CredentialProxyController {
   @Post('git-credential')
   async getGitCredential(
     @Headers('authorization') auth: string,
-    @Body() body: { host: string },
+    @Body() body: ResolveHostDto,
   ) {
     const session = this.validateSession(auth);
     return this.credentialService.getGitCredential(session.tenantId, body.host);
@@ -46,6 +47,9 @@ export class CredentialProxyController {
     @Param('serverName') serverName: string,
   ) {
     const session = this.validateSession(auth);
+    if (!/^[a-zA-Z0-9_-]+$/.test(serverName)) {
+      throw new UnauthorizedException('Invalid server name');
+    }
     return this.credentialService.getMcpToken(session.tenantId, serverName);
   }
 
@@ -58,7 +62,7 @@ export class CredentialProxyController {
   async recordSessionCost(
     @Headers('x-internal-token') internalToken: string,
     @Param('sessionId') sessionId: string,
-    @Body() body: { inputTokens: number; outputTokens: number; provider: string; model: string },
+    @Body() body: RecordCostDto,
   ) {
     this.requireInternalToken(internalToken);
     return { recorded: true, sessionId };

@@ -12,7 +12,7 @@ export class LinearHandler {
 
   verifySignature(headers: Record<string, string>, rawBody: string, tenantId: string): void {
     const secret = this.config.get<string>(`WEBHOOK_SECRET_LINEAR_${tenantId.toUpperCase()}`);
-    if (!secret) return;
+    if (!secret) throw new UnauthorizedException('Webhook secret not configured for tenant');
     const signature = headers['linear-signature'];
     if (!signature) throw new UnauthorizedException('Missing webhook signature');
     const expected = createHmac('sha256', secret).update(rawBody).digest('hex');

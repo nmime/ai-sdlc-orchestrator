@@ -4,7 +4,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowMirror } from '@ai-sdlc/db';
 import { GateService } from './gate.service';
 import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
-import type { GateAction } from '@ai-sdlc/shared-type';
+import { GateDecideDto, GateCancelDto } from '@ai-sdlc/common';
 
 @ApiTags('gates')
 @Controller('gates')
@@ -30,7 +30,7 @@ export class GateController {
   async decide(
     @Req() req: any,
     @Param('workflowId') workflowId: string,
-    @Body() body: { action: GateAction; reviewer: string; comment?: string },
+    @Body() body: GateDecideDto,
   ) {
     await this.assertWorkflowAccess(workflowId, req.user.tenantId);
     const result = await this.gateService.submitDecision(
@@ -59,7 +59,7 @@ export class GateController {
   async cancel(
     @Req() req: any,
     @Param('workflowId') workflowId: string,
-    @Body() body: { reason: string },
+    @Body() body: GateCancelDto,
   ) {
     await this.assertWorkflowAccess(workflowId, req.user.tenantId);
     const result = await this.gateService.cancelWorkflow(workflowId, body.reason);

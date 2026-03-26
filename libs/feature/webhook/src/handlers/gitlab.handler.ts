@@ -12,7 +12,7 @@ export class GitLabHandler {
 
   verifySignature(headers: Record<string, string>, tenantId: string): void {
     const secret = this.config.get<string>(`WEBHOOK_SECRET_GITLAB_${tenantId.toUpperCase()}`);
-    if (!secret) return;
+    if (!secret) throw new UnauthorizedException('Webhook secret not configured for tenant');
     const token = headers['x-gitlab-token'];
     if (!token) throw new UnauthorizedException('Missing webhook token');
     const secretBuf = Buffer.from(secret);

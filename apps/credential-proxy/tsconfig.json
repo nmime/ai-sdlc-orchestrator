@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/credential-proxy",
-    "rootDir": "src"
+    "outDir": "../../dist/apps/credential-proxy"
   },
   "include": ["src/**/*.ts"]
 }

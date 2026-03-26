@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, ForbiddenException, Req } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException, Req, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Tenant, AgentSession, CostAlert } from '@ai-sdlc/db';
@@ -41,13 +41,13 @@ export class CostController {
   async getRecentSessions(
     @Req() req: any,
     @Param('tenantId') tenantId: string,
-    @Query('limit') limit: number = 20,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit?: number,
   ) {
     this.assertTenantAccess(req, tenantId);
     return this.em.find(
       AgentSession,
       { workflow: { tenant: tenantId } },
-      { limit: Math.min(limit, 100), orderBy: { startedAt: 'DESC' } },
+      { limit: Math.min(limit ?? 20, 100), orderBy: { startedAt: 'DESC' } },
     );
   }
 

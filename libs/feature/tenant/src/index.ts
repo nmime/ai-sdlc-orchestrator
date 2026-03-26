@@ -5,3 +5,4 @@ export { ApiKeyService } from './api-key.service';
 export { AuthGuard } from './guards/auth.guard';
 export { RbacGuard } from './guards/rbac.guard';
 export { Roles } from './decorators/roles.decorator';
+export * from './dto/tenant.dto';

@@ -4,28 +4,8 @@ import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
 import { Tenant, TenantStatus, TenantUser, TenantRole } from '@ai-sdlc/db';
-
-export interface CreateTenantDto {
-  slug: string;
-  name: string;
-  monthlyCostLimitUsd?: number;
-  defaultAgentProvider?: string;
-  defaultAgentModel?: string;
-  meta?: Record<string, unknown>;
-}
-
-export interface UpdateTenantDto {
-  name?: string;
-  monthlyCostLimitUsd?: number;
-  monthlyAiCostLimitUsd?: number;
-  monthlySandboxCostLimitUsd?: number;
-  defaultAgentProvider?: string;
-  defaultAgentModel?: string;
-  maxConcurrentWorkflows?: number;
-  maxConcurrentSandboxes?: number;
-  meta?: Record<string, unknown>;
-  status?: TenantStatus;
-}
+import type { CreateTenantDto, UpdateTenantDto } from './dto/tenant.dto';
+export { CreateTenantDto, UpdateTenantDto } from './dto/tenant.dto';
 
 @Injectable()
 export class TenantService {
