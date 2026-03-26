@@ -134,7 +134,7 @@ export class WebhookService {
       this.logger.log(`Workflow started: ${sanitizeLog(workflowId)}`);
     } catch (error) {
       delivery.status = DeliveryStatus.FAILED;
-      delivery.errorMessage = (error as Error).message;
+      delivery.errorMessage = sanitizeLog((error as Error).message).slice(0, 1000);
       await this.em.flush();
       return ResultUtils.err('TEMPORAL_ERROR', (error as Error).message);
     }

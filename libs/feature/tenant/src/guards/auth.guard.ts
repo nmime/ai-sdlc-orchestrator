@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as jose from 'jose';
 import type { AppConfig } from '@app/common';
@@ -44,6 +44,11 @@ export class AuthGuard implements CanActivate {
       if (nodeEnv !== 'development' && nodeEnv !== 'test') {
         throw new UnauthorizedException('OIDC not configured');
       }
+      const allowBypass = this.configService.get('ALLOW_DEV_AUTH_BYPASS', { infer: true });
+      if (allowBypass !== 'true') {
+        throw new UnauthorizedException('OIDC not configured (set ALLOW_DEV_AUTH_BYPASS=true to enable dev bypass)');
+      }
+      Logger.warn('Auth bypass active — accepting any Bearer token as dev-user', 'AuthGuard');
       request.user = { id: 'dev-user', email: 'dev@local', role: 'viewer', tenantId: 'dev-tenant' };
       return true;
     }
