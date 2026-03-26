@@ -15,7 +15,10 @@ export class CostController {
   @Get('tenants/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get monthly cost breakdown for tenant' })
-  async getTenantCosts(@Param('tenantId') tenantId: string): Promise<Record<string, unknown>> {
+  async getTenantCosts(@Param('tenantId') tenantId: string, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
+    const userTenantId = (req as any).user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
     const workflows: WorkflowMirror[] = await this.em.find(WorkflowMirror, { tenant: tenantId });
 
@@ -45,7 +48,11 @@ export class CostController {
   async getTenantAlerts(
     @Param('tenantId') tenantId: string,
     @Query('limit') limit?: string,
+    @Req() req?: FastifyRequest,
   ): Promise<CostAlert[]> {
+    const userTenantId = (req as any)?.user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     return this.em.find(CostAlert, { tenant: tenantId }, {
       orderBy: { createdAt: 'DESC' },
       limit: Math.min(parseInt(limit || '50', 10), 200),
@@ -86,7 +93,10 @@ export class CostController {
   @Get('tenants/:tenantId/by-repo')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get costs grouped by repo' })
-  async getCostsByRepo(@Param('tenantId') tenantId: string): Promise<Record<string, unknown>[]> {
+  async getCostsByRepo(@Param('tenantId') tenantId: string, @Req() req: FastifyRequest): Promise<Record<string, unknown>[]> {
+    const userTenantId = (req as any).user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     const workflows: WorkflowMirror[] = await this.em.find(WorkflowMirror, { tenant: tenantId });
     const byRepo = new Map<string, { ai: number; sandbox: number; count: number }>();
 

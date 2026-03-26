@@ -46,8 +46,8 @@ export class DslController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get DSL by ID' })
-  async get(@Param('id') id: string): Promise<WorkflowDsl> {
-    return this.em.findOneOrFail(WorkflowDsl, { id });
+  async get(@Param('tenantId') tenantId: string, @Param('id') id: string): Promise<WorkflowDsl> {
+    return this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
   }
 
   @Post()

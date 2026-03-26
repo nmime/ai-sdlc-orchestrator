@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { WebhookDelivery } from '@app/db';
+import { FastifyRequest } from 'fastify';
 
 @ApiTags('webhook-deliveries')
 @Controller('tenants/:tenantId/webhook-deliveries')
@@ -20,7 +21,11 @@ export class WebhookDeliveryController {
     @Query('offset') offset?: string,
     @Query('status') status?: string,
     @Query('platform') platform?: string,
+    @Req() req?: FastifyRequest,
   ): Promise<{ data: WebhookDelivery[]; total: number; limit: number; offset: number }> {
+    const userTenantId = (req as any)?.user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     const where: Record<string, unknown> = { tenant: tenantId };
     if (status) where['status'] = status;
     if (platform) where['platform'] = platform;
@@ -41,7 +46,10 @@ export class WebhookDeliveryController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get webhook delivery by ID' })
-  async findById(@Param('tenantId') tenantId: string, @Param('id') id: string): Promise<WebhookDelivery> {
+  async findById(@Param('tenantId') tenantId: string, @Param('id') id: string, @Req() req?: FastifyRequest): Promise<WebhookDelivery> {
+    const userTenantId = (req as any)?.user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     return this.em.findOneOrFail(WebhookDelivery, { id, tenant: tenantId });
   }
 }
