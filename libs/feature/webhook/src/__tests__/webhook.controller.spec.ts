@@ -3,7 +3,7 @@ import { ok, err } from 'neverthrow';
 
 const mockWebhookService = {
   processWebhook: vi.fn(),
-  getWebhookSecret: vi.fn().mockResolvedValue(null),
+  getWebhookSecret: vi.fn().mockResolvedValue('test-secret'),
 };
 
 const mockSignatureService = {

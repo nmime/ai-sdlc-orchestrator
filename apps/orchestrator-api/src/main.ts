@@ -59,4 +59,7 @@ async function bootstrap() {
   bootstrapService.logStartup('orchestrator-api', port);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Failed to start orchestrator-api:', err);
+  process.exit(1);
+});

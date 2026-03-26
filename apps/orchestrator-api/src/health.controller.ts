@@ -41,20 +41,20 @@ export class HealthController {
   @Get('business')
   @ApiOperation({ summary: 'Deep business health check' })
   async business() {
-    const checks: Record<string, { status: string; message?: string }> = {};
+    const checks: Record<string, { status: string }> = {};
 
     try {
       await this.db.pingCheck('database');
       checks['database'] = { status: 'up' };
-    } catch (e) {
-      checks['database'] = { status: 'down', message: (e as Error).message };
+    } catch {
+      checks['database'] = { status: 'down' };
     }
 
     try {
       await this.temporalClient.getClient();
       checks['temporal'] = { status: 'up' };
-    } catch (e) {
-      checks['temporal'] = { status: 'down', message: (e as Error).message };
+    } catch {
+      checks['temporal'] = { status: 'down' };
     }
 
     const allUp = Object.values(checks).every(c => c.status === 'up');

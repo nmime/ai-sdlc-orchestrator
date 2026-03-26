@@ -2,7 +2,7 @@ import {
   Controller, Post, Get, Param, Body, Headers, Req, Res,
   HttpCode, HttpStatus, UnauthorizedException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
-import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
 import { CredentialProxyService } from './credential-proxy.service';
 import { SessionService } from './session.service';
 import { RateLimiterService } from './rate-limiter.service';
@@ -11,12 +11,15 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 
 export class CreateSessionDto {
   @IsString()
+  @MaxLength(255)
   tenantId!: string;
 
   @IsString()
+  @MaxLength(255)
   workflowId!: string;
 
   @IsString()
+  @MaxLength(255)
   sessionId!: string;
 
   @IsOptional()
@@ -26,12 +29,14 @@ export class CreateSessionDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   scopes?: string[];
 }
 
 export class ResolveHostDto {
   @IsString()
+  @MaxLength(500)
   host!: string;
 }
 
@@ -43,9 +48,11 @@ export class ReportUsageDto {
   outputTokens!: number;
 
   @IsString()
+  @MaxLength(100)
   provider!: string;
 
   @IsString()
+  @MaxLength(100)
   model!: string;
 }
 

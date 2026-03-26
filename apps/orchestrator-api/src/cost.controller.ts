@@ -20,14 +20,19 @@ export class CostController {
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
-    const workflows: WorkflowMirror[] = await this.em.find(WorkflowMirror, { tenant: tenantId });
 
-    let totalAi = 0;
-    let totalSandbox = 0;
-    for (const wf of workflows) {
-      totalAi += Number(wf.aiCostUsd);
-      totalSandbox += Number(wf.sandboxCostUsd);
-    }
+    const qb = this.em.createQueryBuilder(WorkflowMirror, 'wm');
+    const result = await qb
+      .select([
+        'COUNT(*) as count',
+        'COALESCE(SUM(wm.ai_cost_usd), 0) as total_ai',
+        'COALESCE(SUM(wm.sandbox_cost_usd), 0) as total_sandbox',
+      ])
+      .where({ tenant: tenantId })
+      .execute('get') as { count: string; total_ai: string; total_sandbox: string };
+
+    const totalAi = Number(result.total_ai);
+    const totalSandbox = Number(result.total_sandbox);
 
     return {
       tenantId,
@@ -38,7 +43,7 @@ export class CostController {
       limitUsd: Number(tenant.monthlyCostLimitUsd),
       reservedUsd: Number(tenant.monthlyCostReservedUsd),
       actualUsd: Number(tenant.monthlyCostActualUsd),
-      workflowCount: workflows.length,
+      workflowCount: Number(result.count),
     };
   }
 
@@ -55,7 +60,7 @@ export class CostController {
 
     return this.em.find(CostAlert, { tenant: tenantId }, {
       orderBy: { createdAt: 'DESC' },
-      limit: Math.min(parseInt(limit || '50', 10), 200),
+      limit: Math.min(parseInt(limit || '50', 10) || 50, 200),
     });
   }
 
@@ -97,23 +102,24 @@ export class CostController {
     const userTenantId = (req as any).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
-    const workflows: WorkflowMirror[] = await this.em.find(WorkflowMirror, { tenant: tenantId });
-    const byRepo = new Map<string, { ai: number; sandbox: number; count: number }>();
+    const qb = this.em.createQueryBuilder(WorkflowMirror, 'wm');
+    const rows = await qb
+      .select([
+        'wm.repo_id as repo_id',
+        'COALESCE(SUM(wm.ai_cost_usd), 0) as ai',
+        'COALESCE(SUM(wm.sandbox_cost_usd), 0) as sandbox',
+        'COUNT(*) as count',
+      ])
+      .where({ tenant: tenantId })
+      .groupBy('wm.repo_id')
+      .execute('all') as Array<{ repo_id: string; ai: string; sandbox: string; count: string }>;
 
-    for (const wf of workflows) {
-      const existing = byRepo.get(wf.repoId) || { ai: 0, sandbox: 0, count: 0 };
-      existing.ai += Number(wf.aiCostUsd);
-      existing.sandbox += Number(wf.sandboxCostUsd);
-      existing.count++;
-      byRepo.set(wf.repoId, existing);
-    }
-
-    return Array.from(byRepo.entries()).map(([repoId, data]) => ({
-      repoId,
-      aiCostUsd: data.ai,
-      sandboxCostUsd: data.sandbox,
-      totalCostUsd: data.ai + data.sandbox,
-      workflowCount: data.count,
+    return rows.map(row => ({
+      repoId: row.repo_id,
+      aiCostUsd: Number(row.ai),
+      sandboxCostUsd: Number(row.sandbox),
+      totalCostUsd: Number(row.ai) + Number(row.sandbox),
+      workflowCount: Number(row.count),
     }));
   }
 }

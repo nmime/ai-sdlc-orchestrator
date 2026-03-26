@@ -1,10 +1,15 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import type { AppConfig } from '@app/common';
 
 @Injectable()
 export class RbacGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private configService: ConfigService<AppConfig, true>,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
@@ -26,7 +31,9 @@ export class RbacGuard implements CanActivate {
     const tenantId = request.params?.tenantId;
     if (tenantId) {
       if (!user.tenantId) throw new ForbiddenException('Tenant context required');
-      if (user.tenantId !== tenantId && user.tenantId !== 'dev-tenant') {
+      const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
+      const isDevTenantAllowed = user.tenantId === 'dev-tenant' && (nodeEnv === 'development' || nodeEnv === 'test');
+      if (user.tenantId !== tenantId && !isDevTenantAllowed) {
         throw new ForbiddenException('Access denied for this tenant');
       }
     }

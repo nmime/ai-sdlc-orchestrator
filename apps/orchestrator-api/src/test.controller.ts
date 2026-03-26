@@ -5,28 +5,53 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService } from '@app/common';
 import { TenantMcpServer, TenantRepoConfig } from '@app/db';
 import { FastifyRequest } from 'fastify';
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
+
+function isInternalUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    const hostname = url.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+    if (hostname === '0.0.0.0') return true;
+    if (hostname.endsWith('.local') || hostname.endsWith('.internal')) return true;
+    const parts = hostname.split('.').map(Number);
+    if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+      if (parts[0] === 10) return true;
+      if (parts[0] === 172 && parts[1]! >= 16 && parts[1]! <= 31) return true;
+      if (parts[0] === 192 && parts[1] === 168) return true;
+      if (parts[0] === 169 && parts[1] === 254) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 export class TestMcpConnectivityDto {
   @IsString()
+  @MaxLength(255)
   tenantId!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   serverName?: string;
 }
 
 export class TestSandboxDto {
   @IsString()
+  @MaxLength(255)
   tenantId!: string;
 }
 
 export class TestAgentDryRunDto {
   @IsString()
+  @MaxLength(255)
   tenantId!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   repoId?: string;
 }
 
@@ -53,6 +78,9 @@ export class TestController {
 
     const results = await Promise.all(servers.map(async (server) => {
       if (server.url) {
+        if (isInternalUrl(server.url)) {
+          return { name: server.name, status: 'blocked_internal', transport: server.transport };
+        }
         try {
           const res = await fetch(server.url, { method: 'GET', signal: AbortSignal.timeout(5_000) });
           return { name: server.name, status: res.ok ? 'reachable' : `http_${res.status}`, transport: server.transport };

@@ -114,7 +114,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: filter['repoId'] as string || '',
         repoUrl: filter['repoUrl'] as string || '',
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`Jira polling failed: ${(e as Error).message}`);
       return [];
     }
   }
@@ -138,7 +139,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: repo,
         repoUrl: `https://github.com/${repo}.git`,
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`GitHub polling failed: ${(e as Error).message}`);
       return [];
     }
   }
@@ -162,7 +164,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: projectId,
         repoUrl: filter['repoUrl'] as string || '',
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`GitLab polling failed: ${(e as Error).message}`);
       return [];
     }
   }
@@ -177,7 +180,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         method: 'POST',
         headers: { Authorization: token, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: `{ team(id: "${teamId.replace(/["\\]/g, '')}") { issues(filter: { state: { name: { in: ["Todo", "In Progress"] } }, labels: { name: { in: ["ai-sdlc"] } } }, first: 10) { nodes { id identifier title } } } }`,
+          query: `query($teamId: String!) { team(id: $teamId) { issues(filter: { state: { name: { in: ["Todo", "In Progress"] } }, labels: { name: { in: ["ai-sdlc"] } } }, first: 10) { nodes { id identifier title } } } }`,
+          variables: { teamId },
         }),
       });
       if (!response.ok) return [];
@@ -188,7 +192,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: filter['repoId'] as string || '',
         repoUrl: filter['repoUrl'] as string || '',
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`Linear polling failed: ${(e as Error).message}`);
       return [];
     }
   }

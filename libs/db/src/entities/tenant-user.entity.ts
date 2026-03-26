@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -9,6 +9,7 @@ export enum TenantRole {
 }
 
 @Entity({ tableName: 'tenant_user' })
+@Index({ properties: ['tenant'] })
 export class TenantUser {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();

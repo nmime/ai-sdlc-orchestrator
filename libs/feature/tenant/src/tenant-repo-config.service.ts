@@ -4,41 +4,50 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@app/db';
-import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
 
 export class CreateRepoConfigDto {
   @IsString()
+  @MaxLength(255)
   repoId!: string;
 
   @IsString()
+  @MaxLength(2048)
   repoUrl!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   branchPrefix?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   setupCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   testCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   lintCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   typecheckCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   buildCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   agentTemplateId?: string;
 
   @IsOptional()
@@ -52,6 +61,7 @@ export class CreateRepoConfigDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   agentModel?: string;
 
   @IsOptional()
@@ -74,24 +84,29 @@ export class CreateRepoConfigDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
   allowedPaths?: string[];
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   commitMessagePattern?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(10000)
   mrDescriptionTemplate?: string;
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   qualityGateCommands?: string[];
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   staticAnalysisCommand?: string;
 
   @IsOptional()
@@ -100,6 +115,7 @@ export class CreateRepoConfigDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
   sparseCheckoutPaths?: string[];
 }
@@ -107,38 +123,47 @@ export class CreateRepoConfigDto {
 export class UpdateRepoConfigDto {
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   repoId?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   repoUrl?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   branchPrefix?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   setupCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   testCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   lintCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   typecheckCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   buildCommand?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   agentTemplateId?: string;
 
   @IsOptional()
@@ -152,6 +177,7 @@ export class UpdateRepoConfigDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   agentModel?: string;
 
   @IsOptional()
@@ -174,24 +200,29 @@ export class UpdateRepoConfigDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
   allowedPaths?: string[];
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   commitMessagePattern?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(10000)
   mrDescriptionTemplate?: string;
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   qualityGateCommands?: string[];
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   staticAnalysisCommand?: string;
 
   @IsOptional()
@@ -200,6 +231,7 @@ export class UpdateRepoConfigDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(100)
   @IsString({ each: true })
   sparseCheckoutPaths?: string[];
 }
