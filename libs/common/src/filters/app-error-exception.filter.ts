@@ -37,7 +37,7 @@ export class AppErrorExceptionFilter implements ExceptionFilter {
 
     reply.status(HttpStatus.INTERNAL_SERVER_ERROR).send({
       error: 'INTERNAL_ERROR',
-      message: exception.message,
+      message: process.env['NODE_ENV'] === 'production' ? 'Internal server error' : exception.message,
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
     });
   }

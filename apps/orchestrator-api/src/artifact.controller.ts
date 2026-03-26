@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
@@ -7,6 +7,7 @@ import { IsString, IsOptional, IsEnum } from 'class-validator';
 import * as Minio from 'minio';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
+import type { FastifyRequest } from 'fastify';
 
 class UploadArtifactDto {
   @IsString()
@@ -76,8 +77,10 @@ export class ArtifactController {
   @Roles('admin', 'operator')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish artifact after upload' })
-  async publishArtifact(@Param('id') id: string): Promise<{ status: string }> {
-    const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id });
+  async publishArtifact(@Req() req: FastifyRequest, @Param('id') id: string): Promise<{ status: string }> {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('Tenant context required');
+    const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id, tenant: tenantId });
     artifact.status = ArtifactStatus.PUBLISHED;
     await this.em.flush();
     return { status: 'published' };
@@ -86,8 +89,10 @@ export class ArtifactController {
   @Get(':id/download')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get presigned download URL for artifact' })
-  async getDownloadUrl(@Param('id') id: string): Promise<{ downloadUrl: string }> {
-    const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id });
+  async getDownloadUrl(@Req() req: FastifyRequest, @Param('id') id: string): Promise<{ downloadUrl: string }> {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('Tenant context required');
+    const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id, tenant: tenantId });
     const objectKey = artifact.uri.replace(`s3://${this.bucket}/`, '');
     const presignedTtl = parseInt(this.configService.get('MINIO_PRESIGNED_TTL_SECONDS', { infer: true }) || '3600', 10);
     const downloadUrl = await this.minioClient.presignedGetObject(this.bucket, objectKey, presignedTtl);

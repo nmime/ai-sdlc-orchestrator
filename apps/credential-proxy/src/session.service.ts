@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 
 interface SessionData {
@@ -12,7 +12,7 @@ interface SessionData {
 }
 
 @Injectable()
-export class SessionService implements OnModuleInit {
+export class SessionService implements OnModuleInit, OnModuleDestroy {
   private sessions = new Map<string, SessionData>();
   private signingKey!: Buffer;
   private cleanupInterval?: ReturnType<typeof setInterval>;
@@ -83,5 +83,9 @@ export class SessionService implements OnModuleInit {
     for (const [token, data] of this.sessions) {
       if (now > data.expiresAt) this.sessions.delete(token);
     }
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) clearInterval(this.cleanupInterval);
   }
 }

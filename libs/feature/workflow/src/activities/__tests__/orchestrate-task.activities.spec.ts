@@ -238,7 +238,8 @@ describe('createSandbox', () => {
     });
     const execArgs = mockSandbox.exec.mock.calls[0];
     expect(execArgs[1]).toContain('--sparse');
-    expect(execArgs[1]).toContain('src/ tests/');
+    expect(execArgs[1]).toContain("'src/'");
+    expect(execArgs[1]).toContain("'tests/'");
   });
 
   it('destroys sandbox on clone failure', async () => {

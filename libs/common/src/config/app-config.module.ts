@@ -43,6 +43,10 @@ export const appConfigSchema = z.object({
   SSE_POLL_INTERVAL_MS: z.coerce.number().default(5000),
   AI_INPUT_COST_PER_1M: z.coerce.number().default(3.0),
   AI_OUTPUT_COST_PER_1M: z.coerce.number().default(15.0),
+  WEBHOOK_MAX_RETRIES: z.coerce.number().default(5),
+  WEBHOOK_RETRY_INTERVAL_MS: z.coerce.number().default(60000),
+  WEBHOOK_RETRY_BATCH_SIZE: z.coerce.number().default(10),
+  POLLING_INTERVAL_MS: z.coerce.number().default(60000),
   SANITIZER_MODE: z.enum(['block', 'warn', 'off']).default('block'),
 });
 

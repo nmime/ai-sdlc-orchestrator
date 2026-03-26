@@ -63,7 +63,7 @@ describe('CostController (integration)', () => {
           startedAt: new Date('2025-01-01'), completedAt: new Date('2025-01-01T00:05:00'),
         },
       ]);
-      const result = await controller.getWorkflowCost('wf-1');
+      const result = await controller.getWorkflowCost({ user: { tenantId: 't-1' } } as any, 'wf-1');
       expect(result.totalCostUsd).toBe(5);
       expect((result.sessions as unknown as Array<{ duration: number }>)[0].duration).toBe(300);
     });

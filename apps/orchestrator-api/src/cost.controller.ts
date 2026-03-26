@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { WorkflowMirror, AgentSession, CostAlert, Tenant } from '@app/db';
+import { FastifyRequest } from 'fastify';
 
 @ApiTags('costs')
 @Controller('costs')
@@ -54,8 +55,10 @@ export class CostController {
   @Get('workflows/:workflowId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost breakdown for a workflow' })
-  async getWorkflowCost(@Param('workflowId') workflowId: string): Promise<Record<string, unknown>> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId });
+  async getWorkflowCost(@Req() req: FastifyRequest, @Param('workflowId') workflowId: string): Promise<Record<string, unknown>> {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('Tenant context required');
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id });
 
     return {

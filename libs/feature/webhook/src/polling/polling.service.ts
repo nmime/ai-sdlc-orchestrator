@@ -177,7 +177,7 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         method: 'POST',
         headers: { Authorization: token, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: `{ team(id: "${teamId}") { issues(filter: { state: { name: { in: ["Todo", "In Progress"] } }, labels: { name: { in: ["ai-sdlc"] } } }, first: 10) { nodes { id identifier title } } } }`,
+          query: `{ team(id: "${teamId.replace(/["\\]/g, '')}") { issues(filter: { state: { name: { in: ["Todo", "In Progress"] } }, labels: { name: { in: ["ai-sdlc"] } } }, first: 10) { nodes { id identifier title } } } }`,
         }),
       });
       if (!response.ok) return [];

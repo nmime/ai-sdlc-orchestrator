@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsIn } from 'class-validator';
 import { ResultUtils } from '@app/common';
 import { TenantService } from './tenant.service';
 import { AuthGuard } from './guards/auth.guard';
@@ -19,7 +19,7 @@ export class AddUserDto {
   email!: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['admin', 'operator', 'viewer'])
   role?: string;
 }
 
