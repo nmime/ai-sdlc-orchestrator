@@ -3,6 +3,7 @@ import {
   HttpCode, HttpStatus, UnauthorizedException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
 import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
+import { timingSafeEqual } from 'crypto';
 import { CredentialProxyService } from './credential-proxy.service';
 import { SessionService } from './session.service';
 import { RateLimiterService } from './rate-limiter.service';
@@ -205,16 +206,12 @@ export class CredentialProxyController {
 
   @Get('readyz')
   readyz() {
-    return { status: 'ready', activeSessions: this.sessionService.getActiveCount() };
+    return { status: 'ready' };
   }
 
   @Get('health/business')
   healthBusiness() {
-    return {
-      status: 'ok',
-      activeSessions: this.sessionService.getActiveCount(),
-      recentAuditEntries: this.audit.getRecent(10).length,
-    };
+    return { status: 'ok' };
   }
 
   @Post('internal/sessions/:sessionId/cost')
@@ -250,7 +247,12 @@ export class CredentialProxyController {
 
   private requireInternalToken(internalToken: string): void {
     const expected = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
-    if (!expected || internalToken !== expected) {
+    if (!expected || !internalToken) {
+      throw new UnauthorizedException('Invalid or missing internal token');
+    }
+    const bufExpected = Buffer.from(expected);
+    const bufActual = Buffer.from(internalToken);
+    if (bufExpected.length !== bufActual.length || !timingSafeEqual(bufExpected, bufActual)) {
       throw new UnauthorizedException('Invalid or missing internal token');
     }
   }

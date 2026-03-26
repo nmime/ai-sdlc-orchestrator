@@ -1,4 +1,4 @@
-import { Catch, ExceptionFilter, ArgumentsHost, HttpStatus } from '@nestjs/common';
+import { Catch, ExceptionFilter, ArgumentsHost, HttpStatus, HttpException } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import type { ErrorCode } from '../result/app-error';
 import { NotFoundError } from '@mikro-orm/core';
@@ -28,6 +28,17 @@ export class AppErrorExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const reply = ctx.getResponse<FastifyReply>();
 
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const response = exception.getResponse();
+      reply.status(status).send(
+        typeof response === 'string'
+          ? { error: 'ERROR', message: response, statusCode: status }
+          : response,
+      );
+      return;
+    }
+
     if (exception instanceof NotFoundError) {
       reply.status(HttpStatus.NOT_FOUND).send({
         error: 'NOT_FOUND',
@@ -49,15 +60,14 @@ export class AppErrorExceptionFilter implements ExceptionFilter {
     const match = ERROR_CODE_RE.exec(exception.message);
     if (match) {
       const code = match[1] as ErrorCode;
-      const message = match[2];
       const status = ERROR_CODE_TO_HTTP[code] || HttpStatus.INTERNAL_SERVER_ERROR;
-      reply.status(status).send({ error: code, message, statusCode: status });
+      reply.status(status).send({ error: code, message: 'Request failed', statusCode: status });
       return;
     }
 
     reply.status(HttpStatus.INTERNAL_SERVER_ERROR).send({
       error: 'INTERNAL_ERROR',
-      message: process.env['NODE_ENV'] === 'production' ? 'Internal server error' : exception.message,
+      message: 'Internal server error',
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
     });
   }

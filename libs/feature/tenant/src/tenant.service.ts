@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeRecord } from '@app/common';
 import type { AppError } from '@app/common';
 import { Tenant, TenantStatus, TenantUser, TenantRole } from '@app/db';
 import { CreateTenantDto, UpdateTenantDto } from './dto';
@@ -28,7 +28,7 @@ export class TenantService {
     if (dto.monthlyCostLimitUsd !== undefined) tenant.monthlyCostLimitUsd = dto.monthlyCostLimitUsd;
     if (dto.defaultAgentProvider) tenant.defaultAgentProvider = dto.defaultAgentProvider;
     if (dto.defaultAgentModel) tenant.defaultAgentModel = dto.defaultAgentModel;
-    if (dto.meta) tenant.meta = dto.meta;
+    if (dto.meta) tenant.meta = sanitizeRecord(dto.meta);
 
     await this.em.persistAndFlush(tenant);
     this.logger.log(`Tenant created: ${tenant.slug}`);
@@ -65,7 +65,7 @@ export class TenantService {
     if (dto.defaultAgentModel !== undefined) tenant.defaultAgentModel = dto.defaultAgentModel;
     if (dto.maxConcurrentWorkflows !== undefined) tenant.maxConcurrentWorkflows = dto.maxConcurrentWorkflows;
     if (dto.maxConcurrentSandboxes !== undefined) tenant.maxConcurrentSandboxes = dto.maxConcurrentSandboxes;
-    if (dto.meta !== undefined) tenant.meta = dto.meta;
+    if (dto.meta !== undefined) tenant.meta = sanitizeRecord(dto.meta);
     if (dto.status !== undefined) tenant.status = dto.status;
 
     await this.em.flush();

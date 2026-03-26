@@ -2,8 +2,10 @@ import { Controller, Post, Body, Headers, Param, HttpCode, HttpStatus, RawBodyRe
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { WebhookService } from './webhook.service';
 import { WebhookSignatureService } from './webhook-signature.service';
-import { ResultUtils } from '@app/common';
+import { ResultUtils, sanitizeRecord } from '@app/common';
 import type { FastifyRequest } from 'fastify';
+
+const VALID_PLATFORMS = new Set(['github', 'gitlab', 'jira', 'linear']);
 
 @ApiTags('webhooks')
 @Controller('webhooks')
@@ -23,6 +25,10 @@ export class WebhookController {
     @Body() body: Record<string, unknown>,
     @Req() req: RawBodyRequest<FastifyRequest>,
   ): Promise<{ accepted: boolean; deliveryId: string }> {
+    if (!VALID_PLATFORMS.has(platform)) {
+      throw new BadRequestException('unsupported platform');
+    }
+
     const secret = await this.webhookService.getWebhookSecret(platform, tenantId);
     if (!secret) {
       throw new BadRequestException('Webhook secret not configured for this tenant/platform');
@@ -41,10 +47,9 @@ export class WebhookController {
       case 'linear':
         this.signatureService.verifyLinear(rawBody, headers['linear-signature'], secret);
         break;
-      default:
-        throw new BadRequestException(`unsupported platform: ${platform}`);
     }
 
-    return ResultUtils.unwrapOrThrow(await this.webhookService.processWebhook(platform, tenantId, headers, body));
+    const sanitizedBody = sanitizeRecord(body);
+    return ResultUtils.unwrapOrThrow(await this.webhookService.processWebhook(platform, tenantId, headers, sanitizedBody));
   }
 }

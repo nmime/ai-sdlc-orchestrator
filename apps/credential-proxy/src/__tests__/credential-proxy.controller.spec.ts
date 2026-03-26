@@ -125,16 +125,14 @@ describe('CredentialProxyController (integration)', () => {
       expect(controller.healthz()).toEqual({ status: 'ok' });
     });
 
-    it('GET /readyz returns active sessions', () => {
+    it('GET /readyz returns ready', () => {
       const result = controller.readyz();
       expect(result.status).toBe('ready');
-      expect(result.activeSessions).toBe(5);
     });
 
-    it('GET /health/business returns composite', () => {
+    it('GET /health/business returns ok', () => {
       const result = controller.healthBusiness();
       expect(result.status).toBe('ok');
-      expect(result.activeSessions).toBe(5);
     });
   });
 

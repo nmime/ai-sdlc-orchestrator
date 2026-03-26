@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard } from './guards/auth.guard';
@@ -6,6 +6,7 @@ import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
 import { WorkflowDsl, Tenant } from '@app/db';
 import { IsString, IsObject, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import { sanitizeRecord } from '@app/common';
 
 class CreateDslDto {
   @IsString()
@@ -58,11 +59,18 @@ export class DslController {
     const existing = await this.em.find(WorkflowDsl, { tenant: tenantId, name: body.name }, { orderBy: { version: 'DESC' }, limit: 1 });
     const nextVersion = existing.length > 0 ? existing[0]!.version + 1 : 1;
 
+    let definition: Record<string, unknown>;
+    try {
+      definition = sanitizeRecord(body.definition);
+    } catch {
+      throw new BadRequestException('Invalid definition object');
+    }
+
     const dsl = new WorkflowDsl();
     dsl.tenant = this.em.getReference(Tenant, tenantId);
     dsl.name = body.name;
     dsl.version = nextVersion;
-    dsl.definition = body.definition;
+    dsl.definition = definition;
     dsl.isActive = body.isActive ?? true;
     await this.em.persistAndFlush(dsl);
     return dsl;
@@ -73,7 +81,13 @@ export class DslController {
   @ApiOperation({ summary: 'Update DSL' })
   async update(@Param('tenantId') tenantId: string, @Param('id') id: string, @Body() body: UpdateDslDto): Promise<WorkflowDsl> {
     const dsl = await this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
-    if (body.definition !== undefined) dsl.definition = body.definition;
+    if (body.definition !== undefined) {
+      try {
+        dsl.definition = sanitizeRecord(body.definition);
+      } catch {
+        throw new BadRequestException('Invalid definition object');
+      }
+    }
     if (body.isActive !== undefined) dsl.isActive = body.isActive;
     await this.em.flush();
     return dsl;
