@@ -1,0 +1,144 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orchestrator
+      POSTGRES_USER: orchestrator
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?required}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orchestrator"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgbouncer:
+    image: bitnami/pgbouncer:1
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: orchestrator
+      POSTGRESQL_PASSWORD: ${DATABASE_PASSWORD:?required}
+      POSTGRESQL_DATABASE: orchestrator
+      PGBOUNCER_PORT: 6432
+      PGBOUNCER_DATABASE: orchestrator
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?required}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  temporal:
+    image: temporalio/auto-setup:1.24
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: orchestrator
+      POSTGRES_PWD: ${DATABASE_PASSWORD:?required}
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    environment:
+      DATABASE_HOST: pgbouncer
+      DATABASE_PORT: 6432
+      DATABASE_NAME: orchestrator
+      DATABASE_USER: orchestrator
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?required}
+      TEMPORAL_ADDRESS: temporal:7233
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
+      NODE_ENV: production
+      API_PORT: 3000
+      CREDENTIAL_PROXY_URL: http://credential-proxy:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - pgbouncer
+      - redis
+      - minio
+      - temporal
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      DATABASE_HOST: pgbouncer
+      DATABASE_PORT: 6432
+      DATABASE_NAME: orchestrator
+      DATABASE_USER: orchestrator
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?required}
+      TEMPORAL_ADDRESS: temporal:7233
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
+      NODE_ENV: production
+      CREDENTIAL_PROXY_URL: http://credential-proxy:4000
+    depends_on:
+      - pgbouncer
+      - redis
+      - minio
+      - temporal
+
+  credential-proxy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.credential-proxy
+    environment:
+      CREDENTIAL_PROXY_PORT: 4000
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN}
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

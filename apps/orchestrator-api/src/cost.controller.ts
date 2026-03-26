@@ -47,7 +47,7 @@ export class CostController {
   ): Promise<CostAlert[]> {
     return this.em.find(CostAlert, { tenant: tenantId }, {
       orderBy: { createdAt: 'DESC' },
-      limit: parseInt(limit || '50', 10),
+      limit: Math.min(parseInt(limit || '50', 10), 200),
     });
   }
 

@@ -6,6 +6,9 @@ import { WebhookDelivery, DeliveryStatus } from '@app/db';
 @Injectable()
 export class WebhookRetryService implements OnModuleInit, OnModuleDestroy {
   private interval?: ReturnType<typeof setInterval>;
+  private readonly maxRetries = parseInt(process.env['WEBHOOK_MAX_RETRIES'] || '5', 10);
+  private readonly retryIntervalMs = parseInt(process.env['WEBHOOK_RETRY_INTERVAL_MS'] || '60000', 10);
+  private readonly retryBatchSize = parseInt(process.env['WEBHOOK_RETRY_BATCH_SIZE'] || '10', 10);
 
   constructor(
     private readonly em: EntityManager,
@@ -16,7 +19,7 @@ export class WebhookRetryService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    this.interval = setInterval(() => this.retryFailed(), 60_000);
+    this.interval = setInterval(() => this.retryFailed(), this.retryIntervalMs);
   }
 
   onModuleDestroy() {
@@ -27,25 +30,27 @@ export class WebhookRetryService implements OnModuleInit, OnModuleDestroy {
     const fork = this.em.fork();
     const failed = await fork.find(WebhookDelivery, {
       status: DeliveryStatus.FAILED,
-    }, { limit: 10, orderBy: { createdAt: 'ASC' } });
+      retryCount: { $lt: this.maxRetries },
+    }, { limit: this.retryBatchSize, orderBy: { createdAt: 'ASC' } });
 
     for (const delivery of failed) {
       try {
         const client = await this.temporalClient.getClient();
         await client.workflow.start('orchestrateTaskWorkflow', {
           taskQueue: 'orchestrator-queue',
-          workflowId: `webhook-retry-${delivery.id}`,
+          workflowId: `webhook-retry-${delivery.id}-${delivery.retryCount}`,
           args: [{
             tenantId: delivery.tenant.id,
             taskId: delivery.deliveryId,
             taskProvider: delivery.platform,
-            repoId: '',
-            repoUrl: '',
+            repoId: delivery.repoId || '',
+            repoUrl: delivery.repoUrl || '',
             webhookDeliveryId: delivery.id,
           }],
         });
         delivery.status = DeliveryStatus.PROCESSING;
-        this.logger.log(`Retrying webhook delivery ${delivery.id}`);
+        delivery.retryCount = (delivery.retryCount || 0) + 1;
+        this.logger.log(`Retrying webhook delivery ${delivery.id} (attempt ${delivery.retryCount})`);
       } catch (error) {
         this.logger.error(`Retry failed for delivery ${delivery.id}: ${(error as Error).message}`);
       }

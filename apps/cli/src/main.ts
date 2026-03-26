@@ -96,6 +96,7 @@ function cmdDiff(file1: string, file2: string): void {
     if (stepIds2.has(id)) {
       const s1 = w1.stepMap[id];
       const s2 = w2.stepMap[id];
+      if (!s1 || !s2) continue;
       const summary1 = stepSummary(s1);
       const summary2 = stepSummary(s2);
       const stepDiff = diffObjects(`step[${id}]`, summary1, summary2);

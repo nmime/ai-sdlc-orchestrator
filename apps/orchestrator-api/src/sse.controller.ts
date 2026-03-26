@@ -1,24 +1,37 @@
-import { Controller, Sse, Query, MessageEvent } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Sse, Query, MessageEvent, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowEvent } from '@app/db';
-import { Observable, interval, switchMap, map, from } from 'rxjs';
+import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { Observable, interval, exhaustMap, map, from, EMPTY } from 'rxjs';
+import { ConfigService } from '@nestjs/config';
+import type { AppConfig } from '@app/common';
 
 @ApiTags('sse')
 @Controller('sse')
+@ApiBearerAuth()
+@UseGuards(AuthGuard, RbacGuard)
 export class SseController {
-  constructor(private readonly em: EntityManager) {}
+  constructor(
+    private readonly em: EntityManager,
+    private readonly configService: ConfigService<AppConfig, true>,
+  ) {}
 
   @Sse('events')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Server-Sent Events for workflow updates' })
-  events(@Query('tenantId') tenantId?: string): Observable<MessageEvent> {
-    let lastEventId: string | undefined;
+  events(@Query('tenantId') tenantId: string): Observable<MessageEvent> {
+    if (!tenantId) {
+      return EMPTY;
+    }
 
-    return interval(5000).pipe(
-      switchMap(() => {
+    let lastEventId: string | undefined;
+    const pollInterval = parseInt(this.configService.get('SSE_POLL_INTERVAL_MS', { infer: true }) || '5000', 10);
+
+    return interval(pollInterval).pipe(
+      exhaustMap(() => {
         const fork = this.em.fork();
-        const where: Record<string, unknown> = {};
-        if (tenantId) where['workflow.tenant'] = tenantId;
+        const where: Record<string, unknown> = { 'workflow.tenant': tenantId };
         if (lastEventId) where['id'] = { $gt: lastEventId };
 
         return from(fork.find(WorkflowEvent, where, {
@@ -26,9 +39,9 @@ export class SseController {
           limit: 50,
         }));
       }),
-      switchMap(events => {
+      exhaustMap(events => {
         if (events.length > 0) {
-          lastEventId = events[events.length - 1].id;
+          lastEventId = events[events.length - 1]!.id;
         }
         return from(events);
       }),

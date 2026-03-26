@@ -10,8 +10,9 @@ RUN pnpm nx build orchestrator-worker
 
 FROM node:24-slim
 WORKDIR /app
-RUN corepack enable
+RUN corepack enable && addgroup --system app && adduser --system --ingroup app app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+USER app
 CMD ["node", "dist/apps/orchestrator-worker/src/main.js"]

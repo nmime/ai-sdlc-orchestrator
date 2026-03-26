@@ -26,7 +26,7 @@ export class TemporalClientService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    this.connection?.close();
+    await this.connection?.close();
   }
 }
 

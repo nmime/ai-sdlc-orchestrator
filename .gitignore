@@ -12,3 +12,11 @@ coverage
 !jest.config.ts
 !mikro-orm.config.ts
 .nx
+*.log
+*.tgz
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.turbo
+.cache

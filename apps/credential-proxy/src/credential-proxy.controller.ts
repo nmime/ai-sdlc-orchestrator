@@ -22,15 +22,18 @@ export class CredentialProxyController {
     @Headers('x-internal-token') internalToken: string,
     @Body() body: { tenantId: string; workflowId: string; sessionId: string; ttlSeconds?: number; scopes?: string[] },
   ) {
-    const expected = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
-    if (expected && internalToken !== expected) throw new UnauthorizedException('Invalid internal token');
+    this.requireInternalToken(internalToken);
     if (!body.tenantId || !body.sessionId) throw new BadRequestException('tenantId and sessionId required');
     return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds, body.scopes);
   }
 
   @Post('sessions/:sessionId/revoke')
   @HttpCode(HttpStatus.NO_CONTENT)
-  revokeSession(@Param('sessionId') sessionId: string) {
+  revokeSession(
+    @Headers('x-internal-token') internalToken: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    this.requireInternalToken(internalToken);
     this.sessionService.revoke(sessionId);
   }
 
@@ -168,9 +171,11 @@ export class CredentialProxyController {
 
   @Post('internal/sessions/:sessionId/cost')
   recordSessionCost(
+    @Headers('x-internal-token') internalToken: string,
     @Param('sessionId') sessionId: string,
     @Body() body: { inputTokens: number; outputTokens: number; provider: string; model: string },
   ) {
+    this.requireInternalToken(internalToken);
     this.audit.log({
       timestamp: new Date().toISOString(),
       sessionId,
@@ -193,6 +198,13 @@ export class CredentialProxyController {
       provider: body.provider,
       model: body.model,
     };
+  }
+
+  private requireInternalToken(internalToken: string): void {
+    const expected = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
+    if (expected && internalToken !== expected) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
   }
 
   private requireSession(auth: string, scope: string): { tenantId: string; workflowId: string; sessionId: string } {

@@ -5,6 +5,8 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowArtifact, ArtifactKind, ArtifactStatus, WorkflowMirror, Tenant } from '@app/db';
 import { IsString, IsOptional, IsEnum } from 'class-validator';
 import * as Minio from 'minio';
+import { ConfigService } from '@nestjs/config';
+import type { AppConfig } from '@app/common';
 
 class UploadArtifactDto {
   @IsString()
@@ -35,15 +37,18 @@ export class ArtifactController {
   private minioClient: Minio.Client;
   private readonly bucket: string;
 
-  constructor(private readonly em: EntityManager) {
+  constructor(
+    private readonly em: EntityManager,
+    private readonly configService: ConfigService<AppConfig, true>,
+  ) {
     this.minioClient = new Minio.Client({
-      endPoint: process.env['MINIO_ENDPOINT'] || 'localhost',
-      port: parseInt(process.env['MINIO_PORT'] || '9000', 10),
-      useSSL: false,
-      accessKey: process.env['MINIO_ACCESS_KEY'] || 'minioadmin',
-      secretKey: process.env['MINIO_SECRET_KEY'] || '',
+      endPoint: this.configService.get('MINIO_ENDPOINT', { infer: true }) || 'localhost',
+      port: parseInt(this.configService.get('MINIO_PORT', { infer: true }) || '9000', 10),
+      useSSL: this.configService.get('MINIO_USE_SSL', { infer: true }) === 'true',
+      accessKey: this.configService.get('MINIO_ACCESS_KEY', { infer: true }) || 'minioadmin',
+      secretKey: this.configService.get('MINIO_SECRET_KEY', { infer: true }) || '',
     });
-    this.bucket = process.env['MINIO_BUCKET'] || 'artifacts';
+    this.bucket = this.configService.get('MINIO_BUCKET', { infer: true }) || 'artifacts';
   }
 
   @Post('presigned-upload')
@@ -62,7 +67,8 @@ export class ArtifactController {
     await this.em.persistAndFlush(artifact);
 
     const objectKey = `${body.workflowId}/${artifact.id}/${body.filename}`;
-    const uploadUrl = await this.minioClient.presignedPutObject(this.bucket, objectKey, 3600);
+    const presignedTtl = parseInt(this.configService.get('MINIO_PRESIGNED_TTL_SECONDS', { infer: true }) || '3600', 10);
+    const uploadUrl = await this.minioClient.presignedPutObject(this.bucket, objectKey, presignedTtl);
     return { uploadUrl, artifactId: artifact.id };
   }
 
@@ -83,7 +89,8 @@ export class ArtifactController {
   async getDownloadUrl(@Param('id') id: string): Promise<{ downloadUrl: string }> {
     const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id });
     const objectKey = artifact.uri.replace(`s3://${this.bucket}/`, '');
-    const downloadUrl = await this.minioClient.presignedGetObject(this.bucket, objectKey, 3600);
+    const presignedTtl = parseInt(this.configService.get('MINIO_PRESIGNED_TTL_SECONDS', { infer: true }) || '3600', 10);
+    const downloadUrl = await this.minioClient.presignedGetObject(this.bucket, objectKey, presignedTtl);
     return { downloadUrl };
   }
 }

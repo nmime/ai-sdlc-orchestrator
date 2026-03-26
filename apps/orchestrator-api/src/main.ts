@@ -20,9 +20,11 @@ async function bootstrap() {
   const logger = await app.resolve(PinoLoggerService);
   app.useLogger(logger);
 
+  app.enableShutdownHooks();
+
   const fastify = app.getHttpAdapter().getInstance();
   await fastify.register(helmet, {
-    contentSecurityPolicy: process.env['NODE_ENV'] === 'production',
+    contentSecurityPolicy: process.env['NODE_ENV'] !== 'test',
   });
   await fastify.register(rateLimit, {
     max: parseInt(process.env['RATE_LIMIT_MAX'] || '100', 10),
@@ -31,7 +33,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalFilters(new AppErrorExceptionFilter());
 
   app.enableCors({

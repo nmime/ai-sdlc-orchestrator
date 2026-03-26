@@ -55,7 +55,7 @@ export class DslController {
   @ApiOperation({ summary: 'Create a new DSL version' })
   async create(@Param('tenantId') tenantId: string, @Body() body: CreateDslDto): Promise<WorkflowDsl> {
     const existing = await this.em.find(WorkflowDsl, { tenant: tenantId, name: body.name }, { orderBy: { version: 'DESC' }, limit: 1 });
-    const nextVersion = existing.length > 0 ? existing[0].version + 1 : 1;
+    const nextVersion = existing.length > 0 ? existing[0]!.version + 1 : 1;
 
     const dsl = new WorkflowDsl();
     dsl.tenant = this.em.getReference(Tenant, tenantId);
