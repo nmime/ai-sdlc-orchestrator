@@ -32,7 +32,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
   app.enableCors({
     origin: config.get<string>('CORS_ORIGINS')?.split(',') || ['http://localhost:5173'],

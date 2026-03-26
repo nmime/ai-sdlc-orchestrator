@@ -119,10 +119,16 @@ export async function settleCost(input: { tenantId: string; reservedUsd: number;
   );
 }
 
+const VALID_GIT_URL = /^https:\/\/[\w.-]+(\/[\w.@:~_/-]+)(\.git)?$/;
+
 export async function createSandbox(input: {
   tenantId: string;
   repoUrl: string;
 }): Promise<{ sandboxId: string }> {
+  if (!VALID_GIT_URL.test(input.repoUrl)) {
+    throw new Error('Invalid repository URL: must be HTTPS git URL');
+  }
+
   const result = await sandboxAdapter.create({
     timeoutMs: 600_000,
     env: { REPO_URL: input.repoUrl },
@@ -134,7 +140,7 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
-  await sandboxAdapter.exec(sandboxId, `git clone ${input.repoUrl} /workspace && cd /workspace`);
+  await sandboxAdapter.exec(sandboxId, ['git', 'clone', input.repoUrl, '/workspace']);
 
   return { sandboxId };
 }

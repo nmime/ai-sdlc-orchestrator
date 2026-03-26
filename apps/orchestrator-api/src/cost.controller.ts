@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Tenant, AgentSession, CostAlert } from '@ai-sdlc/db';
@@ -11,10 +11,17 @@ import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
 export class CostController {
   constructor(private readonly em: EntityManager) {}
 
+  private assertTenantAccess(req: any, tenantId: string): void {
+    if (req.user.tenantId !== tenantId) {
+      throw new ForbiddenException('Access denied to this tenant');
+    }
+  }
+
   @Get('summary/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost summary for tenant' })
-  async getCostSummary(@Param('tenantId') tenantId: string) {
+  async getCostSummary(@Req() req: any, @Param('tenantId') tenantId: string) {
+    this.assertTenantAccess(req, tenantId);
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
 
     return {
@@ -32,20 +39,23 @@ export class CostController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get recent agent sessions with costs' })
   async getRecentSessions(
+    @Req() req: any,
     @Param('tenantId') tenantId: string,
     @Query('limit') limit: number = 20,
   ) {
+    this.assertTenantAccess(req, tenantId);
     return this.em.find(
       AgentSession,
       { workflow: { tenant: tenantId } },
-      { limit, orderBy: { startedAt: 'DESC' } },
+      { limit: Math.min(limit, 100), orderBy: { startedAt: 'DESC' } },
     );
   }
 
   @Get('alerts/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost alerts for tenant' })
-  async getAlerts(@Param('tenantId') tenantId: string) {
+  async getAlerts(@Req() req: any, @Param('tenantId') tenantId: string) {
+    this.assertTenantAccess(req, tenantId);
     return this.em.find(CostAlert, { tenant: tenantId }, {
       orderBy: { createdAt: 'DESC' },
     });

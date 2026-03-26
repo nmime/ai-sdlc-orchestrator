@@ -49,6 +49,16 @@ export class WebhookService {
       return ResultUtils.err('VALIDATION_ERROR', `Unknown platform: ${platform}`);
     }
 
+    const rawBody = JSON.stringify(body);
+    if (handler.verifySignature) {
+      handler.verifySignature(headers, rawBody, tenantId);
+    }
+
+    const tenant = await this.em.findOne(Tenant, { id: tenantId });
+    if (!tenant) {
+      return ResultUtils.err('VALIDATION_ERROR', `Unknown tenant: ${tenantId}`);
+    }
+
     const parseResult = handler.parse(headers, body, tenantId);
     if (parseResult.isErr()) return parseResult as unknown as Result<never, AppError>;
 
