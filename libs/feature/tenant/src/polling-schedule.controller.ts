@@ -68,8 +68,8 @@ export class PollingScheduleController {
   @Put(':id')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Update polling schedule' })
-  async update(@Param('id') id: string, @Body() body: UpdatePollingScheduleDto): Promise<PollingSchedule> {
-    const schedule = await this.em.findOneOrFail(PollingSchedule, { id });
+  async update(@Param('tenantId') tenantId: string, @Param('id') id: string, @Body() body: UpdatePollingScheduleDto): Promise<PollingSchedule> {
+    const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
     if (body.queryFilter !== undefined) schedule.queryFilter = body.queryFilter;
     if (body.pollIntervalSeconds !== undefined) schedule.pollIntervalSeconds = body.pollIntervalSeconds;
     if (body.enabled !== undefined) schedule.enabled = body.enabled;
@@ -81,8 +81,8 @@ export class PollingScheduleController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete polling schedule' })
-  async delete(@Param('id') id: string): Promise<void> {
-    const schedule = await this.em.findOneOrFail(PollingSchedule, { id });
+  async delete(@Param('tenantId') tenantId: string, @Param('id') id: string): Promise<void> {
+    const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
     await this.em.removeAndFlush(schedule);
   }
 }

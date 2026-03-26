@@ -55,8 +55,11 @@ export class ArtifactController {
   @Post('presigned-upload')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Get presigned upload URL for artifact' })
-  async getPresignedUpload(@Body() body: UploadArtifactDto): Promise<{ uploadUrl: string; artifactId: string }> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: body.workflowId });
+  async getPresignedUpload(@Req() req: FastifyRequest, @Body() body: UploadArtifactDto): Promise<{ uploadUrl: string; artifactId: string }> {
+    const userTenantId = (req as any).user?.tenantId;
+    if (!userTenantId) throw new ForbiddenException('Tenant context required');
+    if (body.tenantId !== userTenantId) throw new ForbiddenException('Cannot create artifacts for another tenant');
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: body.workflowId, tenant: userTenantId });
     const artifact = new WorkflowArtifact();
     artifact.workflow = this.em.getReference(WorkflowMirror, mirror.id);
     artifact.tenant = this.em.getReference(Tenant, body.tenantId);

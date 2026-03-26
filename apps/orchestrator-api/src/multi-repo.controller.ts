@@ -2,7 +2,7 @@ import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Req, Forbidden
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { TemporalClientService } from '@app/common';
-import { IsString, IsArray, ValidateNested, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsOptional, IsIn, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FastifyRequest } from 'fastify';
 
@@ -34,6 +34,7 @@ class StartMultiRepoDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RepoInput)
+  @ArrayMaxSize(50)
   repos!: RepoInput[];
 
   @IsOptional()
