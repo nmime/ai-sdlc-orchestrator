@@ -74,7 +74,7 @@ export class CostController {
     const tenantId = (req as any).user?.tenantId;
     if (!tenantId) throw new ForbiddenException('Tenant context required');
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
-    const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id });
+    const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, { limit: 200 });
 
     return {
       workflowId,
@@ -105,6 +105,9 @@ export class CostController {
     const userTenantId = (req as any).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const qb = this.em.createQueryBuilder(WorkflowMirror, 'wm');
     const rows = await qb
       .select([
@@ -113,7 +116,7 @@ export class CostController {
         'COALESCE(SUM(wm.sandbox_cost_usd), 0) as sandbox',
         'COUNT(*) as count',
       ])
-      .where({ tenant: tenantId })
+      .where({ tenant: tenantId, createdAt: { $gte: startOfMonth } })
       .groupBy('wm.repo_id')
       .execute('all') as Array<{ repo_id: string; ai: string; sandbox: string; count: string }>;
 

@@ -34,6 +34,6 @@ export class ApiKeyController {
     const userTenantId = (req as any).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
-    ResultUtils.unwrapOrThrow(await this.apiKeyService.revoke(keyId));
+    ResultUtils.unwrapOrThrow(await this.apiKeyService.revoke(tenantId, keyId));
   }
 }

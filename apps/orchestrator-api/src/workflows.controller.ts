@@ -2,7 +2,7 @@ import { Controller, Get, Query, Param, UseGuards, Req, ForbiddenException } fro
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
-import { WorkflowMirror, WorkflowEvent, AgentSession, AgentToolCall, WorkflowArtifact } from '@app/db';
+import { WorkflowMirror, WorkflowEvent, AgentSession, WorkflowArtifact } from '@app/db';
 import type { FastifyRequest } from 'fastify';
 
 @ApiTags('workflows')

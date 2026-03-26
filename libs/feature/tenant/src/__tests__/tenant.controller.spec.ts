@@ -52,13 +52,13 @@ describe('TenantController (integration)', () => {
   it('updates tenant', async () => {
     mockTenantService.update.mockResolvedValue(ok({ id: 't-1', name: 'Updated' }));
     const dto: UpdateTenantDto = { name: 'Updated' };
-    const result = await controller.update('t-1', dto);
+    const result = await controller.update(mockReq, 't-1', dto);
     expect(result.name).toBe('Updated');
   });
 
   it('deletes tenant', async () => {
     mockTenantService.delete.mockResolvedValue(ok(undefined));
-    await expect(controller.delete('t-1')).resolves.toBeUndefined();
+    await expect(controller.delete(mockReq, 't-1')).resolves.toBeUndefined();
   });
 
   it('throws on create error', async () => {

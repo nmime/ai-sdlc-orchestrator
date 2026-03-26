@@ -34,7 +34,7 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
     const fork = this.em.fork();
     const schedules = await fork.find(PollingSchedule, {
       enabled: true,
-    }, { populate: ['tenant', 'repoConfig'] });
+    }, { populate: ['tenant', 'repoConfig'], limit: 500 });
 
     const now = new Date();
     for (const schedule of schedules) {

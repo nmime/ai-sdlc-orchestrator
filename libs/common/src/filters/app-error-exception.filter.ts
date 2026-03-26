@@ -1,4 +1,4 @@
-import { Catch, ExceptionFilter, ArgumentsHost, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Catch, ExceptionFilter, ArgumentsHost, HttpStatus } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import type { ErrorCode } from '../result/app-error';
 import { NotFoundError } from '@mikro-orm/core';

@@ -43,7 +43,9 @@ export class TenantController {
   @Put(':id')
   @Roles('admin')
   @ApiOperation({ summary: 'Update tenant' })
-  async update(@Param('id') id: string, @Body() dto: UpdateTenantDto) {
+  async update(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     return ResultUtils.unwrapOrThrow(await this.tenantService.update(id, dto));
   }
 
@@ -51,7 +53,9 @@ export class TenantController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete tenant (soft)' })
-  async delete(@Param('id') id: string) {
+  async delete(@Req() req: FastifyRequest, @Param('id') id: string) {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     ResultUtils.unwrapOrThrow(await this.tenantService.delete(id));
   }
 }
