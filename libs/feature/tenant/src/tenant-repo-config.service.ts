@@ -4,7 +4,7 @@ import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, sanitizeRecord, sanitizeLog } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@app/db';
-import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 
 export class CreateRepoConfigDto {
   @IsString()
@@ -53,6 +53,7 @@ export class CreateRepoConfigDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(1000)
   maxConcurrentWorkflows?: number;
 
   @IsOptional()
@@ -71,6 +72,7 @@ export class CreateRepoConfigDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   costLimitUsd?: number;
 
   @IsOptional()
@@ -80,12 +82,14 @@ export class CreateRepoConfigDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100_000)
   maxDiffLines?: number;
 
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   allowedPaths?: string[];
 
   @IsOptional()
@@ -102,6 +106,7 @@ export class CreateRepoConfigDto {
   @IsArray()
   @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   qualityGateCommands?: string[];
 
   @IsOptional()
@@ -117,6 +122,7 @@ export class CreateRepoConfigDto {
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   sparseCheckoutPaths?: string[];
 }
 
@@ -169,6 +175,7 @@ export class UpdateRepoConfigDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(1000)
   maxConcurrentWorkflows?: number;
 
   @IsOptional()
@@ -187,6 +194,7 @@ export class UpdateRepoConfigDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   costLimitUsd?: number;
 
   @IsOptional()
@@ -196,12 +204,14 @@ export class UpdateRepoConfigDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100_000)
   maxDiffLines?: number;
 
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   allowedPaths?: string[];
 
   @IsOptional()
@@ -218,6 +228,7 @@ export class UpdateRepoConfigDto {
   @IsArray()
   @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   qualityGateCommands?: string[];
 
   @IsOptional()
@@ -233,6 +244,7 @@ export class UpdateRepoConfigDto {
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   sparseCheckoutPaths?: string[];
 }
 
