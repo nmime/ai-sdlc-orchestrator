@@ -5,13 +5,15 @@ import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
 import { PollingSchedule, Tenant, TenantRepoConfig } from '@app/db';
-import { IsString, IsOptional, IsBoolean, IsInt, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsObject, MaxLength } from 'class-validator';
 
 class CreatePollingScheduleDto {
   @IsString()
+  @MaxLength(255)
   repoConfigId!: string;
 
   @IsString()
+  @MaxLength(255)
   platform!: string;
 
   @IsOptional()

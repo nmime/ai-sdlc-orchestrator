@@ -45,8 +45,8 @@ export class ApiKeyService {
     return ResultUtils.ok(apiKey);
   }
 
-  async revoke(keyId: string): Promise<Result<void, AppError>> {
-    const deleted = await this.em.nativeDelete(TenantApiKey, { id: keyId });
+  async revoke(tenantId: string, keyId: string): Promise<Result<void, AppError>> {
+    const deleted = await this.em.nativeDelete(TenantApiKey, { id: keyId, tenant: tenantId });
     if (deleted === 0) return ResultUtils.err('NOT_FOUND', 'API key not found');
     return ResultUtils.ok(undefined);
   }

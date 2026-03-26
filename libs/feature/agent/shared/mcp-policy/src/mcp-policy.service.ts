@@ -20,13 +20,13 @@ export class McpPolicyService {
     const servers = await this.em.find(TenantMcpServer, {
       tenant: tenantId,
       isEnabled: true,
-    });
+    }, { limit: 200 });
 
     if (policy === McpServerPolicy.OPEN) {
       return servers.map(s => this.toConfig(s));
     }
 
-    const verifiedNames = await this.em.find(McpServerRegistry, { isVerified: true });
+    const verifiedNames = await this.em.find(McpServerRegistry, { isVerified: true }, { limit: 200 });
     const verifiedSet = new Set(verifiedNames.map(r => r.name));
 
     const filtered: McpServerConfig[] = [];

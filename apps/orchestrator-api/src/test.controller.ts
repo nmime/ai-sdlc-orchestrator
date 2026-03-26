@@ -10,9 +10,11 @@ import { IsString, IsOptional, MaxLength } from 'class-validator';
 function isInternalUrl(urlStr: string): boolean {
   try {
     const url = new URL(urlStr);
-    const hostname = url.hostname;
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return true;
+    const hostname = url.hostname.replace(/^\[|\]$/g, '');
     if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
     if (hostname === '0.0.0.0') return true;
+    if (hostname.includes(':')) return true;
     if (hostname.endsWith('.local') || hostname.endsWith('.internal')) return true;
     const parts = hostname.split('.').map(Number);
     if (parts.length === 4 && parts.every(p => !isNaN(p))) {
@@ -74,7 +76,7 @@ export class TestController {
 
     const where: Record<string, unknown> = { tenant: body.tenantId, isEnabled: true };
     if (body.serverName) where['name'] = body.serverName;
-    const servers = await this.em.find(TenantMcpServer, where);
+    const servers = await this.em.find(TenantMcpServer, where, { limit: 200 });
 
     const results = await Promise.all(servers.map(async (server) => {
       if (server.url) {

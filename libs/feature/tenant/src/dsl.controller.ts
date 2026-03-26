@@ -5,10 +5,11 @@ import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
 import { WorkflowDsl, Tenant } from '@app/db';
-import { IsString, IsObject, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsObject, IsOptional, IsBoolean, MaxLength } from 'class-validator';
 
 class CreateDslDto {
   @IsString()
+  @MaxLength(255)
   name!: string;
 
   @IsObject()

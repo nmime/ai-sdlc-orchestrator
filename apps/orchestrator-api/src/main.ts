@@ -14,7 +14,7 @@ async function bootstrap() {
       logger: false,
       bodyLimit: 1_048_576,
     }),
-    { bufferLogs: true },
+    { bufferLogs: true, rawBody: true },
   );
 
   const logger = await app.resolve(PinoLoggerService);

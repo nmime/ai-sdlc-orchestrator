@@ -60,7 +60,7 @@ export class AlertService {
   async getProviderComparison(tenantId: string): Promise<Array<{ provider: string; avgQuality: number; avgCost: number; successRate: number; count: number }>> {
     const sessions = await this.em.find(AgentSession, {
       workflow: { tenant: tenantId },
-    });
+    }, { limit: 1000 });
 
     const byProvider = new Map<string, { scores: number[]; costs: number[]; successes: number; total: number }>();
     for (const s of sessions) {

@@ -2,18 +2,21 @@ import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Req, Forbidden
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { TemporalClientService } from '@app/common';
-import { IsString, IsArray, ValidateNested, IsOptional, IsIn, ArrayMaxSize } from 'class-validator';
+import { IsString, IsArray, ValidateNested, IsOptional, IsIn, ArrayMaxSize, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FastifyRequest } from 'fastify';
 
 class RepoInput {
   @IsString()
+  @MaxLength(255)
   repoId!: string;
 
   @IsString()
+  @MaxLength(2048)
   repoUrl!: string;
 
   @IsString()
+  @MaxLength(255)
   taskId!: string;
 
   @IsOptional()
@@ -23,12 +26,15 @@ class RepoInput {
 
 class StartMultiRepoDto {
   @IsString()
+  @MaxLength(255)
   tenantId!: string;
 
   @IsString()
+  @MaxLength(255)
   parentTaskId!: string;
 
   @IsString()
+  @MaxLength(255)
   taskProvider!: string;
 
   @IsArray()
