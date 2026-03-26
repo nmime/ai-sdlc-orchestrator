@@ -16,6 +16,8 @@ import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { ApiKeyController } from './api-key.controller';
 import { UserController } from './user.controller';
+import { DslController } from './dsl.controller';
+import { PollingScheduleController } from './polling-schedule.controller';
 
 @Module({
   controllers: [
@@ -26,6 +28,8 @@ import { UserController } from './user.controller';
     TenantWebhookConfigController,
     ApiKeyController,
     UserController,
+    DslController,
+    PollingScheduleController,
   ],
   providers: [
     TenantService,
