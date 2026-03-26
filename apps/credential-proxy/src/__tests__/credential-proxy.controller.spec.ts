@@ -40,12 +40,12 @@ describe('CredentialProxyController (integration)', () => {
 
   describe('POST /sessions', () => {
     it('creates session', () => {
-      const result = controller.createSession({ tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' });
+      const result = controller.createSession(undefined, { tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' });
       expect(result.token).toBe('tok-1');
     });
 
     it('throws BadRequest when missing tenantId', () => {
-      expect(() => controller.createSession({ tenantId: '', workflowId: 'wf-1', sessionId: 's-1' }))
+      expect(() => controller.createSession(undefined, { tenantId: '', workflowId: 'wf-1', sessionId: 's-1' }))
         .toThrow(BadRequestException);
     });
   });
