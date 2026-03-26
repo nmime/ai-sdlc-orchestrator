@@ -231,6 +231,18 @@ export async function createSandbox(input: {
     sandboxEnv['CREDENTIAL_PROXY_URL'] = process.env['CREDENTIAL_PROXY_URL'] || 'http://localhost:4000';
   }
 
+  const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._\-:\/]+$/;
+  if (!URL_PATTERN.test(input.repoUrl)) {
+    throw new Error(`Invalid repository URL: ${input.repoUrl}`);
+  }
+
+  if (input.cloneStrategy === 'sparse' && input.sparseCheckoutPaths?.length) {
+    const PATH_PATTERN = /^[a-zA-Z0-9._\/\-]+$/;
+    if (!input.sparseCheckoutPaths.every(p => PATH_PATTERN.test(p))) {
+      throw new Error('Invalid characters in sparse checkout paths');
+    }
+  }
+
   const result = await sandboxAdapter.create({
     timeoutMs: 600_000,
     env: sandboxEnv,
@@ -240,20 +252,11 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
-  const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._\-:\/]+$/;
-  if (!URL_PATTERN.test(input.repoUrl)) {
-    throw new Error(`Invalid repository URL: ${input.repoUrl}`);
-  }
-
   let cloneCmd = `git clone -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`;
   if (input.cloneStrategy === 'shallow') {
     cloneCmd = `git clone --depth=1 --shallow-since="30 days ago" -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`;
   } else if (input.cloneStrategy === 'sparse' && input.sparseCheckoutPaths?.length) {
-    const PATH_PATTERN = /^[a-zA-Z0-9._\/\-]+$/;
-    const safePaths = input.sparseCheckoutPaths.filter(p => PATH_PATTERN.test(p));
-    if (safePaths.length !== input.sparseCheckoutPaths.length) {
-      throw new Error('Invalid characters in sparse checkout paths');
-    }
+    const safePaths = input.sparseCheckoutPaths;
     cloneCmd = [
       `git clone --filter=blob:none --sparse -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`,
       `cd /workspace`,

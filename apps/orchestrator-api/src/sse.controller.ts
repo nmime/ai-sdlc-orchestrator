@@ -1,4 +1,4 @@
-import { Controller, Sse, Query, MessageEvent, UseGuards } from '@nestjs/common';
+import { Controller, Sse, Query, MessageEvent, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowEvent } from '@app/db';
@@ -6,6 +6,7 @@ import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { Observable, interval, exhaustMap, map, from, EMPTY } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
+import type { FastifyRequest } from 'fastify';
 
 @ApiTags('sse')
 @Controller('sse')
@@ -20,7 +21,8 @@ export class SseController {
   @Sse('events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Server-Sent Events for workflow updates' })
-  events(@Query('tenantId') tenantId: string): Observable<MessageEvent> {
+  events(@Req() req: FastifyRequest): Observable<MessageEvent> {
+    const tenantId = (req as any).user?.tenantId;
     if (!tenantId) {
       return EMPTY;
     }

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { GateService } from './gate.service';
 import { ResultUtils } from '@app/common';
@@ -6,6 +6,8 @@ import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { GateDecisionDto, GateCommentDto, GateRequireCommentDto, CancelWorkflowDto } from '@app/feature-tenant';
 import type { GateAction } from '@app/shared-type';
 import type { FastifyRequest } from 'fastify';
+import { EntityManager } from '@mikro-orm/postgresql';
+import { WorkflowMirror } from '@app/db';
 
 interface AuthenticatedUser {
   id: string;
@@ -22,7 +24,16 @@ interface AuthenticatedRequest extends FastifyRequest {
 @Controller('gates')
 @ApiBearerAuth()
 export class GateController {
-  constructor(private readonly gateService: GateService) {}
+  constructor(
+    private readonly gateService: GateService,
+    private readonly em: EntityManager,
+  ) {}
+
+  private async verifyWorkflowTenant(workflowId: string, req: AuthenticatedRequest): Promise<void> {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('Tenant context required');
+    await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
+  }
 
   @Post(':workflowId/decide')
   @UseGuards(AuthGuard, RbacGuard)
@@ -31,7 +42,9 @@ export class GateController {
   async decide(
     @Param('workflowId') workflowId: string,
     @Body() body: GateDecisionDto,
+    @Req() req: AuthenticatedRequest,
   ) {
+    await this.verifyWorkflowTenant(workflowId, req);
     return ResultUtils.unwrapOrThrow(await this.gateService.submitDecision(workflowId, body.action as GateAction, body.reviewer, body.comment));
   }
 
@@ -44,6 +57,7 @@ export class GateController {
     @Body() body: GateCommentDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.verifyWorkflowTenant(workflowId, req);
     const reviewer = req.user.email || req.user.id;
     return ResultUtils.unwrapOrThrow(await this.gateService.submitDecision(workflowId, 'approve', reviewer, body.comment));
   }
@@ -57,6 +71,7 @@ export class GateController {
     @Body() body: GateRequireCommentDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    await this.verifyWorkflowTenant(workflowId, req);
     const reviewer = req.user.email || req.user.id;
     return ResultUtils.unwrapOrThrow(await this.gateService.submitDecision(workflowId, 'request_changes', reviewer, body.comment));
   }
@@ -65,7 +80,8 @@ export class GateController {
   @UseGuards(AuthGuard, RbacGuard)
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow status' })
-  async getStatus(@Param('workflowId') workflowId: string) {
+  async getStatus(@Param('workflowId') workflowId: string, @Req() req: AuthenticatedRequest) {
+    await this.verifyWorkflowTenant(workflowId, req);
     return ResultUtils.unwrapOrThrow(await this.gateService.getWorkflowStatus(workflowId));
   }
 
@@ -76,7 +92,9 @@ export class GateController {
   async cancel(
     @Param('workflowId') workflowId: string,
     @Body() body: CancelWorkflowDto,
+    @Req() req: AuthenticatedRequest,
   ) {
+    await this.verifyWorkflowTenant(workflowId, req);
     ResultUtils.unwrapOrThrow(await this.gateService.cancelWorkflow(workflowId, body.reason));
     return { cancelled: true };
   }

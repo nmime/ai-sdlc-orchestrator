@@ -70,8 +70,8 @@ export class DslController {
   @Put(':id')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Update DSL' })
-  async update(@Param('id') id: string, @Body() body: UpdateDslDto): Promise<WorkflowDsl> {
-    const dsl = await this.em.findOneOrFail(WorkflowDsl, { id });
+  async update(@Param('tenantId') tenantId: string, @Param('id') id: string, @Body() body: UpdateDslDto): Promise<WorkflowDsl> {
+    const dsl = await this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
     if (body.definition !== undefined) dsl.definition = body.definition;
     if (body.isActive !== undefined) dsl.isActive = body.isActive;
     await this.em.flush();
@@ -82,8 +82,8 @@ export class DslController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete DSL' })
-  async delete(@Param('id') id: string): Promise<void> {
-    const dsl = await this.em.findOneOrFail(WorkflowDsl, { id });
+  async delete(@Param('tenantId') tenantId: string, @Param('id') id: string): Promise<void> {
+    const dsl = await this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
     await this.em.removeAndFlush(dsl);
   }
 }
