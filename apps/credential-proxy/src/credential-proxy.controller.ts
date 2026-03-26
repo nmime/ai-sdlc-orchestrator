@@ -2,11 +2,52 @@ import {
   Controller, Post, Get, Param, Body, Headers, Req, Res,
   HttpCode, HttpStatus, UnauthorizedException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
+import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min } from 'class-validator';
 import { CredentialProxyService } from './credential-proxy.service';
 import { SessionService } from './session.service';
 import { RateLimiterService } from './rate-limiter.service';
 import { AuditService } from './audit.service';
 import type { FastifyRequest, FastifyReply } from 'fastify';
+
+export class CreateSessionDto {
+  @IsString()
+  tenantId!: string;
+
+  @IsString()
+  workflowId!: string;
+
+  @IsString()
+  sessionId!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  ttlSeconds?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  scopes?: string[];
+}
+
+export class ResolveHostDto {
+  @IsString()
+  host!: string;
+}
+
+export class ReportUsageDto {
+  @IsNumber()
+  inputTokens!: number;
+
+  @IsNumber()
+  outputTokens!: number;
+
+  @IsString()
+  provider!: string;
+
+  @IsString()
+  model!: string;
+}
 
 @Controller()
 export class CredentialProxyController {
@@ -20,7 +61,7 @@ export class CredentialProxyController {
   @Post('sessions')
   createSession(
     @Headers('x-internal-token') internalToken: string,
-    @Body() body: { tenantId: string; workflowId: string; sessionId: string; ttlSeconds?: number; scopes?: string[] },
+    @Body() body: CreateSessionDto,
   ) {
     this.requireInternalToken(internalToken);
     if (!body.tenantId || !body.sessionId) throw new BadRequestException('tenantId and sessionId required');
@@ -40,7 +81,7 @@ export class CredentialProxyController {
   @Post('git-credential')
   async getGitCredential(
     @Headers('authorization') auth: string,
-    @Body() body: { host: string },
+    @Body() body: ResolveHostDto,
   ) {
     const session = this.requireSession(auth, 'git');
     this.requireRateLimit(session.sessionId);
@@ -173,7 +214,7 @@ export class CredentialProxyController {
   recordSessionCost(
     @Headers('x-internal-token') internalToken: string,
     @Param('sessionId') sessionId: string,
-    @Body() body: { inputTokens: number; outputTokens: number; provider: string; model: string },
+    @Body() body: ReportUsageDto,
   ) {
     this.requireInternalToken(internalToken);
     this.audit.log({

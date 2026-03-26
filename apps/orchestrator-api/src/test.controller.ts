@@ -5,6 +5,30 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService } from '@app/common';
 import { TenantMcpServer, TenantRepoConfig } from '@app/db';
 import { FastifyRequest } from 'fastify';
+import { IsString, IsOptional } from 'class-validator';
+
+export class TestMcpConnectivityDto {
+  @IsString()
+  tenantId!: string;
+
+  @IsOptional()
+  @IsString()
+  serverName?: string;
+}
+
+export class TestSandboxDto {
+  @IsString()
+  tenantId!: string;
+}
+
+export class TestAgentDryRunDto {
+  @IsString()
+  tenantId!: string;
+
+  @IsOptional()
+  @IsString()
+  repoId?: string;
+}
 
 @ApiTags('test')
 @Controller('test')
@@ -19,7 +43,7 @@ export class TestController {
   @Post('mcp-connectivity')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test MCP server connectivity' })
-  async testMcpConnectivity(@Body() body: { tenantId: string; serverName?: string }, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
+  async testMcpConnectivity(@Body() body: TestMcpConnectivityDto, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
     const userTenantId = (req as any).user?.tenantId;
     if (!userTenantId || userTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
@@ -45,7 +69,7 @@ export class TestController {
   @Post('sandbox')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test sandbox boot and health' })
-  async testSandbox(@Body() body: { tenantId: string }, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
+  async testSandbox(@Body() body: TestSandboxDto, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
     const userTenantId = (req as any).user?.tenantId;
     if (!userTenantId || userTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
@@ -74,7 +98,7 @@ export class TestController {
   @Post('agent-dry-run')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test agent invocation with mock task' })
-  async testAgentDryRun(@Body() body: { tenantId: string; repoId?: string }, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
+  async testAgentDryRun(@Body() body: TestAgentDryRunDto, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
     const userTenantId = (req as any).user?.tenantId;
     if (!userTenantId || userTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
