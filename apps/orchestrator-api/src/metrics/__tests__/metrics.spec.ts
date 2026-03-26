@@ -70,7 +70,7 @@ describe('MetricsInterceptor', () => {
   function createContext(method = 'GET', url = '/test', statusCode = 200): ExecutionContext {
     return {
       switchToHttp: () => ({
-        getRequest: () => ({ method, url }),
+        getRequest: () => ({ method, url, route: { path: url } }),
         getResponse: () => ({ statusCode }),
       }),
       getClass: vi.fn(),

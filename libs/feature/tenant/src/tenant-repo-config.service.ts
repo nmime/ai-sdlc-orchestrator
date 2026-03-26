@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeRecord } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@app/db';
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
@@ -304,9 +304,9 @@ export class TenantRepoConfigService {
     if (dto.maxConcurrentWorkflows !== undefined) config.maxConcurrentWorkflows = dto.maxConcurrentWorkflows;
     if (dto.agentProvider !== undefined) config.agentProvider = dto.agentProvider;
     if (dto.agentModel !== undefined) config.agentModel = dto.agentModel;
-    if (dto.modelRouting !== undefined) config.modelRouting = dto.modelRouting;
+    if (dto.modelRouting !== undefined) config.modelRouting = sanitizeRecord(dto.modelRouting) as Record<string, string>;
     if (dto.costLimitUsd !== undefined) config.costLimitUsd = dto.costLimitUsd;
-    if (dto.costTiers !== undefined) config.costTiers = dto.costTiers;
+    if (dto.costTiers !== undefined) config.costTiers = sanitizeRecord(dto.costTiers) as Record<string, number>;
     if (dto.maxDiffLines !== undefined) config.maxDiffLines = dto.maxDiffLines;
     if (dto.allowedPaths !== undefined) config.allowedPaths = dto.allowedPaths;
     if (dto.commitMessagePattern !== undefined) config.commitMessagePattern = dto.commitMessagePattern;

@@ -9,7 +9,7 @@ export class MetricsInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest();
     const method = req.method ?? 'UNKNOWN';
-    const route = req.route?.path ?? req.url ?? '/';
+    const route = req.route?.path ?? 'unknown';
     const start = performance.now();
 
     return next.handle().pipe(

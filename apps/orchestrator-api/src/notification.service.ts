@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PinoLoggerService } from '@app/common';
+import { PinoLoggerService, isInternalUrl, sanitizeLog } from '@app/common';
 import { CostAlert } from '@app/db';
 
 export interface NotificationChannel {
@@ -17,6 +17,10 @@ export class NotificationService {
   async sendAlert(alert: CostAlert, channels: NotificationChannel[]): Promise<void> {
     for (const channel of channels) {
       if (channel.type === 'webhook' && channel.url) {
+        if (isInternalUrl(channel.url)) {
+          this.logger.warn(`Blocked internal URL in notification channel`);
+          continue;
+        }
         try {
           await fetch(channel.url, {
             method: 'POST',
@@ -31,9 +35,9 @@ export class NotificationService {
             }),
             signal: AbortSignal.timeout(10_000),
           });
-          this.logger.log(`Alert sent to webhook: ${channel.url}`);
+          this.logger.log(`Alert sent to webhook`);
         } catch (error) {
-          this.logger.error(`Failed to send webhook alert: ${(error as Error).message}`);
+          this.logger.error(`Failed to send webhook alert: ${sanitizeLog((error as Error).message)}`);
         }
       }
     }
@@ -47,6 +51,10 @@ export class NotificationService {
   ): Promise<void> {
     for (const channel of channels) {
       if (channel.type === 'webhook' && channel.url) {
+        if (isInternalUrl(channel.url)) {
+          this.logger.warn(`Blocked internal URL in notification channel`);
+          continue;
+        }
         try {
           await fetch(channel.url, {
             method: 'POST',
@@ -55,7 +63,7 @@ export class NotificationService {
             signal: AbortSignal.timeout(10_000),
           });
         } catch (error) {
-          this.logger.error(`Failed to send workflow notification: ${(error as Error).message}`);
+          this.logger.error(`Failed to send workflow notification: ${sanitizeLog((error as Error).message)}`);
         }
       }
     }
