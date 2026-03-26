@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes, createHmac } from 'crypto';
 
@@ -10,12 +10,18 @@ interface SessionData {
 }
 
 @Injectable()
-export class SessionService {
+export class SessionService implements OnModuleDestroy {
   private sessions = new Map<string, SessionData>();
   private signingKey: string;
+  private cleanupInterval: ReturnType<typeof setInterval>;
 
   constructor(private readonly config: ConfigService) {
     this.signingKey = this.config.get<string>('SESSION_SIGNING_KEY') || randomBytes(32).toString('hex');
+    this.cleanupInterval = setInterval(() => this.cleanExpired(), 60_000);
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.cleanupInterval);
   }
 
   create(tenantId: string, workflowId: string, sessionId: string, ttlSeconds = 3600): { token: string; expiresAt: string } {
@@ -47,5 +53,12 @@ export class SessionService {
     const nonce = randomBytes(16).toString('hex');
     const hmac = createHmac('sha256', this.signingKey).update(`${sessionId}:${nonce}`).digest('hex');
     return `${nonce}.${hmac}`;
+  }
+
+  private cleanExpired(): void {
+    const now = Date.now();
+    for (const [token, data] of this.sessions) {
+      if (now > data.expiresAt) this.sessions.delete(token);
+    }
   }
 }

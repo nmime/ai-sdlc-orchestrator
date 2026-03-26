@@ -1,13 +1,22 @@
 import { Module, Global, LoggerService, Injectable, Scope } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import pino from 'pino';
 
-const logger = pino({
-  level: process.env['WORKER_LOG_LEVEL'] || 'info',
-  transport:
-    process.env['NODE_ENV'] !== 'production'
-      ? { target: 'pino-pretty', options: { colorize: true } }
-      : undefined,
-});
+let loggerInstance: pino.Logger | undefined;
+
+function getLogger(): pino.Logger {
+  if (!loggerInstance) {
+    const config = new ConfigService(process.env);
+    loggerInstance = pino({
+      level: config.get<string>('WORKER_LOG_LEVEL') || 'info',
+      transport:
+        config.get<string>('NODE_ENV') !== 'production'
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined,
+    });
+  }
+  return loggerInstance;
+}
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class PinoLoggerService implements LoggerService {
@@ -18,23 +27,23 @@ export class PinoLoggerService implements LoggerService {
   }
 
   log(message: string, ...optionalParams: unknown[]): void {
-    logger.info({ context: this.context, ...this.extractMeta(optionalParams) }, message);
+    getLogger().info({ context: this.context, ...this.extractMeta(optionalParams) }, message);
   }
 
   error(message: string, ...optionalParams: unknown[]): void {
-    logger.error({ context: this.context, ...this.extractMeta(optionalParams) }, message);
+    getLogger().error({ context: this.context, ...this.extractMeta(optionalParams) }, message);
   }
 
   warn(message: string, ...optionalParams: unknown[]): void {
-    logger.warn({ context: this.context, ...this.extractMeta(optionalParams) }, message);
+    getLogger().warn({ context: this.context, ...this.extractMeta(optionalParams) }, message);
   }
 
   debug(message: string, ...optionalParams: unknown[]): void {
-    logger.debug({ context: this.context, ...this.extractMeta(optionalParams) }, message);
+    getLogger().debug({ context: this.context, ...this.extractMeta(optionalParams) }, message);
   }
 
   verbose(message: string, ...optionalParams: unknown[]): void {
-    logger.trace({ context: this.context, ...this.extractMeta(optionalParams) }, message);
+    getLogger().trace({ context: this.context, ...this.extractMeta(optionalParams) }, message);
   }
 
   private extractMeta(params: unknown[]): Record<string, unknown> {

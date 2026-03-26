@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Headers, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Param, HttpCode, HttpStatus, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { WebhookService } from './webhook.service';
 
@@ -19,7 +19,8 @@ export class WebhookController {
     const result = await this.webhookService.processWebhook(platform, tenantId, headers, body);
 
     if (result.isErr()) {
-      throw new Error(result.error.message);
+      if (result.error.code === 'VALIDATION_ERROR') throw new BadRequestException(result.error.message);
+      throw new InternalServerErrorException('Failed to process webhook');
     }
 
     return result.value;

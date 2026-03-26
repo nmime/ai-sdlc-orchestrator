@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ConfigService } from '@nestjs/config';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import { CredentialProxyModule } from './credential-proxy.module';
 
 async function bootstrap() {
@@ -9,10 +11,17 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false }),
   );
 
+  const fastify = app.getHttpAdapter().getInstance();
+  await fastify.register(helmet, { contentSecurityPolicy: false });
+  await fastify.register(rateLimit, { max: 60, timeWindow: '1 minute' });
+
+  app.enableCors({ origin: false });
+
   const config = app.get(ConfigService);
   const port = parseInt(config.get<string>('CREDENTIAL_PROXY_PORT') || '4000', 10);
-  await app.listen(port, '0.0.0.0');
-  console.log(`Credential proxy listening on :${port}`);
+  const bindAddress = config.get<string>('CREDENTIAL_PROXY_BIND') || '127.0.0.1';
+  await app.listen(port, bindAddress);
+  console.log(`Credential proxy listening on ${bindAddress}:${port}`);
 }
 
 bootstrap();

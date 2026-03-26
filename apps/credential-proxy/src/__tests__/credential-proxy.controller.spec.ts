@@ -14,14 +14,14 @@ describe('CredentialProxyController', () => {
   let credentialService: CredentialProxyService;
 
   beforeEach(() => {
-    const config = mockConfig({ VCS_TOKEN_ACME: 'tok', MCP_TOKEN_SRV: 'mcp-tok', SESSION_SIGNING_KEY: 'key' });
+    const config = mockConfig({ VCS_TOKEN_ACME: 'tok', MCP_TOKEN_SRV: 'mcp-tok', SESSION_SIGNING_KEY: 'key', CREDENTIAL_PROXY_INTERNAL_TOKEN: 'secret-token' });
     credentialService = new CredentialProxyService(config);
     sessionService = new SessionService(config);
-    controller = new CredentialProxyController(credentialService, sessionService);
+    controller = new CredentialProxyController(credentialService, sessionService, config);
   });
 
   it('creates and uses a session for git-credential', async () => {
-    const { token } = await controller.createSession({ tenantId: 'acme', workflowId: 'wf', sessionId: 's1' });
+    const { token } = await controller.createSession('secret-token', { tenantId: 'acme', workflowId: 'wf', sessionId: 's1' });
     const result = await controller.getGitCredential(`Bearer ${token}`, { host: 'github.com' });
     expect(result.password).toBe('tok');
   });
@@ -35,9 +35,13 @@ describe('CredentialProxyController', () => {
   });
 
   it('revokes session', async () => {
-    const { token } = await controller.createSession({ tenantId: 'acme', workflowId: 'wf', sessionId: 's2' });
-    await controller.revokeSession('s2');
+    const { token } = await controller.createSession('secret-token', { tenantId: 'acme', workflowId: 'wf', sessionId: 's2' });
+    await controller.revokeSession('secret-token', 's2');
     await expect(controller.getGitCredential(`Bearer ${token}`, { host: 'github.com' })).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects session creation without internal token', async () => {
+    await expect(controller.createSession('wrong-token', { tenantId: 'acme', workflowId: 'wf', sessionId: 's3' })).rejects.toThrow(UnauthorizedException);
   });
 
   it('returns health', () => {

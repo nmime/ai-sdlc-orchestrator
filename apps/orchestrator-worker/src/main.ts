@@ -11,13 +11,18 @@ import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
 import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 import { PinoLoggerService } from '@ai-sdlc/common';
 import { ConfigService } from '@nestjs/config';
+import { config as loadDotenv } from 'dotenv';
+
+loadDotenv();
 
 const ROOT = path.resolve(__dirname, '../../..');
 
+const configService = new ConfigService(process.env);
+
 const logger = pino({
-  level: process.env['WORKER_LOG_LEVEL'] || 'info',
+  level: configService.get<string>('WORKER_LOG_LEVEL') || 'info',
   transport:
-    process.env['NODE_ENV'] !== 'production'
+    configService.get<string>('NODE_ENV') !== 'production'
       ? { target: 'pino-pretty', options: { colorize: true } }
       : undefined,
 });
@@ -26,11 +31,11 @@ async function run() {
   logger.info('Starting orchestrator-worker...');
 
   const ormConfig: Options = {
-    host: process.env['DATABASE_HOST'] || 'localhost',
-    port: parseInt(process.env['DATABASE_PORT'] || '6432', 10),
-    dbName: process.env['DATABASE_NAME'] || 'orchestrator',
-    user: process.env['DATABASE_USER'] || 'orchestrator',
-    password: process.env['DATABASE_PASSWORD'] || 'orchestrator_dev',
+    host: configService.get<string>('DATABASE_HOST') || 'localhost',
+    port: configService.get<number>('DATABASE_PORT') || 6432,
+    dbName: configService.get<string>('DATABASE_NAME') || 'orchestrator',
+    user: configService.get<string>('DATABASE_USER') || 'orchestrator',
+    password: configService.get<string>('DATABASE_PASSWORD') || 'orchestrator_dev',
     entities: ['./dist/libs/db/src/entities'],
     entitiesTs: ['./libs/db/src/entities'],
     allowGlobalContext: true,
@@ -39,7 +44,6 @@ async function run() {
   const orm = await MikroORM.init(ormConfig);
   const em = orm.em.fork();
   const pinoLogger = new PinoLoggerService();
-  const configService = new ConfigService(process.env);
 
   const sandboxAdapter = new E2bSandboxAdapter(configService as any, pinoLogger);
   const agentRegistry = new AgentProviderRegistry();
@@ -47,7 +51,7 @@ async function run() {
   agentRegistry.register(claudeAdapter);
 
   const promptFormatter = new PromptFormatter();
-  const credentialProxy = new CredentialProxyClient(pinoLogger);
+  const credentialProxy = new CredentialProxyClient(configService, pinoLogger);
 
   initActivities({
     em,
@@ -58,14 +62,14 @@ async function run() {
   });
 
   const connection = await NativeConnection.connect({
-    address: process.env['TEMPORAL_ADDRESS'] || 'localhost:7233',
+    address: configService.get<string>('TEMPORAL_ADDRESS') || 'localhost:7233',
   });
 
   const workflowsPath = path.resolve(ROOT, 'libs/feature/workflow/src/workflows/orchestrate-task.workflow.ts');
 
   const worker = await Worker.create({
     connection,
-    namespace: process.env['TEMPORAL_NAMESPACE'] || 'default',
+    namespace: configService.get<string>('TEMPORAL_NAMESPACE') || 'default',
     taskQueue: 'orchestrator-queue',
     workflowsPath,
     activities,

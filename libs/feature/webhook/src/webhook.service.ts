@@ -11,9 +11,14 @@ import { GitHubHandler } from './handlers/github.handler';
 import { LinearHandler } from './handlers/linear.handler';
 import { v4 } from 'uuid';
 
+interface WebhookHandler {
+  parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError>;
+  verifySignature?(...args: any[]): void;
+}
+
 @Injectable()
 export class WebhookService {
-  private handlers: Map<string, { parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError> }>;
+  private handlers: Map<string, WebhookHandler>;
 
   constructor(
     private readonly em: EntityManager,
@@ -25,7 +30,7 @@ export class WebhookService {
     private readonly linearHandler: LinearHandler,
   ) {
     this.logger.setContext('WebhookService');
-    this.handlers = new Map([
+    this.handlers = new Map<string, WebhookHandler>([
       ['jira', this.jiraHandler],
       ['gitlab', this.gitLabHandler],
       ['github', this.gitHubHandler],

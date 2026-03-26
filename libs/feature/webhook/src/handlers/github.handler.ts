@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { Result } from 'neverthrow';
 import type { AppError } from '@ai-sdlc/common';
 import { ResultUtils } from '@ai-sdlc/common';
@@ -6,6 +8,21 @@ import type { WebhookEvent } from '@ai-sdlc/shared-type';
 
 @Injectable()
 export class GitHubHandler {
+  constructor(private readonly config: ConfigService) {}
+
+  verifySignature(headers: Record<string, string>, rawBody: string, tenantId: string): void {
+    const secret = this.config.get<string>(`WEBHOOK_SECRET_GITHUB_${tenantId.toUpperCase()}`);
+    if (!secret) return;
+    const signature = headers['x-hub-signature-256'];
+    if (!signature) throw new UnauthorizedException('Missing webhook signature');
+    const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+      throw new UnauthorizedException('Invalid webhook signature');
+    }
+  }
+
   parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError> {
     const eventType = headers['x-github-event'];
     if (!eventType) return ResultUtils.ok(null);

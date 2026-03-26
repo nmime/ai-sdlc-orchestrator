@@ -1,6 +1,7 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@ai-sdlc/common';
+import { ApiKeyService } from '../api-key.service';
 
 interface OidcUserInfo {
   sub: string;
@@ -11,7 +12,10 @@ interface OidcUserInfo {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly configService: ConfigService<AppConfig, true>) {}
+  constructor(
+    private readonly configService: ConfigService<AppConfig, true>,
+    private readonly apiKeyService: ApiKeyService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -34,7 +38,11 @@ export class AuthGuard implements CanActivate {
 
   private async validateToken(token: string, request: any): Promise<boolean> {
     const issuerUrl = this.configService.get('OIDC_ISSUER_URL');
+    const nodeEnv = this.configService.get('NODE_ENV');
     if (!issuerUrl) {
+      if (nodeEnv !== 'development') {
+        throw new UnauthorizedException('OIDC not configured');
+      }
       request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: 'dev-tenant' };
       return true;
     }
@@ -60,7 +68,14 @@ export class AuthGuard implements CanActivate {
   }
 
   private async validateApiKey(apiKey: string, request: any): Promise<boolean> {
-    request.user = { id: 'api-user', role: 'operator', tenantId: 'from-api-key' };
+    const result = await this.apiKeyService.validate(apiKey);
+    if (result.isErr()) return false;
+    const key = result.value;
+    request.user = {
+      id: `apikey-${key.id}`,
+      role: key.role,
+      tenantId: key.tenant.id,
+    };
     return true;
   }
 }

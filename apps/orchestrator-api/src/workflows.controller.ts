@@ -1,12 +1,14 @@
-import { Controller, Get, Param, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService } from '@ai-sdlc/common';
 import { WorkflowMirror, WorkflowEvent, WorkflowArtifact, AgentSession } from '@ai-sdlc/db';
+import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
 
 @ApiTags('workflows')
 @Controller('workflows')
 @ApiBearerAuth()
+@UseGuards(AuthGuard, RbacGuard)
 export class WorkflowsController {
   constructor(
     private readonly em: EntityManager,
@@ -14,6 +16,7 @@ export class WorkflowsController {
   ) {}
 
   @Get()
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflow mirrors' })
   async list(
     @Query('tenantId') tenantId?: string,
@@ -35,6 +38,7 @@ export class WorkflowsController {
   }
 
   @Get(':id')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow mirror by ID' })
   async findById(@Param('id') id: string) {
     return this.em.findOneOrFail(WorkflowMirror, { id }, {
@@ -43,6 +47,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/events')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events' })
   async getEvents(@Param('id') id: string) {
     return this.em.find(WorkflowEvent, { workflow: id }, {
@@ -51,6 +56,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/sessions')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for a workflow' })
   async getSessions(@Param('id') id: string) {
     return this.em.find(AgentSession, { workflow: id }, {
@@ -59,12 +65,14 @@ export class WorkflowsController {
   }
 
   @Get(':id/artifacts')
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
   async getArtifacts(@Param('id') id: string) {
     return this.em.find(WorkflowArtifact, { workflow: id });
   }
 
   @Post(':id/retry')
+  @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Retry a blocked workflow from a specific step' })
   async retry(
     @Param('id') id: string,
@@ -72,7 +80,7 @@ export class WorkflowsController {
   ) {
     const workflow = await this.em.findOneOrFail(WorkflowMirror, { id });
     if (!workflow.state.startsWith('blocked')) {
-      throw new Error('Workflow is not in a blocked state');
+      throw new BadRequestException('Workflow is not in a blocked state');
     }
 
     const client = await this.temporalClientService.getClient();
