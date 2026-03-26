@@ -11,13 +11,10 @@ export class EncryptionService {
   constructor(private readonly configService: ConfigService<AppConfig, true>) {
     const secret = this.configService.get('ENCRYPTION_KEY', { infer: true });
     if (!secret) {
-      const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
-      if (nodeEnv !== 'development' && nodeEnv !== 'test') {
-        throw new Error('ENCRYPTION_KEY is required in production. Set it to a random 32+ character string.');
-      }
+      throw new Error('ENCRYPTION_KEY is required. Set it to a random 32+ character string.');
     }
     const salt = this.configService.get('ENCRYPTION_SALT', { infer: true });
-    this.key = scryptSync(secret || 'dev-only-key-do-not-use-in-production', salt, 32);
+    this.key = scryptSync(secret, salt, 32);
   }
 
   encrypt(plaintext: string): string {

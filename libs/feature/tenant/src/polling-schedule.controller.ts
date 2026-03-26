@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard } from './guards/auth.guard';
@@ -6,6 +6,7 @@ import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
 import { PollingSchedule, Tenant, TenantRepoConfig } from '@app/db';
 import { IsString, IsOptional, IsBoolean, IsInt, IsObject, MaxLength } from 'class-validator';
+import { sanitizeRecord } from '@app/common';
 
 class CreatePollingScheduleDto {
   @IsString()
@@ -61,7 +62,13 @@ export class PollingScheduleController {
     schedule.tenant = this.em.getReference(Tenant, tenantId);
     schedule.repoConfig = this.em.getReference(TenantRepoConfig, body.repoConfigId);
     schedule.platform = body.platform;
-    if (body.queryFilter) schedule.queryFilter = body.queryFilter;
+    if (body.queryFilter) {
+      try {
+        schedule.queryFilter = sanitizeRecord(body.queryFilter);
+      } catch {
+        throw new BadRequestException('Invalid queryFilter object');
+      }
+    }
     if (body.pollIntervalSeconds) schedule.pollIntervalSeconds = body.pollIntervalSeconds;
     await this.em.persistAndFlush(schedule);
     return schedule;
@@ -72,7 +79,13 @@ export class PollingScheduleController {
   @ApiOperation({ summary: 'Update polling schedule' })
   async update(@Param('tenantId') tenantId: string, @Param('id') id: string, @Body() body: UpdatePollingScheduleDto): Promise<PollingSchedule> {
     const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
-    if (body.queryFilter !== undefined) schedule.queryFilter = body.queryFilter;
+    if (body.queryFilter !== undefined) {
+      try {
+        schedule.queryFilter = sanitizeRecord(body.queryFilter);
+      } catch {
+        throw new BadRequestException('Invalid queryFilter object');
+      }
+    }
     if (body.pollIntervalSeconds !== undefined) schedule.pollIntervalSeconds = body.pollIntervalSeconds;
     if (body.enabled !== undefined) schedule.enabled = body.enabled;
     await this.em.flush();

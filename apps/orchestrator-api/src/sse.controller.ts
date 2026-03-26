@@ -8,6 +8,9 @@ import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
 import type { FastifyRequest } from 'fastify';
 
+const MAX_SSE_CONNECTIONS = 100;
+let activeSseConnections = 0;
+
 @ApiTags('sse')
 @Controller('sse')
 @ApiBearerAuth()
@@ -27,38 +30,50 @@ export class SseController {
       throw new ForbiddenException('Tenant context required');
     }
 
+    if (activeSseConnections >= MAX_SSE_CONNECTIONS) {
+      throw new ForbiddenException('Too many active SSE connections');
+    }
+    activeSseConnections++;
+
     let lastEventId: string | undefined;
     const pollInterval = parseInt(this.configService.get('SSE_POLL_INTERVAL_MS', { infer: true }) || '5000', 10);
 
-    return interval(pollInterval).pipe(
-      exhaustMap(() => {
-        const fork = this.em.fork();
-        const where: Record<string, unknown> = { 'workflow.tenant': tenantId };
-        if (lastEventId) where['id'] = { $gt: lastEventId };
+    return new Observable<MessageEvent>(subscriber => {
+      const sub = interval(pollInterval).pipe(
+        exhaustMap(() => {
+          const fork = this.em.fork();
+          const where: Record<string, unknown> = { 'workflow.tenant': tenantId };
+          if (lastEventId) where['id'] = { $gt: lastEventId };
 
-        return from(fork.find(WorkflowEvent, where, {
-          orderBy: { createdAt: 'ASC' },
-          limit: 50,
-        }).finally(() => fork.clear()));
-      }),
-      exhaustMap(events => {
-        if (events.length > 0) {
-          lastEventId = events[events.length - 1]!.id;
-        }
-        return from(events);
-      }),
-      map(event => ({
-        data: JSON.stringify({
-          id: event.id,
-          eventType: event.eventType,
-          fromState: event.fromState,
-          toState: event.toState,
-          payload: event.payload,
-          createdAt: event.createdAt,
+          return from(fork.find(WorkflowEvent, where, {
+            orderBy: { createdAt: 'ASC' },
+            limit: 50,
+          }).finally(() => fork.clear()));
         }),
-        type: event.eventType,
-        id: event.id,
-      })),
-    );
+        exhaustMap(events => {
+          if (events.length > 0) {
+            lastEventId = events[events.length - 1]!.id;
+          }
+          return from(events);
+        }),
+        map(event => ({
+          data: JSON.stringify({
+            id: event.id,
+            eventType: event.eventType,
+            fromState: event.fromState,
+            toState: event.toState,
+            payload: event.payload,
+            createdAt: event.createdAt,
+          }),
+          type: event.eventType,
+          id: event.id,
+        })),
+      ).subscribe(subscriber);
+
+      return () => {
+        activeSseConnections--;
+        sub.unsubscribe();
+      };
+    });
   }
 }

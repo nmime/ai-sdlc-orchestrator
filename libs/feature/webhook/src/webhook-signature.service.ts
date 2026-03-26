@@ -37,7 +37,11 @@ export class WebhookSignatureService {
   private safeCompare(a: string, b: string): boolean {
     const bufA = Buffer.from(a);
     const bufB = Buffer.from(b);
-    if (bufA.length !== bufB.length) return false;
+    if (bufA.length !== bufB.length) {
+      const dummy = Buffer.alloc(bufA.length);
+      timingSafeEqual(bufA, dummy);
+      return false;
+    }
     return timingSafeEqual(bufA, bufB);
   }
 }

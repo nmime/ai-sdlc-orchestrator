@@ -36,19 +36,22 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalFilters(new AppErrorExceptionFilter());
 
+  const corsOrigins = process.env['CORS_ORIGINS']?.split(',').filter(Boolean);
   app.enableCors({
-    origin: process.env['CORS_ORIGINS']?.split(',') || ['http://localhost:5173'],
+    origin: corsOrigins && corsOrigins.length > 0 && !corsOrigins.includes('*')
+      ? corsOrigins
+      : false,
     credentials: true,
   });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('AI SDLC Orchestrator API')
-    .setDescription('Orchestrator API for automated SDLC workflows')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  if (process.env['ENABLE_SWAGGER'] !== 'false') {
+  if (process.env['ENABLE_SWAGGER'] === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('AI SDLC Orchestrator API')
+      .setDescription('Orchestrator API for automated SDLC workflows')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api/docs', app, document);
   }
 

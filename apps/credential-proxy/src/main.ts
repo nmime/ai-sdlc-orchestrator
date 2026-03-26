@@ -4,6 +4,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { CredentialProxyModule } from './credential-proxy.module';
+import { AppErrorExceptionFilter } from '@app/common';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -19,6 +20,7 @@ async function bootstrap() {
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+  app.useGlobalFilters(new AppErrorExceptionFilter());
 
   app.enableCors({
     origin: false,
