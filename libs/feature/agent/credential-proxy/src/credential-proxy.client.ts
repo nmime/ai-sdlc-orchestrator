@@ -3,6 +3,8 @@ import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@app/common';
 import type { AppError } from '@app/common';
 
+const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
+
 export interface SessionToken {
   token: string;
   expiresAt: Date;
@@ -12,16 +14,19 @@ export interface SessionToken {
 export class CredentialProxyClient {
   private baseUrl: string;
 
+  private readonly internalToken: string;
+
   constructor(private readonly logger: PinoLoggerService) {
     this.logger.setContext('CredentialProxyClient');
     this.baseUrl = process.env['CREDENTIAL_PROXY_URL'] || 'http://localhost:4000';
+    this.internalToken = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'] ?? '';
   }
 
   async createSession(tenantId: string, scopes: string[]): Promise<Result<SessionToken, AppError>> {
     try {
       const response = await fetch(`${this.baseUrl}/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Token': this.internalToken },
         body: JSON.stringify({ tenantId, scopes }),
       });
 
@@ -54,6 +59,9 @@ export class CredentialProxyClient {
   }
 
   async getMcpToken(sessionToken: string, serverName: string): Promise<Result<{ token: string }, AppError>> {
+    if (!SAFE_ID.test(serverName)) {
+      return ResultUtils.err('VALIDATION_ERROR', 'Invalid server name');
+    }
     try {
       const response = await fetch(`${this.baseUrl}/mcp-token/${serverName}`, {
         headers: { Authorization: `Bearer ${sessionToken}` },
@@ -72,11 +80,11 @@ export class CredentialProxyClient {
 
   async revokeSession(sessionToken: string): Promise<Result<void, AppError>> {
     try {
-      await fetch(`${this.baseUrl}/sessions/revoke`, {
+      await fetch(`${this.baseUrl}/sessions/${sessionToken}/revoke`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
+          'X-Internal-Token': this.internalToken,
         },
       });
       return ResultUtils.ok(undefined);

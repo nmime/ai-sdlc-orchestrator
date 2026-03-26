@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService, TemporalClientService } from '@app/common';
+import { PinoLoggerService, TemporalClientService, sanitizeLog } from '@app/common';
 import { WebhookDelivery, DeliveryStatus } from '@app/db';
 
 @Injectable()
@@ -50,9 +50,9 @@ export class WebhookRetryService implements OnModuleInit, OnModuleDestroy {
         });
         delivery.status = DeliveryStatus.PROCESSING;
         delivery.retryCount = (delivery.retryCount || 0) + 1;
-        this.logger.log(`Retrying webhook delivery ${delivery.id} (attempt ${delivery.retryCount})`);
+        this.logger.log(`Retrying webhook delivery ${sanitizeLog(delivery.id)} (attempt ${delivery.retryCount})`);
       } catch (error) {
-        this.logger.error(`Retry failed for delivery ${delivery.id}: ${(error as Error).message}`);
+        this.logger.error(`Retry failed for delivery ${sanitizeLog(delivery.id)}: ${sanitizeLog((error as Error).message)}`);
       }
     }
     await fork.flush();

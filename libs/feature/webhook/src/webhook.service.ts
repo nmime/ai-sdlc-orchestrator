@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService, TemporalClientService } from '@app/common';
+import { ResultUtils, PinoLoggerService, TemporalClientService, sanitizeLog } from '@app/common';
 import type { AppError } from '@app/common';
 import { WebhookDelivery, DeliveryStatus, Tenant, WorkflowMirror, WorkflowStatus, TenantWebhookConfig, WebhookPlatform } from '@app/db';
 import type { WebhookEvent } from '@app/shared-type';
@@ -103,7 +103,7 @@ export class WebhookService {
       await this.em.persistAndFlush(delivery);
     } catch (error) {
       if (error instanceof Error && 'code' in error && (error as { code: string }).code === '23505') {
-        this.logger.warn(`Duplicate webhook ignored: ${event.deliveryId}`);
+        this.logger.warn(`Duplicate webhook ignored: ${sanitizeLog(event.deliveryId)}`);
         return ResultUtils.ok({ accepted: true, deliveryId: 'duplicate' });
       }
       return ResultUtils.err('INTERNAL_ERROR', (error as Error).message);
@@ -131,7 +131,7 @@ export class WebhookService {
       delivery.workflowId = workflowId;
       await this.em.flush();
 
-      this.logger.log(`Workflow started: ${workflowId}`);
+      this.logger.log(`Workflow started: ${sanitizeLog(workflowId)}`);
     } catch (error) {
       delivery.status = DeliveryStatus.FAILED;
       delivery.errorMessage = (error as Error).message;
@@ -150,7 +150,7 @@ export class WebhookService {
     });
 
     if (!mirror) {
-      this.logger.warn(`No active workflow found for branch ${branchName} in CI state`);
+      this.logger.warn(`No active workflow found for branch ${sanitizeLog(branchName)} in CI state`);
       return;
     }
 
@@ -160,13 +160,13 @@ export class WebhookService {
 
       if (type === 'pipeline_succeeded') {
         await handle.signal('pipelineSucceeded', { details });
-        this.logger.log(`Signaled pipeline succeeded for workflow ${mirror.temporalWorkflowId}`);
+        this.logger.log(`Signaled pipeline succeeded for workflow ${sanitizeLog(mirror.temporalWorkflowId)}`);
       } else {
         await handle.signal('pipelineFailed', { details });
-        this.logger.log(`Signaled pipeline failed for workflow ${mirror.temporalWorkflowId}`);
+        this.logger.log(`Signaled pipeline failed for workflow ${sanitizeLog(mirror.temporalWorkflowId)}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to signal workflow: ${(error as Error).message}`);
+      this.logger.error(`Failed to signal review workflow: ${sanitizeLog((error as Error).message)}`);
     }
   }
 
@@ -180,7 +180,7 @@ export class WebhookService {
     });
 
     if (!mirror) {
-      this.logger.warn(`No active workflow found for branch ${branchName} in review state`);
+      this.logger.warn(`No active workflow found for branch ${sanitizeLog(branchName)} in review state`);
       return;
     }
 
@@ -196,10 +196,10 @@ export class WebhookService {
           reviewer,
           timestamp: new Date(),
         });
-        this.logger.log(`Signaled approval for workflow ${mirror.temporalWorkflowId}`);
+        this.logger.log(`Signaled approval for workflow ${sanitizeLog(mirror.temporalWorkflowId)}`);
       } else {
         await handle.signal('changesRequested', { reviewer, comment });
-        this.logger.log(`Signaled changes requested for workflow ${mirror.temporalWorkflowId}`);
+        this.logger.log(`Signaled changes requested for workflow ${sanitizeLog(mirror.temporalWorkflowId)}`);
       }
     } catch (error) {
       this.logger.error(`Failed to signal workflow: ${(error as Error).message}`);

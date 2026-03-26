@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService, sanitizeRecord } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeRecord, sanitizeLog } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantMcpServer, Tenant, McpTransport } from '@app/db';
 import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsObject, MaxLength, ArrayMaxSize } from 'class-validator';
@@ -107,7 +107,7 @@ export class TenantMcpServerService {
     if (dto.isEnabled !== undefined) server.isEnabled = dto.isEnabled;
 
     await this.em.persistAndFlush(server);
-    this.logger.log(`MCP server created: ${server.name} for tenant ${tenantId}`);
+    this.logger.log(`MCP server created: ${sanitizeLog(server.name)} for tenant ${sanitizeLog(tenantId)}`);
     return ResultUtils.ok(server);
   }
 
