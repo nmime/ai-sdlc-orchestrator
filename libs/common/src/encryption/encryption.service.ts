@@ -1,14 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'crypto';
+import type { AppConfig } from '../config/app-config.module';
 
 @Injectable()
 export class EncryptionService {
   private readonly key: Buffer;
   private readonly algorithm = 'aes-256-gcm';
 
-  constructor() {
-    const secret = process.env['ENCRYPTION_KEY'] || process.env['DATABASE_PASSWORD'] || 'dev-fallback-key-not-for-production';
-    this.key = scryptSync(secret, 'ai-sdlc-salt', 32);
+  constructor(private readonly configService: ConfigService<AppConfig, true>) {
+    const secret = this.configService.get('ENCRYPTION_KEY', { infer: true });
+    if (!secret) {
+      const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
+      if (nodeEnv !== 'development' && nodeEnv !== 'test') {
+        throw new Error('ENCRYPTION_KEY is required in production. Set it to a random 32+ character string.');
+      }
+    }
+    const salt = String(this.configService.get('ENCRYPTION_SALT', { infer: true }) || 'ai-sdlc-dev-salt');
+    this.key = scryptSync(secret || 'dev-only-key-do-not-use-in-production', salt, 32);
   }
 
   encrypt(plaintext: string): string {

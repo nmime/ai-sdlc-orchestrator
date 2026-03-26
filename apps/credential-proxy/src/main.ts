@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { CredentialProxyModule } from './credential-proxy.module';
@@ -18,15 +18,17 @@ async function bootstrap() {
     timeWindow: '1 minute',
   });
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
 
   app.enableCors({
     origin: false,
   });
 
+  app.enableShutdownHooks();
+
   const port = parseInt(process.env['CREDENTIAL_PROXY_PORT'] || '4000', 10);
   await app.listen(port, '0.0.0.0');
-  console.log(`Credential proxy listening on :${port}`);
+  new Logger('CredentialProxy').log(`Listening on :${port}`);
 }
 
 bootstrap();

@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { AgentSession } from './agent-session.entity';
 
@@ -14,6 +14,7 @@ export class AgentToolCall {
   id: string = v4();
 
   @ManyToOne(() => AgentSession)
+  @Index()
   session!: AgentSession;
 
   @Property({ type: 'int' })

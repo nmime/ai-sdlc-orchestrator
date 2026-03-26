@@ -62,6 +62,8 @@ export class GateController {
   }
 
   @Get(':workflowId/status')
+  @UseGuards(AuthGuard, RbacGuard)
+  @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow status' })
   async getStatus(@Param('workflowId') workflowId: string) {
     return ResultUtils.unwrapOrThrow(await this.gateService.getWorkflowStatus(workflowId));

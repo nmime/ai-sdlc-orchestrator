@@ -30,12 +30,12 @@ export class WebhookDeliveryController {
       where,
       {
         orderBy: { createdAt: 'DESC' },
-        limit: parseInt(limit || '50', 10),
-        offset: parseInt(offset || '0', 10),
+        limit: Math.min(parseInt(limit || '50', 10), 200),
+        offset: Math.max(parseInt(offset || '0', 10), 0),
       },
     );
 
-    return { data: deliveries, total, limit: parseInt(limit || '50', 10), offset: parseInt(offset || '0', 10) };
+    return { data: deliveries, total, limit: Math.min(parseInt(limit || '50', 10), 200), offset: Math.max(parseInt(offset || '0', 10), 0) };
   }
 
   @Get(':id')

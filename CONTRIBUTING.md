@@ -1,52 +1,41 @@
-# Contributing to AI SDLC Orchestrator
+# Contributing
 
-Thank you for considering contributing! We welcome contributions from everyone.
+Thank you for your interest in contributing to AI SDLC Orchestrator!
 
 ## Getting Started
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/<your-username>/ai-sdlc-orchestrator.git`
-3. Install dependencies: `pnpm install`
-4. Start infrastructure: `docker compose -f docker-compose.dev.yml up -d`
-5. Copy environment: `cp .env.example .env`
-6. Run tests: `pnpm test`
+1. Fork and clone the repo
+2. Install dependencies: `pnpm install`
+3. Copy `.env.example` to `.env` and fill in values
+4. Start infrastructure: `docker compose -f docker/docker-compose.yml up -d`
+5. Run tests: `pnpm test`
 
 ## Development Workflow
 
-1. Create a feature branch: `git checkout -b feature/your-feature`
+1. Create a feature branch from `main`
 2. Make your changes
-3. Ensure all checks pass:
-   - `pnpm lint` — zero errors/warnings
-   - `pnpm build` — all projects build
-   - `pnpm test` — all tests pass
-   - `npx tsc --noEmit` — zero type errors
-4. Commit using conventional commits: `feat: add X`, `fix: resolve Y`
-5. Push and open a Pull Request
+3. Ensure tests pass: `pnpm test`
+4. Ensure TypeScript compiles: `npx tsc --noEmit`
+5. Commit with a descriptive message
+6. Open a pull request
 
-## Code Standards
+## Code Style
 
-- **Zero suppressions**: No `@ts-ignore`, `@ts-expect-error`, `eslint-disable`, `as any`, or non-null assertions (`!`) in source code
-- **Strict TypeScript**: `strict: true`, `noUncheckedIndexedAccess: true`
-- **Path aliases**: Use `@app/` prefix (e.g., `@app/common`, `@app/db`)
-- **Error handling**: Use `neverthrow` `Result` types in services; controllers use `ResultUtils.unwrapOrThrow`
-- **No comments**: Keep code self-documenting; avoid inline comments unless absolutely necessary
+- TypeScript strict mode is enabled
+- Use `class-validator` decorators for DTO validation
+- Follow existing patterns for controllers, services, and entities
+- Avoid adding comments unless necessary for complex logic
 
-## Architecture
+## Testing
 
-- **NX monorepo** with apps (`orchestrator-api`, `orchestrator-worker`, `credential-proxy`, `cli`, `dashboard`) and libs (`common`, `db`, `shared-type`, `workflow-dsl`, `feature/*`)
-- **Port/Adapter pattern**: `AiAgentPort` and `SandboxPort` interfaces for extensibility
-- **NestJS + Fastify** for API
-- **Temporal.io** for workflow orchestration
-- **MikroORM + PostgreSQL** for persistence
+- Unit tests use Vitest
+- Place tests in `__tests__/` directories alongside source files
+- Name test files `*.spec.ts`
 
 ## Reporting Issues
 
-Please use GitHub Issues with:
-- Clear description of the problem
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details (OS, Node version, etc.)
+Use GitHub Issues with the provided templates for bugs and feature requests.
 
-## License
+## Security
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+See [SECURITY.md](./SECURITY.md) for reporting security vulnerabilities.

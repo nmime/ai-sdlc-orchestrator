@@ -21,6 +21,8 @@ export class WorkflowsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<{ data: WorkflowMirror[]; total: number; limit: number; offset: number }> {
+    const parsedLimit = Math.min(parseInt(limit || '50', 10), 200);
+    const parsedOffset = Math.max(parseInt(offset || '0', 10), 0);
     const where: Record<string, unknown> = {};
     if (tenantId) where['tenant'] = tenantId;
     if (status) where['state'] = status;
@@ -28,11 +30,11 @@ export class WorkflowsController {
 
     const [workflows, total] = await this.em.findAndCount(WorkflowMirror, where, {
       orderBy: { createdAt: 'DESC' },
-      limit: parseInt(limit || '50', 10),
-      offset: parseInt(offset || '0', 10),
+      limit: parsedLimit,
+      offset: parsedOffset,
     });
 
-    return { data: workflows, total, limit: parseInt(limit || '50', 10), offset: parseInt(offset || '0', 10) };
+    return { data: workflows, total, limit: parsedLimit, offset: parsedOffset };
   }
 
   @Get(':id')

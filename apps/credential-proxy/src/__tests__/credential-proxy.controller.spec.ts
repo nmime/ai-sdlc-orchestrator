@@ -52,7 +52,7 @@ describe('CredentialProxyController (integration)', () => {
 
   describe('POST /sessions/:id/revoke', () => {
     it('revokes session', () => {
-      controller.revokeSession('s-1');
+      controller.revokeSession(undefined, 's-1');
       expect(mockSessionService.revoke).toHaveBeenCalledWith('s-1');
     });
   });
@@ -125,7 +125,7 @@ describe('CredentialProxyController (integration)', () => {
 
   describe('POST /internal/sessions/:id/cost', () => {
     it('records cost', () => {
-      const result = controller.recordSessionCost('s-1', {
+      const result = controller.recordSessionCost(undefined, 's-1', {
         inputTokens: 1000, outputTokens: 500, provider: 'anthropic', model: 'claude-sonnet-4-20250514',
       });
       expect(result).toMatchObject({ recorded: true, sessionId: 's-1' });

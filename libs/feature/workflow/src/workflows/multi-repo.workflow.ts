@@ -72,7 +72,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
       const settled = await Promise.allSettled(childHandles.map(async (handlePromise, idx) => {
         const handle = await handlePromise;
         const result = await handle.result();
-        return { repo: input.repos[idx], result };
+        return { repo: input.repos[idx]!, result };
       }));
 
       for (const s of settled) {
@@ -89,6 +89,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
           allArtifacts.push(...result.artifacts);
         } else {
           const repo = input.repos[settled.indexOf(s)];
+          if (!repo) continue;
           results.push({
             repoId: repo.repoId,
             success: false,

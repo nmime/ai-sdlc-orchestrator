@@ -1,6 +1,27 @@
 {
   "name": "ai-sdlc-orchestrator",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "AI-powered SDLC orchestration platform with multi-tenant support, automated workflows, and agent-based code generation",
+  "license": "MIT",
+  "author": "AI SDLC Contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nmime/ai-sdlc-orchestrator.git"
+  },
+  "keywords": [
+    "sdlc",
+    "ai",
+    "orchestration",
+    "temporal",
+    "nestjs",
+    "multi-tenant",
+    "devops",
+    "automation"
+  ],
+  "bugs": {
+    "url": "https://github.com/nmime/ai-sdlc-orchestrator/issues"
+  },
+  "homepage": "https://github.com/nmime/ai-sdlc-orchestrator#readme",
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "engines": {

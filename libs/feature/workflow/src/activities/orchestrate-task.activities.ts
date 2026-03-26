@@ -392,7 +392,7 @@ export async function invokeAgent(input: {
   if (diffResult.isOk()) {
     const lines = diffResult.value.stdout.split('\n').filter(Boolean);
     session.diffLinesChanged = lines.length;
-    session.filesModified = lines.filter(l => l.includes('|')).map(l => l.split('|')[0].trim());
+    session.filesModified = lines.filter(l => l.includes('|')).map(l => l.split('|')[0]?.trim() ?? '');
   }
 
   if (repoConfig?.staticAnalysisCommand) {
@@ -503,7 +503,7 @@ export async function verifyAgentOutput(input: {
         .filter(Boolean)
         .reduce((sum, line) => {
           const parts = line.split('\t');
-          return sum + (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0);
+          return sum + (parseInt(parts[0] ?? '0') || 0) + (parseInt(parts[1] ?? '0') || 0);
         }, 0);
 
       if (totalLines > input.maxDiffLines) {

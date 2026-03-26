@@ -8,9 +8,27 @@ interface RateLimitEntry {
 @Injectable()
 export class RateLimiterService {
   private limits = new Map<string, RateLimitEntry>();
-  private readonly windowMs = 60_000;
+  private readonly windowMs = parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10);
   private readonly defaultMax = parseInt(process.env['RATE_LIMIT_MAX'] || '100', 10);
   private tenantLimits = new Map<string, number>();
+  private cleanupInterval?: ReturnType<typeof setInterval>;
+
+  constructor() {
+    this.cleanupInterval = setInterval(() => this.cleanupExpired(), this.windowMs * 2);
+  }
+
+  onModuleDestroy(): void {
+    if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+  }
+
+  private cleanupExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.limits) {
+      if (now - entry.windowStart > this.windowMs) {
+        this.limits.delete(key);
+      }
+    }
+  }
 
   setTenantLimit(tenantId: string, maxRequests: number): void {
     this.tenantLimits.set(tenantId, maxRequests);

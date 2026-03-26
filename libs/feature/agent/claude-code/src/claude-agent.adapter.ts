@@ -113,7 +113,7 @@ export class ClaudeAgentAdapter implements AiAgentPort {
         },
       ];
 
-      const maxTurns = 25;
+      const maxTurns = parseInt(this.configService.get('AGENT_MAX_TURNS', { infer: true }) || '25', 10);
       let turn = 0;
       let costAccumulated = 0;
 
@@ -179,7 +179,8 @@ export class ClaudeAgentAdapter implements AiAgentPort {
 
       const aiCostUsd = this.calculateCost(totalInputTokens, totalOutputTokens);
       const durationMs = Date.now() - startTime;
-      const sandboxCostUsd = (durationMs / 3_600_000) * 0.05;
+      const sandboxCostRate = parseFloat(this.configService.get('SANDBOX_COST_PER_HOUR_USD', { infer: true }) || '0.05');
+      const sandboxCostUsd = (durationMs / 3_600_000) * sandboxCostRate;
 
       this.logger.log(`Session ${input.sessionId} completed in ${durationMs}ms, ${turn} turns, cost: $${aiCostUsd.toFixed(4)}`);
 
@@ -240,11 +241,15 @@ export class ClaudeAgentAdapter implements AiAgentPort {
         return res.ok ? await res.text() : `Failed: ${await res.text()}`;
       }
       case 'search_files': {
-        const cmd = `grep -rn ${args['include'] ? `--include='${args['include']}'` : ''} '${args['pattern']}' ${args['path'] || '.'} | head -50`;
+        const safePattern = String(args['pattern']).replace(/[`$\\]/g, '\\$&');
+        const safeInclude = args['include'] ? `--include=${String(args['include']).replace(/[^a-zA-Z0-9.*?_\-/]/g, '')}` : '';
+        const safePath = String(args['path'] || '.').replace(/[^a-zA-Z0-9._\-/]/g, '');
+        const cmd = `grep -rn ${safeInclude} -- '${safePattern}' ${safePath} | head -50`;
         return this.executeTool('execute_command', { command: cmd }, sandboxId, credentialProxyUrl);
       }
       case 'list_files': {
-        const cmd = args['recursive'] ? `find ${args['path'] || '.'} -type f | head -100` : `ls -la ${args['path'] || '.'}`;
+        const safePath = String(args['path'] || '.').replace(/[^a-zA-Z0-9._\-/]/g, '');
+        const cmd = args['recursive'] ? `find ${safePath} -type f | head -100` : `ls -la ${safePath}`;
         return this.executeTool('execute_command', { command: cmd }, sandboxId, credentialProxyUrl);
       }
       default:
@@ -253,8 +258,8 @@ export class ClaudeAgentAdapter implements AiAgentPort {
   }
 
   private calculateCost(inputTokens: number, outputTokens: number): number {
-    const inputCostPer1M = 3.0;
-    const outputCostPer1M = 15.0;
+    const inputCostPer1M = parseFloat(this.configService.get('AI_INPUT_COST_PER_1M', { infer: true }) || '3.0');
+    const outputCostPer1M = parseFloat(this.configService.get('AI_OUTPUT_COST_PER_1M', { infer: true }) || '15.0');
     return (inputTokens * inputCostPer1M + outputTokens * outputCostPer1M) / 1_000_000;
   }
 }

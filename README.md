@@ -142,4 +142,4 @@ See `.env.example` for all configuration options.
 
 ## License
 
-TBD
+MIT — see [LICENSE](./LICENSE) for details.
