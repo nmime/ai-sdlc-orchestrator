@@ -1,14 +1,33 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+
+const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
+const SAFE_HOST = /^[a-zA-Z0-9._:-]+$/;
+
+function validateId(value: string, name: string): void {
+  if (!SAFE_ID.test(value)) {
+    throw new BadRequestException(`Invalid ${name}`);
+  }
+}
+
+function validateHost(value: string): void {
+  if (!SAFE_HOST.test(value)) {
+    throw new BadRequestException('Invalid host');
+  }
+}
 
 @Injectable()
 export class CredentialProxyService {
   async getGitCredential(tenantId: string, host: string): Promise<{ username: string; password: string }> {
+    validateId(tenantId, 'tenantId');
+    validateHost(host);
     const envKey = `VCS_TOKEN_${tenantId.replace(/-/g, '_').toUpperCase()}`;
     const token = process.env[envKey] || process.env['DEFAULT_VCS_TOKEN'] || '';
     return { username: 'oauth2', password: token };
   }
 
   async getMcpToken(tenantId: string, serverName: string): Promise<{ token: string; expiresAt: string }> {
+    validateId(tenantId, 'tenantId');
+    validateId(serverName, 'serverName');
     const envKey = `MCP_TOKEN_${serverName.replace(/-/g, '_').toUpperCase()}`;
     const token = process.env[envKey] || '';
     return { token, expiresAt: new Date(Date.now() + 3600_000).toISOString() };
@@ -20,6 +39,7 @@ export class CredentialProxyService {
     body: unknown,
     headers: Record<string, string>,
   ): Promise<Response> {
+    validateId(provider, 'provider');
     const baseUrls: Record<string, string> = {
       anthropic: 'https://api.anthropic.com',
       openai: 'https://api.openai.com',
