@@ -64,9 +64,12 @@ describe('WorkflowsController (integration)', () => {
   describe('GET /:id/sessions', () => {
     it('returns sessions with tool calls', async () => {
       mockEm.findOneOrFail.mockResolvedValue({ id: 'wf-1' });
-      mockEm.find
-        .mockResolvedValueOnce([{ id: 'sess-1', provider: 'claude-code' }])
-        .mockResolvedValueOnce([{ id: 'tc-1', toolName: 'bash' }]);
+      const mockSession = {
+        id: 'sess-1',
+        provider: 'claude-code',
+        toolCalls: { getItems: () => [{ id: 'tc-1', toolName: 'bash' }] },
+      };
+      mockEm.find.mockResolvedValueOnce([mockSession]);
       const result = await controller.sessions(mockReq, 'wf-1');
       expect(result).toHaveLength(1);
       expect((result[0] as unknown as { toolCalls: unknown[] }).toolCalls).toHaveLength(1);

@@ -112,7 +112,7 @@ export class TenantMcpServerService {
   }
 
   async list(tenantId: string): Promise<Result<TenantMcpServer[], AppError>> {
-    const servers = await this.em.find(TenantMcpServer, { tenant: tenantId });
+    const servers = await this.em.find(TenantMcpServer, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(servers);
   }
 

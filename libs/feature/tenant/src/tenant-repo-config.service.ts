@@ -259,7 +259,7 @@ export class TenantRepoConfigService {
   }
 
   async list(tenantId: string): Promise<Result<TenantRepoConfig[], AppError>> {
-    const configs = await this.em.find(TenantRepoConfig, { tenant: tenantId });
+    const configs = await this.em.find(TenantRepoConfig, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(configs);
   }
 

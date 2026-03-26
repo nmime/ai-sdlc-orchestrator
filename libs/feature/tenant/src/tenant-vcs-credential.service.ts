@@ -53,7 +53,7 @@ export class TenantVcsCredentialService {
   }
 
   async list(tenantId: string): Promise<Result<TenantVcsCredential[], AppError>> {
-    const creds = await this.em.find(TenantVcsCredential, { tenant: tenantId });
+    const creds = await this.em.find(TenantVcsCredential, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(creds);
   }
 

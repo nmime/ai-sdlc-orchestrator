@@ -70,7 +70,7 @@ export class TenantWebhookConfigService {
   }
 
   async list(tenantId: string): Promise<Result<TenantWebhookConfig[], AppError>> {
-    const configs = await this.em.find(TenantWebhookConfig, { tenant: tenantId });
+    const configs = await this.em.find(TenantWebhookConfig, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(configs);
   }
 

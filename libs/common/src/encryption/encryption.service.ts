@@ -16,7 +16,7 @@ export class EncryptionService {
         throw new Error('ENCRYPTION_KEY is required in production. Set it to a random 32+ character string.');
       }
     }
-    const salt = String(this.configService.get('ENCRYPTION_SALT', { infer: true }) || 'ai-sdlc-dev-salt');
+    const salt = this.configService.get('ENCRYPTION_SALT', { infer: true });
     this.key = scryptSync(secret || 'dev-only-key-do-not-use-in-production', salt, 32);
   }
 

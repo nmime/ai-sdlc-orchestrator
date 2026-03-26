@@ -63,7 +63,7 @@ export class WorkflowsController {
   async events(@Req() req: FastifyRequest, @Param('id') id: string): Promise<WorkflowEvent[]> {
     const tenantId = this.getTenantId(req);
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
-    return this.em.find(WorkflowEvent, { workflow: mirror.id }, { orderBy: { createdAt: 'ASC' } });
+    return this.em.find(WorkflowEvent, { workflow: mirror.id }, { orderBy: { createdAt: 'ASC' }, limit: 500 });
   }
 
   @Get(':id/sessions')
@@ -74,14 +74,14 @@ export class WorkflowsController {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, {
       orderBy: { startedAt: 'ASC' },
+      limit: 200,
+      populate: ['toolCalls'] as any,
     });
 
-    const result: Record<string, unknown>[] = [];
-    for (const session of sessions) {
-      const toolCalls: AgentToolCall[] = await this.em.find(AgentToolCall, { session: session.id }, { orderBy: { sequenceNumber: 'ASC' } });
-      result.push({ ...session, toolCalls });
-    }
-    return result;
+    return sessions.map(session => ({
+      ...session,
+      toolCalls: (session as any).toolCalls?.getItems?.() ?? [],
+    }));
   }
 
   @Get(':id/artifacts')

@@ -40,7 +40,7 @@ export class DslController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflow DSLs for tenant' })
   async list(@Param('tenantId') tenantId: string): Promise<WorkflowDsl[]> {
-    return this.em.find(WorkflowDsl, { tenant: tenantId }, { orderBy: { name: 'ASC', version: 'DESC' } });
+    return this.em.find(WorkflowDsl, { tenant: tenantId }, { orderBy: { name: 'ASC', version: 'DESC' }, limit: 200 });
   }
 
   @Get(':id')

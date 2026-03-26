@@ -1,9 +1,9 @@
-import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowArtifact, ArtifactKind, ArtifactStatus, WorkflowMirror, Tenant } from '@app/db';
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, MaxLength, Matches } from 'class-validator';
 import * as Minio from 'minio';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
@@ -11,22 +11,29 @@ import type { FastifyRequest } from 'fastify';
 
 class UploadArtifactDto {
   @IsString()
+  @Matches(/^[a-zA-Z0-9_-]+$/, { message: 'workflowId must be alphanumeric with hyphens/underscores' })
+  @MaxLength(255)
   workflowId!: string;
 
   @IsString()
+  @MaxLength(255)
   tenantId!: string;
 
   @IsEnum(ArtifactKind)
   kind!: ArtifactKind;
 
   @IsString()
+  @MaxLength(255)
   title!: string;
 
   @IsString()
+  @Matches(/^[a-zA-Z0-9._-]+$/, { message: 'filename must not contain path separators or special characters' })
+  @MaxLength(255)
   filename!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   mimeType?: string;
 }
 

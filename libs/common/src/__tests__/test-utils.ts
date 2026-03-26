@@ -5,7 +5,7 @@ import type { SandboxPort } from '@app/feature-agent-registry';
 
 
 export function createMockEm(overrides: Record<string, unknown> = {}) {
-  return {
+  const em = {
     find: vi.fn().mockResolvedValue([]),
     findOne: vi.fn().mockResolvedValue(null),
     findOneOrFail: vi.fn(),
@@ -20,6 +20,8 @@ export function createMockEm(overrides: Record<string, unknown> = {}) {
     fork: vi.fn(),
     ...overrides,
   } as unknown as EntityManager & { [key: string]: ReturnType<typeof vi.fn> };
+  em.fork.mockReturnValue(em);
+  return em;
 }
 
 export function createMockLogger() {

@@ -48,7 +48,7 @@ export class PollingScheduleController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List polling schedules' })
   async list(@Param('tenantId') tenantId: string): Promise<PollingSchedule[]> {
-    return this.em.find(PollingSchedule, { tenant: tenantId });
+    return this.em.find(PollingSchedule, { tenant: tenantId }, { limit: 200 });
   }
 
   @Post()

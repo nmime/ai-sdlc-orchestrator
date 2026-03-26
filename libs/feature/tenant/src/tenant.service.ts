@@ -94,7 +94,7 @@ export class TenantService {
   }
 
   async getUsers(tenantId: string): Promise<Result<TenantUser[], AppError>> {
-    const users = await this.em.find(TenantUser, { tenant: tenantId });
+    const users = await this.em.find(TenantUser, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(users);
   }
 
