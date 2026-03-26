@@ -267,7 +267,7 @@ export async function createSandbox(input: {
     cloneCmd = [
       `git clone --filter=blob:none --sparse -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`,
       `cd /workspace`,
-      `git sparse-checkout set ${safePaths.map(p => `'${p}'`).join(' ')}`,
+      `git sparse-checkout set ${safePaths.map(p => `'${p.replace(/'/g, "'\\''")}'`).join(' ')}`,
     ].join(' && ');
   }
 
@@ -417,10 +417,17 @@ export async function invokeAgent(input: {
   }
 
   if (repoConfig?.staticAnalysisCommand) {
-    const saResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && ${repoConfig.staticAnalysisCommand}`);
-    if (saResult.isOk()) {
-      session.staticAnalysisResult = saResult.value.exitCode === 0 ? StaticAnalysisResult.PASSED : StaticAnalysisResult.FAILED;
-      session.staticAnalysisOutput = (saResult.value.stdout + saResult.value.stderr).slice(0, 5000);
+    const SAFE_CMD_PREFIXES = ['npm run', 'npx eslint', 'npx prettier', 'yarn lint', 'yarn run', 'pnpm lint', 'pnpm run'];
+    const cmdStr = repoConfig.staticAnalysisCommand.trim();
+    if (!SAFE_CMD_PREFIXES.some(prefix => cmdStr.startsWith(prefix))) {
+      session.staticAnalysisResult = StaticAnalysisResult.FAILED;
+      session.staticAnalysisOutput = 'Blocked: command does not match allowed prefixes';
+    } else {
+      const saResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && ${cmdStr}`);
+      if (saResult.isOk()) {
+        session.staticAnalysisResult = saResult.value.exitCode === 0 ? StaticAnalysisResult.PASSED : StaticAnalysisResult.FAILED;
+        session.staticAnalysisOutput = (saResult.value.stdout + saResult.value.stderr).slice(0, 5000);
+      }
     }
   }
 

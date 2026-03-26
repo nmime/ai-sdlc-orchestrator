@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { Result } from 'neverthrow';
@@ -223,19 +224,22 @@ export class ClaudeAgentAdapter implements AiAgentPort {
         });
         if (!res.ok) return `HTTP ${res.status}: ${await res.text()}`;
         const result = await res.json() as { stdout: string; stderr: string; exitCode: number };
-        return `exit_code=${result.exitCode}\n${result.stdout}${result.stderr ? '\nSTDERR:\n' + result.stderr : ''}`;
+        return `exit_code=${result.exitCode}
+${result.stdout}${result.stderr ? '\nSTDERR:\n' + result.stderr : ''}`;
       }
       case 'write_file': {
+        const sanitizedWritePath = this.sanitizePath(String(args['path'] || ''), '/home/user/repo');
         const res = await fetch(`${baseUrl}/internal/sandbox/${sandboxId}/write`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: args['path'], content: args['content'] }),
+          body: JSON.stringify({ path: sanitizedWritePath, content: args['content'] }),
           signal: AbortSignal.timeout(30_000),
         });
-        return res.ok ? `Written: ${args['path']}` : `Failed: ${await res.text()}`;
+        return res.ok ? `Written: ${sanitizedWritePath}` : `Failed: ${await res.text()}`;
       }
       case 'read_file': {
-        const res = await fetch(`${baseUrl}/internal/sandbox/${sandboxId}/read?path=${encodeURIComponent(args['path'] as string)}`, {
+        const sanitizedReadPath = this.sanitizePath(String(args['path'] || ''), '/home/user/repo');
+        const res = await fetch(`${baseUrl}/internal/sandbox/${sandboxId}/read?path=${encodeURIComponent(sanitizedReadPath)}`, {
           signal: AbortSignal.timeout(30_000),
         });
         return res.ok ? await res.text() : `Failed: ${await res.text()}`;
@@ -243,18 +247,24 @@ export class ClaudeAgentAdapter implements AiAgentPort {
       case 'search_files': {
         const safePattern = String(args['pattern']).replace(/[`$\\]/g, '\\$&');
         const safeInclude = args['include'] ? `--include=${String(args['include']).replace(/[^a-zA-Z0-9.*?_\-/]/g, '')}` : '';
-        const safePath = String(args['path'] || '.').replace(/[^a-zA-Z0-9._\-/]/g, '');
-        const cmd = `grep -rn ${safeInclude} -- '${safePattern}' ${safePath} | head -50`;
+        const sanitizedSearchPath = this.sanitizePath(String(args['path'] || '.'), '/home/user/repo');
+        const cmd = `grep -rn ${safeInclude} -- '${safePattern}' ${sanitizedSearchPath} | head -50`;
         return this.executeTool('execute_command', { command: cmd }, sandboxId, credentialProxyUrl);
       }
       case 'list_files': {
-        const safePath = String(args['path'] || '.').replace(/[^a-zA-Z0-9._\-/]/g, '');
-        const cmd = args['recursive'] ? `find ${safePath} -type f | head -100` : `ls -la ${safePath}`;
+        const sanitizedListPath = this.sanitizePath(String(args['path'] || '.'), '/home/user/repo');
+        const cmd = args['recursive'] ? `find ${sanitizedListPath} -type f | head -100` : `ls -la ${sanitizedListPath}`;
         return this.executeTool('execute_command', { command: cmd }, sandboxId, credentialProxyUrl);
       }
       default:
         return `Unknown tool: ${name}`;
     }
+  }
+
+  private sanitizePath(userPath: string, root: string): string {
+    const resolved = path.resolve(root, String(userPath || '.').replace(/[^a-zA-Z0-9._\-/]/g, ''));
+    if (!resolved.startsWith(root)) return root;
+    return resolved;
   }
 
   private calculateCost(inputTokens: number, outputTokens: number): number {
