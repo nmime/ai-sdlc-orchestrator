@@ -1,10 +1,11 @@
 import { Controller, Post, Get, Body, Param, UseGuards, Req, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { WorkflowMirror } from '@ai-sdlc/db';
+import { WorkflowMirror, Tenant } from '@ai-sdlc/db';
 import { GateService } from './gate.service';
 import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
 import { GateDecideDto, GateCancelDto } from '@ai-sdlc/common';
+import type { AuthenticatedRequest } from '@ai-sdlc/common';
 
 @ApiTags('gates')
 @Controller('gates')
@@ -19,7 +20,9 @@ export class GateController {
   private async assertWorkflowAccess(workflowId: string, tenantId: string): Promise<void> {
     const wf = await this.em.findOne(WorkflowMirror, { temporalWorkflowId: workflowId });
     if (!wf) throw new NotFoundException('Workflow not found');
-    if ((wf.tenant as any)?.id !== tenantId && (wf.tenant as any) !== tenantId) {
+    const tenant = wf.tenant as Tenant | string;
+    const tenantRef = typeof tenant === 'string' ? tenant : tenant.id;
+    if (tenantRef !== tenantId) {
       throw new ForbiddenException('Access denied to this workflow');
     }
   }
@@ -28,7 +31,7 @@ export class GateController {
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Submit gate decision for a workflow' })
   async decide(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('workflowId') workflowId: string,
     @Body() body: GateDecideDto,
   ) {
@@ -46,7 +49,7 @@ export class GateController {
   @Get(':workflowId/status')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow status' })
-  async getStatus(@Req() req: any, @Param('workflowId') workflowId: string) {
+  async getStatus(@Req() req: AuthenticatedRequest, @Param('workflowId') workflowId: string) {
     await this.assertWorkflowAccess(workflowId, req.user.tenantId);
     const result = await this.gateService.getWorkflowStatus(workflowId);
     if (result.isErr()) throw new NotFoundException('Workflow not found');
@@ -57,7 +60,7 @@ export class GateController {
   @Roles('admin')
   @ApiOperation({ summary: 'Cancel a workflow' })
   async cancel(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Param('workflowId') workflowId: string,
     @Body() body: GateCancelDto,
   ) {

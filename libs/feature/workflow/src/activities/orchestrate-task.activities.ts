@@ -1,19 +1,23 @@
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant, AgentSession, AgentMode } from '@ai-sdlc/db';
 import type { AgentResult, SessionContext, PublishedArtifact } from '@ai-sdlc/shared-type';
+import type { SandboxPort } from '@ai-sdlc/feature-agent-registry';
+import { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
+import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
+import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 
 let em: EntityManager;
-let sandboxAdapter: any;
-let agentRegistry: any;
-let promptFormatter: any;
-let credentialProxy: any;
+let sandboxAdapter: SandboxPort;
+let agentRegistry: AgentProviderRegistry;
+let promptFormatter: PromptFormatter;
+let credentialProxy: CredentialProxyClient;
 
 export function initActivities(deps: {
   em: EntityManager;
-  sandboxAdapter: any;
-  agentRegistry: any;
-  promptFormatter: any;
-  credentialProxy: any;
+  sandboxAdapter: SandboxPort;
+  agentRegistry: AgentProviderRegistry;
+  promptFormatter: PromptFormatter;
+  credentialProxy: CredentialProxyClient;
 }) {
   em = deps.em;
   sandboxAdapter = deps.sandboxAdapter;
@@ -43,7 +47,7 @@ export async function updateWorkflowMirror(input: {
 
   if (!mirror) {
     mirror = new WorkflowMirror();
-    mirror.tenant = em.getReference(Tenant, input.tenantId) as any;
+    mirror.tenant = em.getReference(Tenant, input.tenantId);
     mirror.temporalWorkflowId = input.temporalWorkflowId;
     mirror.temporalRunId = '';
     mirror.repoId = input.repoId || '';
@@ -140,7 +144,7 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
-  await sandboxAdapter.exec(sandboxId, ['git', 'clone', input.repoUrl, '/workspace']);
+  await sandboxAdapter.exec(sandboxId, `git clone ${input.repoUrl} /workspace`);
 
   return { sandboxId };
 }
@@ -150,12 +154,11 @@ export async function pauseSandbox(input: { sandboxId: string }): Promise<void> 
 }
 
 export async function resumeSandbox(input: { sandboxId: string }): Promise<{ sandboxId: string }> {
-  try {
-    const handle = await sandboxAdapter.resume(input.sandboxId);
-    return { sandboxId: handle?.sandboxId ?? input.sandboxId };
-  } catch {
-    return { sandboxId: input.sandboxId };
+  const result = await sandboxAdapter.resume(input.sandboxId);
+  if (result.isOk()) {
+    return { sandboxId: result.value.sandboxId };
   }
+  return { sandboxId: input.sandboxId };
 }
 
 export async function invokeAgent(input: {

@@ -11,7 +11,7 @@ export interface SessionToken {
 
 @Injectable()
 export class CredentialProxyClient {
-  private baseUrl: string;
+  readonly baseUrl: string;
 
   constructor(
     private readonly config: ConfigService,

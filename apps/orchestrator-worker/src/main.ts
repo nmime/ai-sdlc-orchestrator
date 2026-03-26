@@ -10,6 +10,7 @@ import { E2bSandboxAdapter } from '@ai-sdlc/feature-agent-sandbox';
 import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
 import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 import { PinoLoggerService } from '@ai-sdlc/common';
+import type { AppConfig } from '@ai-sdlc/common';
 import { ConfigService } from '@nestjs/config';
 import { config as loadDotenv } from 'dotenv';
 
@@ -45,13 +46,13 @@ async function run() {
   const em = orm.em.fork();
   const pinoLogger = new PinoLoggerService();
 
-  const sandboxAdapter = new E2bSandboxAdapter(configService as any, pinoLogger);
+  const sandboxAdapter = new E2bSandboxAdapter(configService as unknown as ConfigService<AppConfig, true>, pinoLogger);
   const agentRegistry = new AgentProviderRegistry();
-  const claudeAdapter = new ClaudeAgentAdapter(configService as any, pinoLogger);
+  const claudeAdapter = new ClaudeAgentAdapter(configService as unknown as ConfigService<AppConfig, true>, pinoLogger);
   agentRegistry.register(claudeAdapter);
 
   const promptFormatter = new PromptFormatter();
-  const credentialProxy = new CredentialProxyClient(configService, pinoLogger);
+  const credentialProxy = new CredentialProxyClient(configService as ConfigService, pinoLogger);
 
   initActivities({
     em,
@@ -74,10 +75,10 @@ async function run() {
     workflowsPath,
     activities,
     bundlerOptions: {
-      webpackConfigHook: (config: any) => {
+      webpackConfigHook: (config) => {
         config.resolve = config.resolve || {};
-        config.resolve.alias = {
-          ...config.resolve.alias,
+        (config.resolve as Record<string, unknown>).alias = {
+          ...((config.resolve as Record<string, unknown>).alias as Record<string, unknown>),
           '@ai-sdlc/shared-type': path.resolve(ROOT, 'libs/shared-type/src'),
         };
         return config;

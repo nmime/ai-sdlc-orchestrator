@@ -9,3 +9,4 @@ export * from './dto/common.dto';
 export { AllExceptionsFilter } from './filters/all-exceptions.filter';
 export { ContentTypeGuard } from './validators/content-type.guard';
 export { assertSafeUrl } from './validators/ssrf.validator';
+export type { AuthenticatedRequest } from './interfaces/authenticated-request';
