@@ -1,8 +1,8 @@
-import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
-import { WebhookDelivery } from '@app/db';
+import { WebhookDelivery, DeliveryStatus, WebhookPlatform } from '@app/db';
 import { FastifyRequest } from 'fastify';
 
 @ApiTags('webhook-deliveries')
@@ -25,6 +25,12 @@ export class WebhookDeliveryController {
   ): Promise<{ data: WebhookDelivery[]; total: number; limit: number; offset: number }> {
     const userTenantId = (req as any)?.user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+    if (status && !Object.values(DeliveryStatus).includes(status as DeliveryStatus)) {
+      throw new BadRequestException('Invalid status');
+    }
+    if (platform && !Object.values(WebhookPlatform).includes(platform as WebhookPlatform)) {
+      throw new BadRequestException('Invalid platform');
+    }
 
     const where: Record<string, unknown> = { tenant: tenantId };
     if (status) where['status'] = status;

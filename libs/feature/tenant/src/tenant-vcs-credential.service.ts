@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeLog } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantVcsCredential, Tenant, VcsProvider } from '@app/db';
 import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
@@ -48,7 +48,7 @@ export class TenantVcsCredentialService {
     cred.secretRef = dto.secretRef;
 
     await this.em.persistAndFlush(cred);
-    this.logger.log(`VCS credential created for ${dto.provider}/${dto.host} tenant ${tenantId}`);
+    this.logger.log(`VCS credential created for ${sanitizeLog(dto.provider)}/${sanitizeLog(dto.host)} tenant ${sanitizeLog(tenantId)}`);
     return ResultUtils.ok(cred);
   }
 

@@ -1,8 +1,8 @@
-import { Controller, Get, Query, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
-import { WorkflowMirror, WorkflowEvent, AgentSession, WorkflowArtifact } from '@app/db';
+import { WorkflowMirror, WorkflowEvent, AgentSession, WorkflowArtifact, WorkflowStatus } from '@app/db';
 import type { FastifyRequest } from 'fastify';
 
 @ApiTags('workflows')
@@ -29,6 +29,9 @@ export class WorkflowsController {
     @Query('offset') offset?: string,
   ): Promise<{ data: WorkflowMirror[]; total: number; limit: number; offset: number }> {
     const tenantId = this.getTenantId(req);
+    if (status && !Object.values(WorkflowStatus).includes(status as WorkflowStatus)) {
+      throw new BadRequestException('Invalid status');
+    }
     const parsedLimit = Math.min(parseInt(limit || '50', 10), 200);
     const parsedOffset = Math.max(parseInt(offset || '0', 10), 0);
     const where: Record<string, unknown> = { tenant: tenantId };

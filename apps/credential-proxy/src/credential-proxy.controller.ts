@@ -2,7 +2,7 @@ import {
   Controller, Post, Get, Param, Body, Headers, Req, Res,
   HttpCode, HttpStatus, UnauthorizedException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
-import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 import { timingSafeEqual } from 'crypto';
 import { CredentialProxyService } from './credential-proxy.service';
 import { SessionService } from './session.service';
@@ -26,6 +26,7 @@ export class CreateSessionDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(86400)
   ttlSeconds?: number;
 
   @IsOptional()

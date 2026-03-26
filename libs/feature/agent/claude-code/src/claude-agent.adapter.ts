@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeLog } from '@app/common';
 import type { AppError, AppConfig } from '@app/common';
 import type { AiAgentPort } from '@app/feature-agent-registry';
 import type { AgentInvokeInput, AgentInvokeOutput, PublishedArtifact } from '@app/shared-type';
@@ -35,7 +35,7 @@ export class ClaudeAgentAdapter implements AiAgentPort {
     this.activeSessions.set(input.sessionId, abortController);
 
     try {
-      this.logger.log(`Invoking Claude agent for session ${input.sessionId}`);
+      this.logger.log(`Invoking Claude agent for session ${sanitizeLog(input.sessionId)}`);
       const startTime = Date.now();
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
@@ -182,7 +182,7 @@ export class ClaudeAgentAdapter implements AiAgentPort {
       const sandboxCostRate = parseFloat(this.configService.get('SANDBOX_COST_PER_HOUR_USD', { infer: true }) || '0.05');
       const sandboxCostUsd = (durationMs / 3_600_000) * sandboxCostRate;
 
-      this.logger.log(`Session ${input.sessionId} completed in ${durationMs}ms, ${turn} turns, cost: $${aiCostUsd.toFixed(4)}`);
+      this.logger.log(`Session ${sanitizeLog(input.sessionId)} completed in ${durationMs}ms, ${turn} turns, cost: ${aiCostUsd.toFixed(4)}`);
 
       return ResultUtils.ok({
         success: true,
@@ -194,7 +194,7 @@ export class ClaudeAgentAdapter implements AiAgentPort {
         artifacts,
       });
     } catch (error) {
-      this.logger.error(`Session ${input.sessionId} failed: ${(error as Error).message}`);
+      this.logger.error(`Session ${sanitizeLog(input.sessionId)} failed: ${sanitizeLog((error as Error).message)}`);
       return ResultUtils.err('AGENT_ERROR', (error as Error).message);
     } finally {
       this.activeSessions.delete(input.sessionId);

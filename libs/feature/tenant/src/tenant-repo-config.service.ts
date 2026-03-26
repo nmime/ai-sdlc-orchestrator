@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
-import { ResultUtils, PinoLoggerService, sanitizeRecord } from '@app/common';
+import { ResultUtils, PinoLoggerService, sanitizeRecord, sanitizeLog } from '@app/common';
 import type { AppError } from '@app/common';
 import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@app/db';
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, MaxLength, ArrayMaxSize } from 'class-validator';
@@ -254,7 +254,7 @@ export class TenantRepoConfigService {
     this.applyDto(config, dto);
 
     await this.em.persistAndFlush(config);
-    this.logger.log(`Repo config created: ${dto.repoId} for tenant ${tenantId}`);
+    this.logger.log(`Repo config created: ${sanitizeLog(dto.repoId)} for tenant ${sanitizeLog(tenantId)}`);
     return ResultUtils.ok(config);
   }
 
