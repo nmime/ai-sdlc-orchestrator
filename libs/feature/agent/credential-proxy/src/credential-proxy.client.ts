@@ -89,13 +89,12 @@ export class CredentialProxyClient {
     }
   }
 
-  async revokeSession(sessionToken: string): Promise<Result<void, AppError>> {
+  async revokeSession(sessionId: string): Promise<Result<void, AppError>> {
     try {
-      await fetch(`${this.baseUrl}/sessions/revoke`, {
+      await fetch(`${this.baseUrl}/sessions/${encodeURIComponent(sessionId)}/revoke`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
+          'x-internal-token': this.internalToken,
         },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
