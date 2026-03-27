@@ -1,16 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { apiFetch } from '../api';
 
 interface CostSummary {
-  budgetLimitUsd: number;
-  budgetUsedUsd: number;
-  aiBudgetUsedUsd: number;
-  sandboxBudgetUsedUsd: number;
+  tenantId: string;
+  monthlyCostLimitUsd: number;
+  monthlyCostActualUsd: number;
+  monthlyCostReservedUsd: number;
+  monthlyAiCostActualUsd: number;
+  monthlySandboxCostActualUsd: number;
   remainingUsd: number;
 }
 
+const DEV_TENANT_ID = '00000000-0000-4000-a000-000000000001';
+
 async function fetchCostSummary(tenantId: string): Promise<CostSummary> {
-  const res = await fetch(`/api/costs/summary/${tenantId}`);
+  const res = await apiFetch(`/api/costs/summary/${tenantId}`);
   if (!res.ok) throw new Error('Failed to fetch costs');
   return res.json();
 }
@@ -19,8 +24,8 @@ const COLORS = ['#6366f1', '#f59e0b', '#10b981'];
 
 export function CostDashboard() {
   const { data, isLoading } = useQuery({
-    queryKey: ['costs', 'default'],
-    queryFn: () => fetchCostSummary('default'),
+    queryKey: ['costs', DEV_TENANT_ID],
+    queryFn: () => fetchCostSummary(DEV_TENANT_ID),
     refetchInterval: 10000,
   });
 
@@ -28,25 +33,25 @@ export function CostDashboard() {
   if (!data) return <div className="text-center py-8 text-gray-500">No cost data available</div>;
 
   const pieData = [
-    { name: 'AI Cost', value: Number(data.aiBudgetUsedUsd) },
-    { name: 'Sandbox Cost', value: Number(data.sandboxBudgetUsedUsd) },
+    { name: 'AI Cost', value: Number(data.monthlyAiCostActualUsd) },
+    { name: 'Sandbox Cost', value: Number(data.monthlySandboxCostActualUsd) },
     { name: 'Remaining', value: data.remainingUsd },
   ];
 
   const barData = [
-    { name: 'Budget Limit', value: Number(data.budgetLimitUsd) },
-    { name: 'Total Used', value: Number(data.budgetUsedUsd) },
-    { name: 'AI Used', value: Number(data.aiBudgetUsedUsd) },
-    { name: 'Sandbox Used', value: Number(data.sandboxBudgetUsedUsd) },
+    { name: 'Budget Limit', value: Number(data.monthlyCostLimitUsd) },
+    { name: 'Total Used', value: Number(data.monthlyCostActualUsd) },
+    { name: 'AI Used', value: Number(data.monthlyAiCostActualUsd) },
+    { name: 'Sandbox Used', value: Number(data.monthlySandboxCostActualUsd) },
   ];
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: 'Budget Limit', value: `$${Number(data.budgetLimitUsd).toFixed(2)}`, color: 'text-gray-900' },
-          { label: 'Total Used', value: `$${Number(data.budgetUsedUsd).toFixed(2)}`, color: 'text-indigo-600' },
-          { label: 'AI Cost', value: `$${Number(data.aiBudgetUsedUsd).toFixed(2)}`, color: 'text-amber-600' },
+          { label: 'Budget Limit', value: `$${Number(data.monthlyCostLimitUsd).toFixed(2)}`, color: 'text-gray-900' },
+          { label: 'Total Used', value: `$${Number(data.monthlyCostActualUsd).toFixed(2)}`, color: 'text-indigo-600' },
+          { label: 'AI Cost', value: `$${Number(data.monthlyAiCostActualUsd).toFixed(2)}`, color: 'text-amber-600' },
           { label: 'Remaining', value: `$${data.remainingUsd.toFixed(2)}`, color: 'text-green-600' },
         ].map((card) => (
           <div key={card.label} className="bg-white rounded-lg shadow p-4">

@@ -6,19 +6,21 @@ const mockWorkflows = {
   items: [
     {
       id: 'wf-1',
-      taskTitle: 'Fix login bug',
-      status: 'running',
+      dslName: 'Fix login bug',
+      state: 'implementing',
       repoUrl: 'https://github.com/org/repo',
-      totalCostUsd: 1.23,
-      startedAt: '2025-01-01T00:00:00Z',
+      costUsdTotal: 1.23,
+      createdAt: '2025-01-01T00:00:00Z',
+      temporalWorkflowId: 'twf-1',
     },
     {
       id: 'wf-2',
-      taskTitle: 'Add auth',
-      status: 'completed',
+      dslName: 'Add auth',
+      state: 'completed',
       repoUrl: 'https://github.com/org/repo2',
-      totalCostUsd: 5.67,
-      startedAt: '2025-01-02T00:00:00Z',
+      costUsdTotal: 5.67,
+      createdAt: '2025-01-02T00:00:00Z',
+      temporalWorkflowId: 'twf-2',
     },
   ],
   total: 2,
@@ -70,7 +72,7 @@ describe('WorkflowList', () => {
 
   it('should display status badges', async () => {
     renderWithQuery(mockWorkflows);
-    expect(await screen.findByText('running')).toBeInTheDocument();
+    expect(await screen.findByText('implementing')).toBeInTheDocument();
     expect(screen.getByText('completed')).toBeInTheDocument();
   });
 

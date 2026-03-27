@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     globals: true,
-    exclude: ['**/node_modules/**', '**/dist/**', 'apps/dashboard/**', 'test/component/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'apps/dashboard/**', 'test/component/**', 'test/e2e/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -17,6 +17,7 @@ export default defineConfig({
         '**/main.ts',
         '**/*.d.ts',
         '**/seed.ts',
+        'apps/dashboard/**',
         '**/migrations/**',
         '**/app-error.ts',
         '**/shared-type/src/**',

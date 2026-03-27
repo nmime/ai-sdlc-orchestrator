@@ -1,21 +1,23 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../api';
 
 interface Workflow {
   id: string;
-  taskTitle: string;
-  status: string;
+  state: string;
   temporalWorkflowId: string;
+  repoUrl: string;
+  dslName?: string;
 }
 
 async function fetchGateWorkflows(): Promise<{ items: Workflow[] }> {
-  const res = await fetch('/api/workflows?status=awaiting_gate');
+  const res = await apiFetch('/api/workflows?state=implementing');
   if (!res.ok) throw new Error('Failed to fetch');
   return res.json();
 }
 
 async function submitDecision(workflowId: string, action: string, reviewer: string, comment: string) {
-  const res = await fetch(`/api/gates/${workflowId}/decide`, {
+  const res = await apiFetch(`/api/gates/${workflowId}/decide`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, reviewer, comment }),
@@ -60,11 +62,11 @@ export function GatePanel() {
             <div key={wf.id} className="px-4 py-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{wf.taskTitle}</p>
+                  <p className="font-medium">{wf.dslName || wf.temporalWorkflowId}</p>
                   <p className="text-xs text-gray-400">{wf.temporalWorkflowId}</p>
                 </div>
                 <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-                  Awaiting Gate
+                  {wf.state}
                 </span>
               </div>
               <div className="flex items-center gap-2">

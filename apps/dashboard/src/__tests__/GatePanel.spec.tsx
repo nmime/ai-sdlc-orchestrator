@@ -6,9 +6,10 @@ const mockGateData = {
   items: [
     {
       id: 'wf-1',
-      taskTitle: 'Review login fix',
-      status: 'awaiting_gate',
+      dslName: 'Review login fix',
+      state: 'implementing',
       temporalWorkflowId: 'twf-1',
+      repoUrl: 'https://github.com/org/repo',
     },
   ],
 };

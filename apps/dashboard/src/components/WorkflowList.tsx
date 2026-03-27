@@ -1,29 +1,37 @@
 import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '../api';
 
 interface Workflow {
   id: string;
-  taskTitle: string;
-  status: string;
   repoUrl: string;
-  totalCostUsd: number;
-  startedAt: string;
-  completedAt?: string;
+  state: string;
+  costUsdTotal: number;
+  createdAt: string;
+  temporalWorkflowId: string;
+  branchName?: string;
+  dslName?: string;
 }
 
 async function fetchWorkflows(): Promise<{ items: Workflow[]; total: number }> {
-  const res = await fetch('/api/workflows');
+  const res = await apiFetch('/api/workflows');
   if (!res.ok) throw new Error('Failed to fetch workflows');
   return res.json();
 }
 
 const statusColors: Record<string, string> = {
   queued: 'bg-gray-100 text-gray-700',
-  running: 'bg-blue-100 text-blue-700',
-  awaiting_gate: 'bg-yellow-100 text-yellow-700',
-  awaiting_ci: 'bg-orange-100 text-orange-700',
+  implementing: 'bg-blue-100 text-blue-700',
+  ci_watch: 'bg-yellow-100 text-yellow-700',
+  ci_passed: 'bg-green-100 text-green-700',
+  ci_failed: 'bg-red-100 text-red-700',
+  ci_fixing: 'bg-orange-100 text-orange-700',
+  in_review: 'bg-purple-100 text-purple-700',
+  review_fixing: 'bg-orange-100 text-orange-700',
   completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
+  blocked_recoverable: 'bg-red-100 text-red-700',
+  blocked_terminal: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-500',
+  timed_out: 'bg-gray-100 text-gray-500',
 };
 
 export function WorkflowList() {
@@ -45,15 +53,15 @@ export function WorkflowList() {
         {data?.items.map((wf) => (
           <div key={wf.id} className="px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="font-medium text-gray-900">{wf.taskTitle}</p>
+              <p className="font-medium text-gray-900">{wf.dslName || wf.temporalWorkflowId}</p>
               <p className="text-sm text-gray-500">{wf.repoUrl}</p>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[wf.status] || 'bg-gray-100'}`}>
-                {wf.status}
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[wf.state] || 'bg-gray-100'}`}>
+                {wf.state}
               </span>
-              <span className="text-sm text-gray-600">${wf.totalCostUsd.toFixed(2)}</span>
-              <span className="text-xs text-gray-400">{new Date(wf.startedAt).toLocaleString()}</span>
+              <span className="text-sm text-gray-600">${Number(wf.costUsdTotal).toFixed(2)}</span>
+              <span className="text-xs text-gray-400">{new Date(wf.createdAt).toLocaleString()}</span>
             </div>
           </div>
         )) ?? <div className="px-4 py-8 text-center text-gray-500">No workflows yet</div>}

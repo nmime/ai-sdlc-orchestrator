@@ -3,10 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CostDashboard } from '../components/CostDashboard';
 
 const mockCostData = {
-  budgetLimitUsd: 1000,
-  budgetUsedUsd: 250,
-  aiBudgetUsedUsd: 200,
-  sandboxBudgetUsedUsd: 50,
+  tenantId: '00000000-0000-4000-a000-000000000001',
+  monthlyCostLimitUsd: 1000,
+  monthlyCostActualUsd: 250,
+  monthlyCostReservedUsd: 0,
+  monthlyAiCostActualUsd: 200,
+  monthlySandboxCostActualUsd: 50,
   remainingUsd: 750,
 };
 

@@ -57,8 +57,8 @@ describe('AuthGuard', () => {
       expect(req.user).toEqual({
         id: 'dev-user',
         email: 'dev@local',
-        role: 'viewer',
-        tenantId: 'dev-tenant',
+        role: 'admin',
+        tenantId: '00000000-0000-4000-a000-000000000001',
       });
     });
 

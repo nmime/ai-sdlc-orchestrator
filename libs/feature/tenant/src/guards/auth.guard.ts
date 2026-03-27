@@ -53,7 +53,7 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('OIDC not configured');
       }
       this.logger.warn('OIDC not configured \u2014 using dev-mode bypass. DO NOT use in production.');
-      request.user = { id: 'dev-user', email: 'dev@local', role: 'viewer', tenantId: 'dev-tenant' };
+      request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: '00000000-0000-4000-a000-000000000001' };
       return true;
     }
 
