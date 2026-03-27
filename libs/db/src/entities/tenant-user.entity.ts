@@ -1,6 +1,7 @@
 import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
+import { EncryptedType } from './encrypted.type';
 
 export enum TenantRole {
   ADMIN = 'admin',
@@ -23,7 +24,7 @@ export class TenantUser {
   @Property()
   provider!: string;
 
-  @Property()
+  @Property({ type: EncryptedType, columnType: 'text' })
   email!: string;
 
   @Enum(() => TenantRole)

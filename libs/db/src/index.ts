@@ -15,4 +15,5 @@ export { AgentToolCall, ToolCallStatus } from './entities/agent-tool-call.entity
 export { CostAlert, AlertType } from './entities/cost-alert.entity';
 export { PollingSchedule } from './entities/polling-schedule.entity';
 export { McpServerRegistry } from './entities/mcp-server-registry.entity';
+export { EncryptedType } from './entities/encrypted.type';
 export { seedDatabase } from './seed';
