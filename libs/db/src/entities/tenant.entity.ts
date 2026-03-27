@@ -1,5 +1,11 @@
 import { Entity, PrimaryKey, Property, OneToMany, Collection, Enum } from '@mikro-orm/core';
 import { v4 } from 'uuid';
+import type { TenantUser } from './tenant-user.entity';
+import type { TenantApiKey } from './tenant-api-key.entity';
+import type { TenantRepoConfig } from './tenant-repo-config.entity';
+import type { TenantMcpServer } from './tenant-mcp-server.entity';
+import type { TenantVcsCredential } from './tenant-vcs-credential.entity';
+import type { TenantWebhookConfig } from './tenant-webhook-config.entity';
 
 export enum TenantStatus {
   PENDING = 'pending',
@@ -91,20 +97,20 @@ export class Tenant {
   updatedAt: Date = new Date();
 
   @OneToMany('TenantUser', 'tenant')
-  users = new Collection<any>(this);
+  users = new Collection<TenantUser>(this);
 
   @OneToMany('TenantApiKey', 'tenant')
-  apiKeys = new Collection<any>(this);
+  apiKeys = new Collection<TenantApiKey>(this);
 
   @OneToMany('TenantRepoConfig', 'tenant')
-  repoConfigs = new Collection<any>(this);
+  repoConfigs = new Collection<TenantRepoConfig>(this);
 
   @OneToMany('TenantMcpServer', 'tenant')
-  mcpServers = new Collection<any>(this);
+  mcpServers = new Collection<TenantMcpServer>(this);
 
   @OneToMany('TenantVcsCredential', 'tenant')
-  vcsCredentials = new Collection<any>(this);
+  vcsCredentials = new Collection<TenantVcsCredential>(this);
 
   @OneToMany('TenantWebhookConfig', 'tenant')
-  webhookConfigs = new Collection<any>(this);
+  webhookConfigs = new Collection<TenantWebhookConfig>(this);
 }

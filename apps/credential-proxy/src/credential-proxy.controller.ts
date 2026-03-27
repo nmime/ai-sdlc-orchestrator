@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Headers, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Headers, HttpCode, HttpStatus, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
 import { CredentialProxyService } from './credential-proxy.service';
@@ -29,6 +29,7 @@ export class CredentialProxyController {
     @Param('sessionId') sessionId: string,
   ) {
     this.requireInternalToken(internalToken);
+    this.validateSessionIdFormat(sessionId);
     this.sessionService.revoke(sessionId);
   }
 
@@ -65,7 +66,14 @@ export class CredentialProxyController {
     @Body() body: RecordCostDto,
   ) {
     this.requireInternalToken(internalToken);
+    this.validateSessionIdFormat(sessionId);
     return { recorded: true, sessionId };
+  }
+
+  private validateSessionIdFormat(sessionId: string): void {
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(sessionId)) {
+      throw new BadRequestException('Invalid sessionId format');
+    }
   }
 
   private requireInternalToken(token: string): void {
