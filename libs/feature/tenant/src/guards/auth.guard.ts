@@ -1,6 +1,7 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@ai-sdlc/common';
+import { VALID_ROLES, type UserRole, type AuthenticatedRequest } from '@ai-sdlc/common';
 import { ApiKeyService } from '../api-key.service';
 
 interface OidcUserInfo {
@@ -12,13 +13,15 @@ interface OidcUserInfo {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly logger = new Logger(AuthGuard.name);
+
   constructor(
     private readonly configService: ConfigService<AppConfig, true>,
     private readonly apiKeyService: ApiKeyService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const authHeader = request.headers['authorization'];
 
     if (!authHeader) return false;
@@ -36,14 +39,19 @@ export class AuthGuard implements CanActivate {
     return false;
   }
 
-  private async validateToken(token: string, request: any): Promise<boolean> {
+  private isValidRole(role: string): role is UserRole {
+    return (VALID_ROLES as readonly string[]).includes(role);
+  }
+
+  private async validateToken(token: string, request: AuthenticatedRequest): Promise<boolean> {
     const issuerUrl = this.configService.get('OIDC_ISSUER_URL');
     const nodeEnv = this.configService.get('NODE_ENV');
     if (!issuerUrl) {
       if (nodeEnv !== 'development') {
         throw new UnauthorizedException('OIDC not configured');
       }
-      request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: 'dev-tenant' };
+      this.logger.warn('OIDC not configured \u2014 using dev-mode bypass. DO NOT use in production.');
+      request.user = { id: 'dev-user', email: 'dev@local', role: 'viewer', tenantId: 'dev-tenant' };
       return true;
     }
 
@@ -55,11 +63,12 @@ export class AuthGuard implements CanActivate {
       if (!response.ok) return false;
 
       const userInfo = await response.json() as OidcUserInfo;
+      const claimedRole = userInfo.role || 'viewer';
       request.user = {
         id: userInfo.sub,
         email: userInfo.email,
-        role: userInfo.role || 'viewer',
-        tenantId: userInfo.tenant_id,
+        role: this.isValidRole(claimedRole) ? claimedRole : 'viewer',
+        tenantId: userInfo.tenant_id || '',
       };
       return true;
     } catch {
@@ -67,13 +76,14 @@ export class AuthGuard implements CanActivate {
     }
   }
 
-  private async validateApiKey(apiKey: string, request: any): Promise<boolean> {
+  private async validateApiKey(apiKey: string, request: AuthenticatedRequest): Promise<boolean> {
     const result = await this.apiKeyService.validate(apiKey);
     if (result.isErr()) return false;
     const key = result.value;
+    const role = key.role;
     request.user = {
       id: `apikey-${key.id}`,
-      role: key.role,
+      role: this.isValidRole(role) ? role : 'viewer',
       tenantId: key.tenant.id,
     };
     return true;

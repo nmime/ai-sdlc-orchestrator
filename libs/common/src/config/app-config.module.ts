@@ -13,7 +13,7 @@ export const appConfigSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   MINIO_ENDPOINT: z.string().default('localhost'),
   MINIO_PORT: z.coerce.number().default(9000),
-  MINIO_ACCESS_KEY: z.string().default('minioadmin'),
+  MINIO_ACCESS_KEY: z.string(),
   MINIO_SECRET_KEY: z.string(),
   MINIO_BUCKET: z.string().default('artifacts'),
   E2B_API_KEY: z.string().optional(),
@@ -26,11 +26,11 @@ export const appConfigSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
   CREDENTIAL_PROXY_BIND: z.string().default('127.0.0.1'),
-  CREDENTIAL_PROXY_INTERNAL_TOKEN: z.string().optional(),
+  CREDENTIAL_PROXY_INTERNAL_TOKEN: z.string().min(16),
   CREDENTIAL_PROXY_PORT: z.coerce.number().default(3002),
   CREDENTIAL_PROXY_URL: z.string().default('http://localhost:3002'),
   DEFAULT_VCS_TOKEN: z.string().optional(),
-  SESSION_SIGNING_KEY: z.string().optional(),
+  SESSION_SIGNING_KEY: z.string().min(32).optional(),
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Body, Query, UseGuards, BadRequestException, Req, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, Query, UseGuards, BadRequestException, Req, ParseIntPipe, DefaultValuePipe, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService, WorkflowRetryDto } from '@ai-sdlc/common';
@@ -26,7 +26,12 @@ export class WorkflowsController {
     @Query('offset', new DefaultValuePipe(0), ParseIntPipe) offset?: number,
   ) {
     const where: Record<string, unknown> = { tenant: req.user.tenantId };
-    if (state) where['state'] = state;
+    if (state) {
+      if (!Object.values(WorkflowStatus).includes(state as WorkflowStatus)) {
+        throw new BadRequestException(`Invalid state. Must be one of: ${Object.values(WorkflowStatus).join(', ')}`);
+      }
+      where['state'] = state;
+    }
     const safeLimit = Math.min(limit ?? 50, 100);
 
     const [items, total] = await this.em.findAndCount(WorkflowMirror, where, {
@@ -41,7 +46,7 @@ export class WorkflowsController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow mirror by ID' })
-  async findById(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  async findById(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     return this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId }, {
       populate: ['tenant'],
     });
@@ -50,7 +55,7 @@ export class WorkflowsController {
   @Get(':id/events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events' })
-  async getEvents(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  async getEvents(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     return this.em.find(WorkflowEvent, { workflow: id }, {
       orderBy: { createdAt: 'ASC' },
@@ -60,7 +65,7 @@ export class WorkflowsController {
   @Get(':id/sessions')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for a workflow' })
-  async getSessions(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  async getSessions(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     return this.em.find(AgentSession, { workflow: id }, {
       orderBy: { startedAt: 'ASC' },
@@ -70,7 +75,7 @@ export class WorkflowsController {
   @Get(':id/artifacts')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
-  async getArtifacts(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  async getArtifacts(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     return this.em.find(WorkflowArtifact, { workflow: id });
   }
@@ -80,7 +85,7 @@ export class WorkflowsController {
   @ApiOperation({ summary: 'Retry a blocked workflow from a specific step' })
   async retry(
     @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: WorkflowRetryDto,
   ) {
     const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });

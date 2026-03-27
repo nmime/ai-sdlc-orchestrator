@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
+import type { AppError, AppConfig } from '@ai-sdlc/common';
 
 export interface SessionToken {
   token: string;
@@ -12,20 +12,25 @@ export interface SessionToken {
 @Injectable()
 export class CredentialProxyClient {
   readonly baseUrl: string;
+  private readonly internalToken: string;
 
   constructor(
-    private readonly config: ConfigService,
+    private readonly config: ConfigService<AppConfig, true>,
     private readonly logger: PinoLoggerService,
   ) {
     this.logger.setContext('CredentialProxyClient');
-    this.baseUrl = this.config.get<string>('CREDENTIAL_PROXY_URL') || 'http://localhost:4000';
+    this.baseUrl = this.config.get('CREDENTIAL_PROXY_URL');
+    this.internalToken = this.config.get('CREDENTIAL_PROXY_INTERNAL_TOKEN');
   }
 
   async createSession(tenantId: string, scopes: string[]): Promise<Result<SessionToken, AppError>> {
     try {
       const response = await fetch(`${this.baseUrl}/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-token': this.internalToken,
+        },
         body: JSON.stringify({ tenantId, scopes }),
       });
 

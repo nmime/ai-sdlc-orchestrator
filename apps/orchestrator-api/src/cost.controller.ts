@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, ForbiddenException, Req, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException, Req, ParseIntPipe, DefaultValuePipe, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Tenant, AgentSession, CostAlert } from '@ai-sdlc/db';
@@ -21,7 +21,7 @@ export class CostController {
   @Get('summary/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost summary for tenant' })
-  async getCostSummary(@Req() req: AuthenticatedRequest, @Param('tenantId') tenantId: string) {
+  async getCostSummary(@Req() req: AuthenticatedRequest, @Param('tenantId', ParseUUIDPipe) tenantId: string) {
     this.assertTenantAccess(req, tenantId);
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
 
@@ -41,7 +41,7 @@ export class CostController {
   @ApiOperation({ summary: 'Get recent agent sessions with costs' })
   async getRecentSessions(
     @Req() req: AuthenticatedRequest,
-    @Param('tenantId') tenantId: string,
+    @Param('tenantId', ParseUUIDPipe) tenantId: string,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit?: number,
   ) {
     this.assertTenantAccess(req, tenantId);
@@ -55,7 +55,7 @@ export class CostController {
   @Get('alerts/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost alerts for tenant' })
-  async getAlerts(@Req() req: AuthenticatedRequest, @Param('tenantId') tenantId: string) {
+  async getAlerts(@Req() req: AuthenticatedRequest, @Param('tenantId', ParseUUIDPipe) tenantId: string) {
     this.assertTenantAccess(req, tenantId);
     return this.em.find(CostAlert, { tenant: tenantId }, {
       orderBy: { createdAt: 'DESC' },

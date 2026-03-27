@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import { AllExceptionsFilter } from '@ai-sdlc/common';
+import { AllExceptionsFilter, PinoLoggerService } from '@ai-sdlc/common';
 import { CredentialProxyModule } from './credential-proxy.module';
 
 async function bootstrap() {
@@ -33,10 +33,13 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   app.useGlobalFilters(new AllExceptionsFilter(config));
 
+  const logger = await app.resolve(PinoLoggerService);
+  app.useLogger(logger);
+
   const port = parseInt(config.get<string>('CREDENTIAL_PROXY_PORT') || '4000', 10);
   const bindAddress = config.get<string>('CREDENTIAL_PROXY_BIND') || '127.0.0.1';
   await app.listen(port, bindAddress);
-  console.log(`Credential proxy listening on ${bindAddress}:${port}`);
+  logger.log(`Credential proxy listening on ${bindAddress}:${port}`);
 }
 
 bootstrap();

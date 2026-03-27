@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MaxLength, Matches } from 'class-validator';
+import { IsString, IsOptional, MaxLength, Matches, IsInt, Min, Max } from 'class-validator';
 import type { GateAction } from '@ai-sdlc/shared-type';
 
 export class GateDecideDto {
@@ -43,6 +43,9 @@ export class CreateSessionDto {
   sessionId!: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(86400)
   ttlSeconds?: number;
 }
 
@@ -53,7 +56,12 @@ export class ResolveHostDto {
 }
 
 export class RecordCostDto {
+  @IsInt()
+  @Min(0)
   inputTokens!: number;
+
+  @IsInt()
+  @Min(0)
   outputTokens!: number;
 
   @IsString()

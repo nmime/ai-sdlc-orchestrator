@@ -13,7 +13,7 @@ import { v4 } from 'uuid';
 
 interface WebhookHandler {
   parse(headers: Record<string, string>, body: Record<string, unknown>, tenantId: string): Result<WebhookEvent | null, AppError>;
-  verifySignature?(...args: any[]): void;
+  verifySignature?(headers: Record<string, string>, rawBody: string, tenantId: string): void;
 }
 
 @Injectable()
@@ -68,7 +68,7 @@ export class WebhookService {
     }
 
     const delivery = new WebhookDelivery();
-    delivery.tenant = this.em.getReference(Tenant, tenantId) as any;
+    delivery.tenant = this.em.getReference(Tenant, tenantId);
     delivery.platform = platform;
     delivery.eventType = event.eventType;
     delivery.deliveryId = event.deliveryId;
@@ -76,12 +76,13 @@ export class WebhookService {
 
     try {
       await this.em.persistAndFlush(delivery);
-    } catch (error: any) {
-      if (error?.code === '23505') {
+    } catch (error) {
+      const dbError = error as { code?: string; message?: string };
+      if (dbError.code === '23505') {
         this.logger.warn(`Duplicate webhook ignored: ${event.deliveryId}`);
         return ResultUtils.ok({ accepted: true, deliveryId: 'duplicate' });
       }
-      return ResultUtils.err('INTERNAL_ERROR', error.message);
+      return ResultUtils.err('INTERNAL_ERROR', 'Failed to persist webhook delivery');
     }
 
     try {

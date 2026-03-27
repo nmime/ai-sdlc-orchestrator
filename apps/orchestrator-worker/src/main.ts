@@ -18,7 +18,7 @@ loadDotenv();
 
 const ROOT = path.resolve(__dirname, '../../..');
 
-const configService = new ConfigService(process.env);
+const configService = new ConfigService(process.env) as unknown as ConfigService<AppConfig, true>;
 
 const logger = pino({
   level: configService.get<string>('WORKER_LOG_LEVEL') || 'info',
@@ -32,11 +32,11 @@ async function run() {
   logger.info('Starting orchestrator-worker...');
 
   const ormConfig: Options = {
-    host: configService.get<string>('DATABASE_HOST') || 'localhost',
-    port: configService.get<number>('DATABASE_PORT') || 6432,
-    dbName: configService.get<string>('DATABASE_NAME') || 'orchestrator',
-    user: configService.get<string>('DATABASE_USER') || 'orchestrator',
-    password: configService.get<string>('DATABASE_PASSWORD') || 'orchestrator_dev',
+    host: configService.get('DATABASE_HOST'),
+    port: configService.get('DATABASE_PORT'),
+    dbName: configService.get('DATABASE_NAME'),
+    user: configService.get('DATABASE_USER'),
+    password: configService.get('DATABASE_PASSWORD'),
     entities: ['./dist/libs/db/src/entities'],
     entitiesTs: ['./libs/db/src/entities'],
     allowGlobalContext: true,
@@ -46,13 +46,13 @@ async function run() {
   const em = orm.em.fork();
   const pinoLogger = new PinoLoggerService();
 
-  const sandboxAdapter = new E2bSandboxAdapter(configService as unknown as ConfigService<AppConfig, true>, pinoLogger);
+  const sandboxAdapter = new E2bSandboxAdapter(configService, pinoLogger);
   const agentRegistry = new AgentProviderRegistry();
-  const claudeAdapter = new ClaudeAgentAdapter(configService as unknown as ConfigService<AppConfig, true>, pinoLogger);
+  const claudeAdapter = new ClaudeAgentAdapter(configService, pinoLogger);
   agentRegistry.register(claudeAdapter);
 
   const promptFormatter = new PromptFormatter();
-  const credentialProxy = new CredentialProxyClient(configService as ConfigService, pinoLogger);
+  const credentialProxy = new CredentialProxyClient(configService, pinoLogger);
 
   initActivities({
     em,
@@ -63,14 +63,14 @@ async function run() {
   });
 
   const connection = await NativeConnection.connect({
-    address: configService.get<string>('TEMPORAL_ADDRESS') || 'localhost:7233',
+    address: configService.get('TEMPORAL_ADDRESS'),
   });
 
   const workflowsPath = path.resolve(ROOT, 'libs/feature/workflow/src/workflows/orchestrate-task.workflow.ts');
 
   const worker = await Worker.create({
     connection,
-    namespace: configService.get<string>('TEMPORAL_NAMESPACE') || 'default',
+    namespace: configService.get('TEMPORAL_NAMESPACE'),
     taskQueue: 'orchestrator-queue',
     workflowsPath,
     activities,

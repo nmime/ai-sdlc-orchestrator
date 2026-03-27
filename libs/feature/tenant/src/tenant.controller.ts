@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UseGuards, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UseGuards, NotFoundException, BadRequestException, InternalServerErrorException, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService, CreateTenantDto, UpdateTenantDto } from './tenant.service';
 import { AuthGuard } from './guards/auth.guard';
@@ -33,7 +33,7 @@ export class TenantController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get tenant by ID' })
-  async findById(@Param('id') id: string) {
+  async findById(@Param('id', ParseUUIDPipe) id: string) {
     const result = await this.tenantService.findById(id);
     if (result.isErr()) throw new NotFoundException('Tenant not found');
     return result.value;
@@ -42,7 +42,7 @@ export class TenantController {
   @Put(':id')
   @Roles('admin')
   @ApiOperation({ summary: 'Update tenant' })
-  async update(@Param('id') id: string, @Body() dto: UpdateTenantDto) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTenantDto) {
     const result = await this.tenantService.update(id, dto);
     if (result.isErr()) throw new BadRequestException('Failed to update tenant');
     return result.value;
@@ -52,7 +52,7 @@ export class TenantController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete tenant (soft)' })
-  async delete(@Param('id') id: string) {
+  async delete(@Param('id', ParseUUIDPipe) id: string) {
     const result = await this.tenantService.delete(id);
     if (result.isErr()) throw new NotFoundException('Tenant not found');
   }
