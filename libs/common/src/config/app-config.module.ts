@@ -31,6 +31,8 @@ export const appConfigSchema = z.object({
   CREDENTIAL_PROXY_URL: z.string().default('http://localhost:3002'),
   DEFAULT_VCS_TOKEN: z.string().optional(),
   SESSION_SIGNING_KEY: z.string().min(32).optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  APP_VERSION: z.string().default('0.0.1'),
 });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

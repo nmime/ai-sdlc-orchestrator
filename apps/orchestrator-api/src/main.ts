@@ -7,8 +7,10 @@ import { randomUUID } from 'crypto';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
-import { PinoLoggerService, AllExceptionsFilter } from '@ai-sdlc/common';
+import { PinoLoggerService, AllExceptionsFilter, initTelemetry } from '@ai-sdlc/common';
 import { httpRequestCounter, httpRequestDuration } from './metrics.controller';
+
+const otelSdk = initTelemetry('orchestrator-api');
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(

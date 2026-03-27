@@ -11,3 +11,4 @@ export { ContentTypeGuard } from './validators/content-type.guard';
 export { assertSafeUrl } from './validators/ssrf.validator';
 export { VALID_ROLES } from './interfaces/authenticated-request';
 export type { AuthenticatedRequest, AuthenticatedUser, UserRole } from './interfaces/authenticated-request';
+export { initTelemetry } from './telemetry/telemetry';

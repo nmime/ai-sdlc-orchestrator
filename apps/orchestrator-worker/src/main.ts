@@ -11,10 +11,13 @@ import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
 import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 import { PinoLoggerService } from '@ai-sdlc/common';
 import type { AppConfig } from '@ai-sdlc/common';
+import { initTelemetry } from '@ai-sdlc/common';
 import { ConfigService } from '@nestjs/config';
 import { config as loadDotenv } from 'dotenv';
 
 loadDotenv();
+
+const otelSdk = initTelemetry('orchestrator-worker');
 
 const ROOT = path.resolve(__dirname, '../../..');
 
