@@ -10,7 +10,7 @@ import type { WebhookEvent } from '@ai-sdlc/shared-type';
 export class GitLabHandler {
   constructor(private readonly config: ConfigService) {}
 
-  verifySignature(headers: Record<string, string>, tenantId: string): void {
+  verifySignature(headers: Record<string, string>, _rawBody: string, tenantId: string): void {
     const secret = this.config.get<string>(`WEBHOOK_SECRET_GITLAB_${tenantId.toUpperCase()}`);
     if (!secret) throw new UnauthorizedException('Webhook secret not configured for tenant');
     const token = headers['x-gitlab-token'];

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes, createHmac } from 'crypto';
 import Redis from 'ioredis';
@@ -17,12 +17,15 @@ const REVOKE_PREFIX = 'cp:rev:';
 export class SessionService implements OnModuleDestroy {
   private readonly redis: Redis;
   private readonly signingKey: string;
+  private readonly logger = new Logger(SessionService.name);
 
   constructor(private readonly config: ConfigService) {
     this.signingKey = this.config.get<string>('SESSION_SIGNING_KEY') || randomBytes(32).toString('hex');
     const redisUrl = this.config.get<string>('REDIS_URL') || 'redis://localhost:6379';
     this.redis = new Redis(redisUrl, { maxRetriesPerRequest: 3, lazyConnect: true });
-    this.redis.connect().catch(() => {});
+    this.redis.connect().catch((err: Error) => {
+      this.logger.error(`Failed to connect to Redis: ${err.message}`);
+    });
   }
 
   async onModuleDestroy(): Promise<void> {

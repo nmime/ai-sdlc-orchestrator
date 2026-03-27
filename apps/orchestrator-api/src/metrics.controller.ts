@@ -1,4 +1,5 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Res, Headers, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FastifyReply } from 'fastify';
 import { Registry, collectDefaultMetrics, Counter, Histogram } from 'prom-client';
 
@@ -37,8 +38,16 @@ export const agentSessionCost = new Histogram({
 
 @Controller('metrics')
 export class MetricsController {
+  constructor(private readonly config: ConfigService) {}
+
   @Get()
-  async getMetrics(@Res() reply: FastifyReply): Promise<void> {
+  async getMetrics(@Headers('authorization') auth: string, @Res() reply: FastifyReply): Promise<void> {
+    const token = this.config.get<string>('METRICS_TOKEN');
+    if (token) {
+      if (!auth || auth !== `Bearer ${token}`) {
+        throw new UnauthorizedException('Invalid metrics token');
+      }
+    }
     const metrics = await metricsRegistry.metrics();
     reply.header('Content-Type', metricsRegistry.contentType).send(metrics);
   }

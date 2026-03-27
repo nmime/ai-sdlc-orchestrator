@@ -8,7 +8,8 @@ const TAG_LEN = 16;
 function getKey(): Buffer {
   const secret = process.env['DB_ENCRYPTION_KEY'];
   if (!secret) throw new Error('DB_ENCRYPTION_KEY env var is required for encrypted fields');
-  return scryptSync(secret, 'ai-sdlc-salt', 32);
+  const salt = process.env['DB_ENCRYPTION_SALT'] || secret.slice(0, 16);
+  return scryptSync(secret, salt, 32);
 }
 
 export class EncryptedType extends Type<string, string> {

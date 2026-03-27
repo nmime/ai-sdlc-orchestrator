@@ -2,7 +2,7 @@ import { Module, Global, DynamicModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { z } from 'zod';
 
-export const appConfigSchema = z.object({
+const baseSchema = z.object({
   DATABASE_HOST: z.string().default('localhost'),
   DATABASE_PORT: z.coerce.number().default(6432),
   DATABASE_NAME: z.string().default('orchestrator'),
@@ -32,11 +32,24 @@ export const appConfigSchema = z.object({
   DEFAULT_VCS_TOKEN: z.string().optional(),
   SESSION_SIGNING_KEY: z.string().min(32).optional(),
   DB_ENCRYPTION_KEY: z.string().min(32).optional(),
+  DB_ENCRYPTION_SALT: z.string().min(16).optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   APP_VERSION: z.string().default('0.0.1'),
+  METRICS_TOKEN: z.string().optional(),
 });
 
-export type AppConfig = z.infer<typeof appConfigSchema>;
+export const appConfigSchema = baseSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (!data.SESSION_SIGNING_KEY) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'SESSION_SIGNING_KEY is required in production', path: ['SESSION_SIGNING_KEY'] });
+    }
+    if (!data.DB_ENCRYPTION_KEY) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'DB_ENCRYPTION_KEY is required in production', path: ['DB_ENCRYPTION_KEY'] });
+    }
+  }
+});
+
+export type AppConfig = z.infer<typeof baseSchema>;
 
 @Global()
 @Module({})

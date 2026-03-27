@@ -81,17 +81,26 @@ async function bootstrap() {
     maxAge: 86400,
   });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('AI SDLC Orchestrator API')
-    .setDescription('Orchestrator API for automated SDLC workflows')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  if (config.get<string>('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('AI SDLC Orchestrator API')
+      .setDescription('Orchestrator API for automated SDLC workflows')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = config.get<number>('API_PORT') || 3000;
   app.enableShutdownHooks();
+
+  if (otelSdk) {
+    const shutdown = async () => { await otelSdk.shutdown(); };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+  }
+
   await app.listen(port, '0.0.0.0');
 
   logger.log(`orchestrator-api started on port ${port}`);

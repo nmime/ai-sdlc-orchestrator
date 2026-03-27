@@ -48,10 +48,15 @@ export class CredentialProxyClient {
     }
   }
 
-  async getGitCredential(sessionToken: string): Promise<Result<{ username: string; password: string }, AppError>> {
+  async getGitCredential(sessionToken: string, host = 'github.com'): Promise<Result<{ username: string; password: string }, AppError>> {
     try {
       const response = await fetch(`${this.baseUrl}/git-credential`, {
-        headers: { Authorization: `Bearer ${sessionToken}` },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({ host }),
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 

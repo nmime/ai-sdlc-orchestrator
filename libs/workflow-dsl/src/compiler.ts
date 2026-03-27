@@ -1,4 +1,5 @@
 import { parse as parseYaml } from 'yaml';
+import { createHash } from 'crypto';
 import { Result } from 'neverthrow';
 import { workflowDslSchema, type WorkflowDslConfig, type DslStep } from './schema';
 import type { AppError } from '@ai-sdlc/common/result/app-error';
@@ -148,11 +149,6 @@ export class DslCompiler {
   }
 
   private computeChecksum(content: string): string {
-    let hash = 0;
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash + char) | 0;
-    }
-    return Math.abs(hash).toString(36);
+    return createHash('sha256').update(content).digest('hex');
   }
 }

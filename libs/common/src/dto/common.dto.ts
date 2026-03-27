@@ -52,6 +52,7 @@ export class CreateSessionDto {
 export class ResolveHostDto {
   @IsString()
   @MaxLength(500)
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$/, { message: 'host must be a valid hostname' })
   host!: string;
 }
 

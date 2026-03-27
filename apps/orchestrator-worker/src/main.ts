@@ -97,6 +97,7 @@ async function run() {
       logger.info(`Received ${signal}, shutting down...`);
       worker.shutdown();
       await orm.close();
+      if (otelSdk) await otelSdk.shutdown();
     });
   });
 
