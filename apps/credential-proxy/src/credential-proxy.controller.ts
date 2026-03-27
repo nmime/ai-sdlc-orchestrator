@@ -30,7 +30,7 @@ export class CredentialProxyController {
   ) {
     this.requireInternalToken(internalToken);
     this.validateSessionIdFormat(sessionId);
-    this.sessionService.revoke(sessionId);
+    await this.sessionService.revoke(sessionId);
   }
 
   @Post('git-credential')
@@ -38,7 +38,7 @@ export class CredentialProxyController {
     @Headers('authorization') auth: string,
     @Body() body: ResolveHostDto,
   ) {
-    const session = this.validateSession(auth);
+    const session = await this.validateSession(auth);
     return this.credentialService.getGitCredential(session.tenantId, body.host);
   }
 
@@ -47,7 +47,7 @@ export class CredentialProxyController {
     @Headers('authorization') auth: string,
     @Param('serverName') serverName: string,
   ) {
-    const session = this.validateSession(auth);
+    const session = await this.validateSession(auth);
     if (!/^[a-zA-Z0-9_-]+$/.test(serverName)) {
       throw new UnauthorizedException('Invalid server name');
     }
@@ -88,12 +88,12 @@ export class CredentialProxyController {
     }
   }
 
-  private validateSession(auth: string): { tenantId: string; workflowId: string; sessionId: string } {
+  private async validateSession(auth: string): Promise<{ tenantId: string; workflowId: string; sessionId: string }> {
     if (!auth?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Missing session token');
     }
     const token = auth.slice(7);
-    const session = this.sessionService.validate(token);
+    const session = await this.sessionService.validate(token);
     if (!session) {
       throw new UnauthorizedException('Invalid or expired session token');
     }
