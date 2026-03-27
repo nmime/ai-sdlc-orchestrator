@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Post, Body, Query, UseGuards, BadRequestException, Req, ParseIntPipe, DefaultValuePipe, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService, WorkflowRetryDto } from '@ai-sdlc/common';
 import type { AuthenticatedRequest } from '@ai-sdlc/common';
@@ -19,6 +19,11 @@ export class WorkflowsController {
   @Get()
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflow mirrors' })
+  @ApiResponse({ status: 200, description: 'Paginated list of workflows' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'state', required: false, enum: WorkflowStatus })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
   async list(
     @Req() req: AuthenticatedRequest,
     @Query('state') state?: string,
@@ -46,6 +51,8 @@ export class WorkflowsController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow mirror by ID' })
+  @ApiResponse({ status: 200, description: 'Workflow mirror details' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async findById(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     return this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId }, {
       populate: ['tenant'],
@@ -55,6 +62,8 @@ export class WorkflowsController {
   @Get(':id/events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events' })
+  @ApiResponse({ status: 200, description: 'List of workflow events' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async getEvents(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     return this.em.find(WorkflowEvent, { workflow: workflow.id }, {
@@ -65,6 +74,8 @@ export class WorkflowsController {
   @Get(':id/sessions')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for a workflow' })
+  @ApiResponse({ status: 200, description: 'List of agent sessions' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async getSessions(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     return this.em.find(AgentSession, { workflow: workflow.id }, {
@@ -75,6 +86,8 @@ export class WorkflowsController {
   @Get(':id/artifacts')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
+  @ApiResponse({ status: 200, description: 'List of workflow artifacts' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async getArtifacts(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
     const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
     return this.em.find(WorkflowArtifact, { workflow: workflow.id, tenant: req.user.tenantId });
@@ -83,6 +96,9 @@ export class WorkflowsController {
   @Post(':id/retry')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Retry a blocked workflow from a specific step' })
+  @ApiResponse({ status: 200, description: 'Retry queued' })
+  @ApiResponse({ status: 400, description: 'Workflow not in blocked state' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async retry(
     @Req() req: AuthenticatedRequest,
     @Param('id', ParseUUIDPipe) id: string,

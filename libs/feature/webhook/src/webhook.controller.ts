@@ -1,5 +1,5 @@
 import { Controller, Post, Body, Headers, Param, HttpCode, HttpStatus, InternalServerErrorException, BadRequestException, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { IsString, Matches, MaxLength } from 'class-validator';
 import { ContentTypeGuard } from '@ai-sdlc/common';
 import { WebhookService } from './webhook.service';
@@ -24,6 +24,8 @@ export class WebhookController {
   @Post(':platform/:tenantId')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Receive webhook from external platform' })
+  @ApiResponse({ status: 202, description: 'Webhook accepted' })
+  @ApiResponse({ status: 400, description: 'Invalid webhook payload or signature' })
   async handleWebhook(
     @Param('platform') platform: string,
     @Param('tenantId') tenantId: string,

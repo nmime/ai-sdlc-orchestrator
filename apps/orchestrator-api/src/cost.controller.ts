@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query, UseGuards, ForbiddenException, Req, ParseIntPipe, DefaultValuePipe, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { Tenant, AgentSession, CostAlert } from '@ai-sdlc/db';
 import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
@@ -21,6 +21,8 @@ export class CostController {
   @Get('summary/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost summary for tenant' })
+  @ApiResponse({ status: 200, description: 'Cost summary' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   async getCostSummary(@Req() req: AuthenticatedRequest, @Param('tenantId', ParseUUIDPipe) tenantId: string) {
     this.assertTenantAccess(req, tenantId);
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
@@ -39,6 +41,8 @@ export class CostController {
   @Get('sessions/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get recent agent sessions with costs' })
+  @ApiResponse({ status: 200, description: 'List of recent sessions' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   async getRecentSessions(
     @Req() req: AuthenticatedRequest,
     @Param('tenantId', ParseUUIDPipe) tenantId: string,
@@ -55,6 +59,8 @@ export class CostController {
   @Get('alerts/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost alerts for tenant' })
+  @ApiResponse({ status: 200, description: 'List of cost alerts' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   async getAlerts(@Req() req: AuthenticatedRequest, @Param('tenantId', ParseUUIDPipe) tenantId: string) {
     this.assertTenantAccess(req, tenantId);
     return this.em.find(CostAlert, { tenant: tenantId }, {

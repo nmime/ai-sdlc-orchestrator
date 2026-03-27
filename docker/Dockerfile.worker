@@ -14,4 +14,5 @@ RUN corepack enable
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+USER node
 CMD ["node", "dist/apps/orchestrator-worker/src/main.js"]

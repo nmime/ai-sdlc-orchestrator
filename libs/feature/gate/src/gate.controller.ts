@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Param, UseGuards, Req, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowMirror } from '@ai-sdlc/db';
 import { GateService } from './gate.service';
@@ -25,6 +25,8 @@ export class GateController {
   @Post(':workflowId/decide')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Submit gate decision for a workflow' })
+  @ApiResponse({ status: 200, description: 'Decision submitted' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async decide(
     @Req() req: AuthenticatedRequest,
     @Param('workflowId') workflowId: string,
@@ -44,6 +46,8 @@ export class GateController {
   @Get(':workflowId/status')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow status' })
+  @ApiResponse({ status: 200, description: 'Workflow status' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async getStatus(@Req() req: AuthenticatedRequest, @Param('workflowId') workflowId: string) {
     await this.assertWorkflowAccess(workflowId, req.user.tenantId);
     const result = await this.gateService.getWorkflowStatus(workflowId);
@@ -54,6 +58,8 @@ export class GateController {
   @Post(':workflowId/cancel')
   @Roles('admin')
   @ApiOperation({ summary: 'Cancel a workflow' })
+  @ApiResponse({ status: 200, description: 'Workflow cancelled' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async cancel(
     @Req() req: AuthenticatedRequest,
     @Param('workflowId') workflowId: string,

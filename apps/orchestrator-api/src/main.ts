@@ -79,16 +79,14 @@ async function bootstrap() {
     maxAge: 86400,
   });
 
-  if (config.get<string>('NODE_ENV') !== 'production') {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('AI SDLC Orchestrator API')
-      .setDescription('Orchestrator API for automated SDLC workflows')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('api/docs', app, document);
-  }
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('AI SDLC Orchestrator API')
+    .setDescription('Orchestrator API for automated SDLC workflows')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
 
   const port = config.get<number>('API_PORT') || 3000;
   app.enableShutdownHooks();
