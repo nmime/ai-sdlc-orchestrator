@@ -11,6 +11,8 @@ interface OidcUserInfo {
   tenant_id?: string;
 }
 
+const OIDC_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly logger = new Logger(AuthGuard.name);
@@ -58,6 +60,7 @@ export class AuthGuard implements CanActivate {
     try {
       const response = await fetch(`${issuerUrl}/userinfo`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(OIDC_TIMEOUT_MS),
       });
 
       if (!response.ok) return false;

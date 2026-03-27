@@ -9,6 +9,8 @@ export interface SessionToken {
   expiresAt: Date;
 }
 
+const FETCH_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class CredentialProxyClient {
   readonly baseUrl: string;
@@ -32,6 +34,7 @@ export class CredentialProxyClient {
           'x-internal-token': this.internalToken,
         },
         body: JSON.stringify({ tenantId, scopes }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -49,6 +52,7 @@ export class CredentialProxyClient {
     try {
       const response = await fetch(`${this.baseUrl}/git-credential`, {
         headers: { Authorization: `Bearer ${sessionToken}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -66,6 +70,7 @@ export class CredentialProxyClient {
     try {
       const response = await fetch(`${this.baseUrl}/mcp-token/${serverName}`, {
         headers: { Authorization: `Bearer ${sessionToken}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -87,6 +92,7 @@ export class CredentialProxyClient {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${sessionToken}`,
         },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       return ResultUtils.ok(undefined);
     } catch (error) {

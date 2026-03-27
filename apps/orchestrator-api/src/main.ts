@@ -70,6 +70,7 @@ async function bootstrap() {
   }
 
   const port = config.get<number>('API_PORT') || 3000;
+  app.enableShutdownHooks();
   await app.listen(port, '0.0.0.0');
 
   logger.log(`orchestrator-api started on port ${port}`);

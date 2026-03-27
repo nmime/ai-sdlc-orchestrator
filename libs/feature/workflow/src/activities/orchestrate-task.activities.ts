@@ -6,11 +6,15 @@ import { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
 import { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
 import { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
 
-let em: EntityManager;
+let rootEm: EntityManager;
 let sandboxAdapter: SandboxPort;
 let agentRegistry: AgentProviderRegistry;
 let promptFormatter: PromptFormatter;
 let credentialProxy: CredentialProxyClient;
+
+function getEm(): EntityManager {
+  return rootEm.fork();
+}
 
 export function initActivities(deps: {
   em: EntityManager;
@@ -19,7 +23,7 @@ export function initActivities(deps: {
   promptFormatter: PromptFormatter;
   credentialProxy: CredentialProxyClient;
 }) {
-  em = deps.em;
+  rootEm = deps.em;
   sandboxAdapter = deps.sandboxAdapter;
   agentRegistry = deps.agentRegistry;
   promptFormatter = deps.promptFormatter;
@@ -43,6 +47,7 @@ export async function updateWorkflowMirror(input: {
   aiCostUsd?: number;
   sandboxCostUsd?: number;
 }): Promise<void> {
+  const em = getEm();
   let mirror = await em.findOne(WorkflowMirror, { temporalWorkflowId: input.temporalWorkflowId });
 
   if (!mirror) {
@@ -83,6 +88,7 @@ export async function updateWorkflowMirror(input: {
 }
 
 export async function reserveBudget(input: { tenantId: string; estimatedCostUsd: number }): Promise<void> {
+  const em = getEm();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   const total = Number(tenant.monthlyCostActualUsd) + Number(tenant.monthlyCostReservedUsd) + input.estimatedCostUsd;
@@ -105,6 +111,7 @@ export async function reserveBudget(input: { tenantId: string; estimatedCostUsd:
 }
 
 export async function settleCost(input: { tenantId: string; reservedUsd: number; actualAiCostUsd?: number; actualSandboxCostUsd?: number }): Promise<void> {
+  const em = getEm();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
   const actualAi = input.actualAiCostUsd ?? 0;
   const actualSandbox = input.actualSandboxCostUsd ?? 0;

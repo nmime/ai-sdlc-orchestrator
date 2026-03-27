@@ -28,6 +28,7 @@ const {
     initialInterval: '5s',
     backoffCoefficient: 2,
     maximumInterval: '60s',
+    nonRetryableErrorTypes: ['BUDGET_EXCEEDED', 'VALIDATION_ERROR', 'NOT_FOUND', 'UNAUTHORIZED'],
   },
 });
 

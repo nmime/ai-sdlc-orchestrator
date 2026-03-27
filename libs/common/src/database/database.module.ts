@@ -22,6 +22,11 @@ import type { AppConfig } from '../config/app-config.module';
           path: './dist/libs/db/src/migrations',
           pathTs: './libs/db/src/migrations',
         },
+        pool: {
+          min: 2,
+          max: 20,
+          idleTimeoutMillis: 30_000,
+        },
         debug: config.get('NODE_ENV') === 'development',
         allowGlobalContext: true,
       }),

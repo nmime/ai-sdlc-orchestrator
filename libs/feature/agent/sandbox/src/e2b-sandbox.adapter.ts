@@ -8,6 +8,7 @@ import type { SandboxPort, SandboxExecResult } from '@ai-sdlc/feature-agent-regi
 
 const MAX_TIMEOUT_MS = 300_000;
 const MAX_EXEC_TIMEOUT_MS = 120_000;
+const E2B_API_TIMEOUT_MS = 15_000;
 
 @Injectable()
 export class E2bSandboxAdapter implements SandboxPort {
@@ -116,6 +117,7 @@ export class E2bSandboxAdapter implements SandboxPort {
       const res = await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}/pause`, {
         method: 'POST',
         headers: { 'X-API-Key': apiKey },
+        signal: AbortSignal.timeout(E2B_API_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       return ResultUtils.ok(undefined);
@@ -130,6 +132,7 @@ export class E2bSandboxAdapter implements SandboxPort {
       const res = await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}/resume`, {
         method: 'POST',
         headers: { 'X-API-Key': apiKey },
+        signal: AbortSignal.timeout(E2B_API_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json() as { sandboxId: string };
