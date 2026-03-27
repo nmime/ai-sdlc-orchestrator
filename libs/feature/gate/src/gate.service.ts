@@ -34,7 +34,7 @@ export class GateService {
 
       await handle.signal('gateDecision', decision);
 
-      this.logger.log(`Gate decision for ${workflowId}: ${action} by ${reviewer}`);
+      this.logger.log(`Gate decision for ${workflowId}: ${action}`);
       return ResultUtils.ok(decision);
     } catch (error) {
       return ResultUtils.err('TEMPORAL_ERROR', `Failed to signal workflow: ${(error as Error).message}`);

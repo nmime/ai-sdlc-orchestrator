@@ -3,7 +3,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result } from 'neverthrow';
 import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
 import type { AppError } from '@ai-sdlc/common';
-import { Tenant, TenantStatus, TenantUser, TenantRole } from '@ai-sdlc/db';
+import { Tenant, TenantStatus, TenantUser, TenantRole, TenantApiKey, TenantRepoConfig, TenantMcpServer, TenantVcsCredential, TenantWebhookConfig, WorkflowMirror, WorkflowEvent, WorkflowArtifact, AgentSession, AgentToolCall, CostAlert, PollingSchedule, WebhookDelivery, WorkflowDsl } from '@ai-sdlc/db';
 import type { CreateTenantDto, UpdateTenantDto } from './dto/tenant.dto';
 export { CreateTenantDto, UpdateTenantDto } from './dto/tenant.dto';
 
@@ -122,5 +122,58 @@ export class TenantService {
     }
 
     return ResultUtils.ok({ budgetVersion: currentVersion + 1 });
+  }
+
+  async purgeData(id: string): Promise<Result<{ deletedCounts: Record<string, number> }, AppError>> {
+    const findResult = await this.findById(id);
+    if (findResult.isErr()) return findResult as unknown as Result<{ deletedCounts: Record<string, number> }, AppError>;
+
+    const counts: Record<string, number> = {};
+
+    const workflows = await this.em.find(WorkflowMirror, { tenant: id });
+    const workflowIds = workflows.map(w => w.id);
+
+    if (workflowIds.length > 0) {
+      const sessions = await this.em.find(AgentSession, { workflow: { $in: workflowIds } });
+      const sessionIds = sessions.map(s => s.id);
+      if (sessionIds.length > 0) {
+        counts['agentToolCalls'] = await this.em.nativeDelete(AgentToolCall, { session: { $in: sessionIds } });
+      }
+      counts['agentSessions'] = await this.em.nativeDelete(AgentSession, { workflow: { $in: workflowIds } });
+      counts['workflowEvents'] = await this.em.nativeDelete(WorkflowEvent, { workflow: { $in: workflowIds } });
+      counts['workflowArtifacts'] = await this.em.nativeDelete(WorkflowArtifact, { workflow: { $in: workflowIds } });
+    }
+    counts['workflowMirrors'] = await this.em.nativeDelete(WorkflowMirror, { tenant: id });
+    counts['workflowDsls'] = await this.em.nativeDelete(WorkflowDsl, { tenant: id });
+    counts['costAlerts'] = await this.em.nativeDelete(CostAlert, { tenant: id });
+    counts['webhookDeliveries'] = await this.em.nativeDelete(WebhookDelivery, { tenant: id });
+    counts['pollingSchedules'] = await this.em.nativeDelete(PollingSchedule, { tenant: id });
+    counts['tenantWebhookConfigs'] = await this.em.nativeDelete(TenantWebhookConfig, { tenant: id });
+    counts['tenantVcsCredentials'] = await this.em.nativeDelete(TenantVcsCredential, { tenant: id });
+    counts['tenantMcpServers'] = await this.em.nativeDelete(TenantMcpServer, { tenant: id });
+    counts['tenantRepoConfigs'] = await this.em.nativeDelete(TenantRepoConfig, { tenant: id });
+    counts['tenantApiKeys'] = await this.em.nativeDelete(TenantApiKey, { tenant: id });
+    counts['tenantUsers'] = await this.em.nativeDelete(TenantUser, { tenant: id });
+    counts['tenant'] = await this.em.nativeDelete(Tenant, { id });
+
+    this.logger.log(`Tenant data purged: ${id}`);
+    return ResultUtils.ok({ deletedCounts: counts });
+  }
+
+  async exportData(id: string): Promise<Result<Record<string, unknown>, AppError>> {
+    const findResult = await this.findById(id);
+    if (findResult.isErr()) return findResult as unknown as Result<Record<string, unknown>, AppError>;
+
+    const tenant = findResult.value;
+    const users = await this.em.find(TenantUser, { tenant: id });
+    const workflows = await this.em.find(WorkflowMirror, { tenant: id });
+    const alerts = await this.em.find(CostAlert, { tenant: id });
+
+    return ResultUtils.ok({
+      tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name, status: tenant.status, createdAt: tenant.createdAt },
+      users: users.map(u => ({ id: u.id, email: u.email, role: u.role, provider: u.provider, createdAt: u.createdAt })),
+      workflows: workflows.map(w => ({ id: w.id, state: w.state, repoUrl: w.repoUrl, createdAt: w.createdAt })),
+      costAlerts: alerts.map(a => ({ id: a.id, alertType: a.alertType, actualUsd: a.actualUsd, createdAt: a.createdAt })),
+    });
   }
 }

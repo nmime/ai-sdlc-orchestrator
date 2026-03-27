@@ -66,4 +66,24 @@ export class TenantController {
     const result = await this.tenantService.delete(id);
     if (result.isErr()) throw new NotFoundException('Tenant not found');
   }
+
+  @Delete(':id/data')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Permanently purge all tenant data (GDPR right-to-erasure)' })
+  async purgeData(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
+    this.assertTenantAccess(req, id);
+    const result = await this.tenantService.purgeData(id);
+    if (result.isErr()) throw new NotFoundException('Tenant not found');
+    return result.value;
+  }
+
+  @Get(':id/export')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Export all tenant data (GDPR data subject access request)' })
+  async exportData(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
+    this.assertTenantAccess(req, id);
+    const result = await this.tenantService.exportData(id);
+    if (result.isErr()) throw new NotFoundException('Tenant not found');
+    return result.value;
+  }
 }
