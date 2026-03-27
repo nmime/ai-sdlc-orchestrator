@@ -82,4 +82,24 @@ export class Migration20260323191337 extends Migration {
     this.addSql(`alter table "agent_tool_call" add constraint "agent_tool_call_session_id_foreign" foreign key ("session_id") references "agent_session" ("id") on update cascade;`);
   }
 
+  override async down(): Promise<void> {
+    this.addSql(`drop table if exists "agent_tool_call" cascade;`);
+    this.addSql(`drop table if exists "workflow_artifact" cascade;`);
+    this.addSql(`drop table if exists "agent_session" cascade;`);
+    this.addSql(`drop table if exists "workflow_event" cascade;`);
+    this.addSql(`drop table if exists "workflow_mirror" cascade;`);
+    this.addSql(`drop table if exists "workflow_dsl" cascade;`);
+    this.addSql(`drop table if exists "webhook_delivery" cascade;`);
+    this.addSql(`drop table if exists "tenant_webhook_config" cascade;`);
+    this.addSql(`drop table if exists "tenant_vcs_credential" cascade;`);
+    this.addSql(`drop table if exists "tenant_user" cascade;`);
+    this.addSql(`drop table if exists "polling_schedule" cascade;`);
+    this.addSql(`drop table if exists "tenant_repo_config" cascade;`);
+    this.addSql(`drop table if exists "tenant_mcp_server" cascade;`);
+    this.addSql(`drop table if exists "tenant_api_key" cascade;`);
+    this.addSql(`drop table if exists "cost_alert" cascade;`);
+    this.addSql(`drop table if exists "tenant" cascade;`);
+    this.addSql(`drop table if exists "mcp_server_registry" cascade;`);
+  }
+
 }
