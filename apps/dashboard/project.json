@@ -12,6 +12,9 @@
     },
     "serve": {
       "command": "cd apps/dashboard && npx vite"
+    },
+    "test": {
+      "command": "cd apps/dashboard && npx vitest run"
     }
   }
 }

@@ -5,5 +5,13 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     globals: true,
+    exclude: ['**/node_modules/**', '**/dist/**', 'apps/dashboard/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      include: ['apps/*/src/**/*.ts', 'libs/*/src/**/*.ts', 'libs/feature/*/src/**/*.ts', 'libs/feature/agent/*/src/**/*.ts', 'libs/feature/agent/shared/*/src/**/*.ts'],
+      exclude: ['**/*.spec.ts', '**/*.module.ts', '**/index.ts', '**/main.ts', '**/*.d.ts', '**/seed.ts', '**/migrations/**'],
+      thresholds: { branches: 80, functions: 80, lines: 80, statements: 80 },
+    },
   },
 });
