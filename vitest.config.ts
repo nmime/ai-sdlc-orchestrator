@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     globals: true,
-    exclude: ['**/node_modules/**', '**/dist/**', 'apps/dashboard/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'apps/dashboard/**', 'test/component/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],

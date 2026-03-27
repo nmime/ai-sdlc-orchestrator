@@ -10,6 +10,7 @@
     "build": "nx run-many -t build",
     "test": "nx run-many -t test",
     "test:e2e": "nx run-many -t test:e2e",
+    "test:component": "vitest run --config vitest.component.config.ts",
     "lint": "nx run-many -t lint",
     "typecheck": "nx run-many -t typecheck",
     "dev:api": "nx serve orchestrator-api",
@@ -88,6 +89,7 @@
     "@swc/core": "^1.11.0",
     "@swc/helpers": "^0.5.19",
     "@temporalio/testing": "^1.12.2",
+    "@testcontainers/postgresql": "^11.13.0",
     "@types/jest": "^29.5.14",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.15.0",
@@ -104,6 +106,7 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.0-beta",
     "typescript-eslint": "^8.57.2",
+    "unplugin-swc": "^1.5.9",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.1"
   },
