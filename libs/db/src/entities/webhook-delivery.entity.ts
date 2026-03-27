@@ -19,6 +19,7 @@ export class WebhookDelivery {
   id: string = v4();
 
   @ManyToOne(() => Tenant)
+  @Index()
   tenant!: Tenant;
 
   @Property()

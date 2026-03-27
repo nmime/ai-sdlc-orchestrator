@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum, Unique } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Unique, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -15,6 +15,7 @@ export class TenantMcpServer {
   id: string = v4();
 
   @ManyToOne(() => Tenant)
+  @Index()
   tenant!: Tenant;
 
   @Property()

@@ -56,8 +56,8 @@ export class WorkflowsController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events' })
   async getEvents(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
-    await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
-    return this.em.find(WorkflowEvent, { workflow: id }, {
+    const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
+    return this.em.find(WorkflowEvent, { workflow: workflow.id }, {
       orderBy: { createdAt: 'ASC' },
     });
   }
@@ -66,8 +66,8 @@ export class WorkflowsController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for a workflow' })
   async getSessions(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
-    await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
-    return this.em.find(AgentSession, { workflow: id }, {
+    const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
+    return this.em.find(AgentSession, { workflow: workflow.id }, {
       orderBy: { startedAt: 'ASC' },
     });
   }
@@ -76,8 +76,8 @@ export class WorkflowsController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
   async getArtifacts(@Req() req: AuthenticatedRequest, @Param('id', ParseUUIDPipe) id: string) {
-    await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
-    return this.em.find(WorkflowArtifact, { workflow: id });
+    const workflow = await this.em.findOneOrFail(WorkflowMirror, { id, tenant: req.user.tenantId });
+    return this.em.find(WorkflowArtifact, { workflow: workflow.id, tenant: req.user.tenantId });
   }
 
   @Post(':id/retry')

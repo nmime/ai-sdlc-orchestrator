@@ -5,9 +5,6 @@ import type { AgentSession } from './agent-session.entity';
 import type { WorkflowEvent } from './workflow-event.entity';
 import type { WorkflowArtifact } from './workflow-artifact.entity';
 
-
-
-
 export enum WorkflowStatus {
   QUEUED = 'queued',
   IMPLEMENTING = 'implementing',
@@ -30,6 +27,7 @@ export class WorkflowMirror {
   id: string = v4();
 
   @ManyToOne(() => Tenant)
+  @Index()
   tenant!: Tenant;
 
   @Property({ unique: true })
@@ -64,6 +62,7 @@ export class WorkflowMirror {
   mrUrl?: string;
 
   @Enum(() => WorkflowStatus)
+  @Index()
   state: WorkflowStatus = WorkflowStatus.QUEUED;
 
   @Property({ nullable: true })

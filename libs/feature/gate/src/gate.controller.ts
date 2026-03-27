@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Param, UseGuards, Req, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { WorkflowMirror, Tenant } from '@ai-sdlc/db';
+import { WorkflowMirror } from '@ai-sdlc/db';
 import { GateService } from './gate.service';
 import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
 import { GateDecideDto, GateCancelDto } from '@ai-sdlc/common';
@@ -18,13 +18,8 @@ export class GateController {
   ) {}
 
   private async assertWorkflowAccess(workflowId: string, tenantId: string): Promise<void> {
-    const wf = await this.em.findOne(WorkflowMirror, { temporalWorkflowId: workflowId });
+    const wf = await this.em.findOne(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
     if (!wf) throw new NotFoundException('Workflow not found');
-    const tenant = wf.tenant as Tenant | string;
-    const tenantRef = typeof tenant === 'string' ? tenant : tenant.id;
-    if (tenantRef !== tenantId) {
-      throw new ForbiddenException('Access denied to this workflow');
-    }
   }
 
   @Post(':workflowId/decide')
