@@ -3,10 +3,12 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { AppModule } from './app.module';
 import { PinoLoggerService, AllExceptionsFilter } from '@ai-sdlc/common';
+import { httpRequestCounter, httpRequestDuration } from './metrics.controller';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -24,6 +26,25 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   const fastify = app.getHttpAdapter().getInstance();
+
+  fastify.addHook('onRequest', async (request) => {
+    const requestId = (request.headers['x-request-id'] as string) || randomUUID();
+    request.headers['x-request-id'] = requestId;
+  });
+
+  fastify.addHook('onResponse', async (request, reply) => {
+    reply.header('x-request-id', request.headers['x-request-id']);
+  });
+
+  fastify.addHook('onResponse', async (request, reply) => {
+    const route = request.routeOptions?.url || request.url;
+    httpRequestCounter.inc({ method: request.method, route, status_code: String(reply.statusCode) });
+    httpRequestDuration.observe(
+      { method: request.method, route, status_code: String(reply.statusCode) },
+      reply.elapsedTime / 1000,
+    );
+  });
+
   await fastify.register(helmet, {
     contentSecurityPolicy: {
       directives: {

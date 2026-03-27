@@ -22,6 +22,10 @@ const REDACT_PATHS = [
   'SESSION_SIGNING_KEY',
   'req.headers.authorization',
   'req.headers.cookie',
+  'email',
+  'user.email',
+  'reviewer',
+  'externalId',
 ];
 
 let loggerInstance: pino.Logger | undefined;

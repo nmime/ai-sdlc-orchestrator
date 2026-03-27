@@ -8,6 +8,7 @@ import { GateModule } from '@ai-sdlc/feature-gate';
 import { HealthController } from './health.controller';
 import { WorkflowsController } from './workflows.controller';
 import { CostController } from './cost.controller';
+import { MetricsController } from './metrics.controller';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { CostController } from './cost.controller';
     WebhookModule,
     GateModule,
   ],
-  controllers: [HealthController, WorkflowsController, CostController],
+  controllers: [HealthController, WorkflowsController, CostController, MetricsController],
   providers: [BootstrapService],
 })
 export class AppModule {}
