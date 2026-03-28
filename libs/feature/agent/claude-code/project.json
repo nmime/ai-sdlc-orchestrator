@@ -4,6 +4,9 @@
   "projectType": "library",
   "sourceRoot": "libs/feature/agent/claude-code/src",
   "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/agent/claude-code"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p libs/feature/agent/claude-code/tsconfig.json"
     },

@@ -4,6 +4,9 @@
   "projectType": "library",
   "sourceRoot": "libs/feature/workflow/src",
   "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/workflow"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p libs/feature/workflow/tsconfig.typecheck.json"
     },

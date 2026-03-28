@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 30_000,
+    exclude: ['node_modules', 'dist', '.nx', 'tmp', 'coverage', 'apps/dashboard/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
@@ -13,6 +14,7 @@ export default defineConfig({
         'node_modules/',
         'dist/',
         'tmp/',
+        '.nx/',
         'coverage/',
         '**/__tests__/**',
         '**/*.spec.ts',

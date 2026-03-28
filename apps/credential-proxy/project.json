@@ -13,6 +13,9 @@
         "rootDir": "."
       }
     },
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts apps/credential-proxy"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p apps/credential-proxy/tsconfig.json"
     }
