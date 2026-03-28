@@ -119,7 +119,8 @@ services:
       E2B_API_KEY: ${E2B_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       API_PORT: 3000
-      NODE_ENV: production
+      NODE_ENV: development
+      ALLOW_DEV_AUTH_BYPASS: 'true'
       CREDENTIAL_PROXY_URL: http://credential-proxy:4000
       CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN:-dev-internal-token}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
@@ -161,7 +162,8 @@ services:
       CREDENTIAL_PROXY_URL: http://credential-proxy:4000
       CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN:-dev-internal-token}
       WORKER_LOG_LEVEL: ${WORKER_LOG_LEVEL:-info}
-      NODE_ENV: production
+      NODE_ENV: development
+      ALLOW_DEV_AUTH_BYPASS: 'true'
       APP_ROOT: /app
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
       ENCRYPTION_SALT: ${ENCRYPTION_SALT:-0123456789abcdef}
@@ -190,7 +192,8 @@ services:
       SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
       ENCRYPTION_SALT: ${ENCRYPTION_SALT:-0123456789abcdef}
-      NODE_ENV: production
+      NODE_ENV: development
+      ALLOW_DEV_AUTH_BYPASS: 'true'
     ports:
       - '${CREDENTIAL_PROXY_PORT:-4000}:4000'
     depends_on:

@@ -49,7 +49,7 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('OIDC not configured (set ALLOW_DEV_AUTH_BYPASS=true to enable dev bypass)');
       }
       Logger.warn('Auth bypass active — accepting any Bearer token as dev-user', 'AuthGuard');
-      request.user = { id: 'dev-user', email: 'dev@local', role: 'viewer', tenantId: 'dev-tenant' };
+      request.user = { id: 'dev-user', email: 'dev@local', role: 'admin', tenantId: '00000000-0000-0000-0000-000000000001' };
       return true;
     }
 

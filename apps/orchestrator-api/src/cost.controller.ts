@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException } fro
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
-import { WorkflowMirror, AgentSession, CostAlert, Tenant } from '@app/db';
+import { AgentSession, CostAlert, Tenant, WorkflowMirror } from '@app/db';
 import { FastifyRequest } from 'fastify';
 
 @ApiTags('costs')
@@ -20,33 +20,28 @@ export class CostController {
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
     const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
-
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const qb = this.em.createQueryBuilder(WorkflowMirror, 'wm');
-    const result = await qb
-      .select([
-        'COUNT(*) as count',
-        'COALESCE(SUM(wm.ai_cost_usd), 0) as total_ai',
-        'COALESCE(SUM(wm.sandbox_cost_usd), 0) as total_sandbox',
-      ])
-      .where({ tenant: tenantId, createdAt: { $gte: startOfMonth } })
-      .execute('get') as { count: string; total_ai: string; total_sandbox: string };
-
-    const totalAi = Number(result.total_ai);
-    const totalSandbox = Number(result.total_sandbox);
+    const conn = this.em.getConnection();
+    const resultRows = await conn.execute<Array<{ count: string; total_ai: string; total_sandbox: string }>>(
+      `SELECT COUNT(*) as count, COALESCE(SUM(ai_cost_usd), 0) as total_ai, COALESCE(SUM(sandbox_cost_usd), 0) as total_sandbox FROM workflow_mirror WHERE tenant_id = ? AND created_at >= ?`,
+      [tenantId, startOfMonth.toISOString()],
+    );
+    const r = resultRows[0] ?? { count: '0', total_ai: '0', total_sandbox: '0' };
+    const totalAi = Number(r.total_ai);
+    const totalSandbox = Number(r.total_sandbox);
 
     return {
       tenantId,
-      month: new Date().toISOString().slice(0, 7),
+      month: now.toISOString().slice(0, 7),
       aiCostUsd: totalAi,
       sandboxCostUsd: totalSandbox,
       totalCostUsd: totalAi + totalSandbox,
       limitUsd: Number(tenant.monthlyCostLimitUsd),
       reservedUsd: Number(tenant.monthlyCostReservedUsd),
       actualUsd: Number(tenant.monthlyCostActualUsd),
-      workflowCount: Number(result.count),
+      workflowCount: Number(r.count),
     };
   }
 
@@ -108,17 +103,11 @@ export class CostController {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const qb = this.em.createQueryBuilder(WorkflowMirror, 'wm');
-    const rows = await qb
-      .select([
-        'wm.repo_id as repo_id',
-        'COALESCE(SUM(wm.ai_cost_usd), 0) as ai',
-        'COALESCE(SUM(wm.sandbox_cost_usd), 0) as sandbox',
-        'COUNT(*) as count',
-      ])
-      .where({ tenant: tenantId, createdAt: { $gte: startOfMonth } })
-      .groupBy('wm.repo_id')
-      .execute('all') as Array<{ repo_id: string; ai: string; sandbox: string; count: string }>;
+    const conn = this.em.getConnection();
+    const rows = await conn.execute<Array<{ repo_id: string; ai: string; sandbox: string; count: string }>>(
+      `SELECT repo_id, COALESCE(SUM(ai_cost_usd), 0) as ai, COALESCE(SUM(sandbox_cost_usd), 0) as sandbox, COUNT(*) as count FROM workflow_mirror WHERE tenant_id = ? AND created_at >= ? GROUP BY repo_id`,
+      [tenantId, startOfMonth.toISOString()],
+    );
 
     return rows.map(row => ({
       repoId: row.repo_id,

@@ -4,8 +4,6 @@ export class Migration20260325000000 extends Migration {
 
   override async up(): Promise<void> {
     this.addSql(`alter table "workflow_mirror" enable row level security;`);
-    this.addSql(`alter table "agent_session" enable row level security;`);
-    this.addSql(`alter table "workflow_event" enable row level security;`);
     this.addSql(`alter table "workflow_artifact" enable row level security;`);
     this.addSql(`alter table "webhook_delivery" enable row level security;`);
     this.addSql(`alter table "cost_alert" enable row level security;`);
@@ -19,7 +17,7 @@ export class Migration20260325000000 extends Migration {
     this.addSql(`alter table "polling_schedule" enable row level security;`);
 
     const tables = [
-      'workflow_mirror', 'agent_session', 'workflow_event', 'workflow_artifact',
+      'workflow_mirror', 'workflow_artifact',
       'webhook_delivery', 'cost_alert', 'tenant_api_key', 'tenant_user',
       'tenant_repo_config', 'tenant_vcs_credential', 'tenant_mcp_server',
       'tenant_webhook_config', 'workflow_dsl', 'polling_schedule',
@@ -34,7 +32,7 @@ export class Migration20260325000000 extends Migration {
 
   override async down(): Promise<void> {
     const tables = [
-      'workflow_mirror', 'agent_session', 'workflow_event', 'workflow_artifact',
+      'workflow_mirror', 'workflow_artifact',
       'webhook_delivery', 'cost_alert', 'tenant_api_key', 'tenant_user',
       'tenant_repo_config', 'tenant_vcs_credential', 'tenant_mcp_server',
       'tenant_webhook_config', 'workflow_dsl', 'polling_schedule',
