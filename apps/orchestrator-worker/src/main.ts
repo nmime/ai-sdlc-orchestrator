@@ -13,7 +13,7 @@ import { PinoLoggerService } from '@app/common';
 import type { AppConfig } from '@app/common';
 import { ConfigService } from '@nestjs/config';
 
-const ROOT = path.resolve(__dirname, '../../..');
+const ROOT = process.env['APP_ROOT'] || path.resolve(__dirname, '../../..');
 
 const logger = pino({
   level: process.env['WORKER_LOG_LEVEL'] || 'info',

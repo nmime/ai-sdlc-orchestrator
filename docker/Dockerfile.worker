@@ -11,8 +11,17 @@ RUN pnpm nx build orchestrator-worker
 FROM node:24-slim
 WORKDIR /app
 RUN corepack enable && addgroup --system app && adduser --system --ingroup app app
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist/apps/orchestrator-worker ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+COPY docker/register-paths.js ./register-paths.js
+COPY --from=builder /app/libs/feature/workflow/src/workflows/ ./libs/feature/workflow/src/workflows/
+COPY --from=builder /app/libs/feature/workflow/src/activities/ ./libs/feature/workflow/src/activities/
+COPY --from=builder /app/libs/shared-type/src/ ./libs/shared-type/src/
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/tsconfig.base.json ./tsconfig.base.json
+COPY --from=builder /app/libs/feature/workflow/tsconfig.json ./libs/feature/workflow/tsconfig.json
+COPY --from=builder /app/libs/feature/workflow/tsconfig.typecheck.json ./libs/feature/workflow/tsconfig.typecheck.json
+COPY --from=builder /app/libs/shared-type/tsconfig.json ./libs/shared-type/tsconfig.json
 USER app
-CMD ["node", "dist/apps/orchestrator-worker/src/main.js"]
+CMD ["node", "--require", "./register-paths.js", "dist/apps/orchestrator-worker/src/main.js"]
