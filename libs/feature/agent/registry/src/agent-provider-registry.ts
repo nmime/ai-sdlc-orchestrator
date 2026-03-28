@@ -1,4 +1,4 @@
-import { Injectable, Optional, Inject } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AiAgentPort } from './ai-agent.port';
 import type { AppConfig, DynamicConfigService } from '@app/common';
@@ -20,7 +20,7 @@ export class AgentProviderRegistry {
 
   constructor(
     private readonly configService: ConfigService<AppConfig, true>,
-    @Optional() @Inject('DynamicConfigService') private readonly dynamicConfig?: DynamicConfigService,
+    @Optional() private readonly dynamicConfig?: DynamicConfigService,
   ) {
     this.systemDefaultProvider = this.configService.get('DEFAULT_AGENT_PROVIDER') || 'auto';
     this.systemDefaultModel = this.configService.get('DEFAULT_AGENT_MODEL') || '';
