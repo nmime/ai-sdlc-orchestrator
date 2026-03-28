@@ -1,10 +1,16 @@
+import { ConfigService } from '@nestjs/config';
 import { RateLimiterService } from '../rate-limiter.service';
 
 describe('RateLimiterService', () => {
   let limiter: RateLimiterService;
 
   beforeEach(() => {
-    limiter = new RateLimiterService();
+    const configService = { get: vi.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+    limiter = new RateLimiterService(configService);
+  });
+
+  afterEach(() => {
+    limiter.onModuleDestroy();
   });
 
   it('allows requests within limit', () => {

@@ -1,11 +1,15 @@
+import { ConfigService } from '@nestjs/config';
 import { SessionService } from '../session.service';
 
 describe('SessionService', () => {
   let service: SessionService;
 
   beforeEach(() => {
-    process.env['SESSION_SIGNING_KEY'] = 'a'.repeat(64);
-    service = new SessionService();
+    const configService = { get: vi.fn().mockImplementation((key: string) => {
+      if (key === 'SESSION_SIGNING_KEY') return 'a'.repeat(64);
+      return undefined;
+    }) } as unknown as ConfigService;
+    service = new SessionService(configService);
     service.onModuleInit();
   });
 

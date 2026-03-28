@@ -36,7 +36,17 @@ export class WebhookDelivery {
   payloadHash?: string;
 
   @Enum(() => DeliveryStatus)
+  @Index()
   status: DeliveryStatus = DeliveryStatus.RECEIVED;
+
+  @Property({ type: 'int', default: 0 })
+  retryCount: number = 0;
+
+  @Property({ nullable: true })
+  repoId?: string;
+
+  @Property({ nullable: true })
+  repoUrl?: string;
 
   @Property({ nullable: true })
   workflowId?: string;
@@ -44,6 +54,7 @@ export class WebhookDelivery {
   @Property({ type: 'text', nullable: true })
   errorMessage?: string;
 
+  @Index()
   @Property()
   createdAt: Date = new Date();
 }

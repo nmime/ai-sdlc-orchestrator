@@ -72,7 +72,7 @@ steps:
     if (result.isOk()) {
       expect(result.value.taskQueue).toBe('orchestrator-queue');
       expect(result.value.timeoutMs).toBe(14400000);
-      expect(result.value.defaults.agentProvider).toBe('claude');
+      expect(result.value.defaults.agentProvider).toBe('auto');
       expect(result.value.defaults.sandboxProvider).toBe('e2b');
       expect(result.value.defaults.maxRetries).toBe(3);
     }

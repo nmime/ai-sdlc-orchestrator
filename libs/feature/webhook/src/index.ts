@@ -1,6 +1,7 @@
 export { WebhookModule } from './webhook.module';
 export { WebhookController } from './webhook.controller';
 export { WebhookService } from './webhook.service';
+export { WebhookSignatureService } from './webhook-signature.service';
 export { JiraHandler } from './handlers/jira.handler';
 export { GitLabHandler } from './handlers/gitlab.handler';
 export { GitHubHandler } from './handlers/github.handler';

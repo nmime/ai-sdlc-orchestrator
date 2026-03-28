@@ -22,6 +22,7 @@ export enum WorkflowStatus {
 }
 
 @Entity({ tableName: 'workflow_mirror' })
+@Index({ properties: ['tenant', 'state'] })
 export class WorkflowMirror {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();

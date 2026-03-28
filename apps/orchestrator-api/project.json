@@ -9,8 +9,12 @@
       "options": {
         "outputPath": "dist/apps/orchestrator-api",
         "main": "apps/orchestrator-api/src/main.ts",
-        "tsConfig": "apps/orchestrator-api/tsconfig.json"
+        "tsConfig": "apps/orchestrator-api/tsconfig.json",
+        "rootDir": "."
       }
+    },
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts apps/orchestrator-api"
     },
     "typecheck": {
       "command": "tsc --noEmit -p apps/orchestrator-api/tsconfig.json"

@@ -1,0 +1,16 @@
+node_modules
+.git
+.github
+.nx
+.idea
+.vscode
+.env
+.env.*
+!.env.example
+coverage
+tmp
+dist
+*.log
+*.md
+!README.md
+!LICENSE

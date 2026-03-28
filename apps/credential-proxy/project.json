@@ -9,8 +9,12 @@
       "options": {
         "outputPath": "dist/apps/credential-proxy",
         "main": "apps/credential-proxy/src/main.ts",
-        "tsConfig": "apps/credential-proxy/tsconfig.json"
+        "tsConfig": "apps/credential-proxy/tsconfig.json",
+        "rootDir": "."
       }
+    },
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts apps/credential-proxy"
     },
     "typecheck": {
       "command": "tsc --noEmit -p apps/credential-proxy/tsconfig.json"

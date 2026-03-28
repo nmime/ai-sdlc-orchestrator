@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import type { GateDecision, GateAction } from '@ai-sdlc/shared-type';
+import { ResultUtils, PinoLoggerService, TemporalClientService, sanitizeLog } from '@app/common';
+import type { AppError } from '@app/common';
+import type { GateDecision, GateAction } from '@app/shared-type';
 
 @Injectable()
 export class GateService {
@@ -34,7 +34,7 @@ export class GateService {
 
       await handle.signal('gateDecision', decision);
 
-      this.logger.log(`Gate decision for ${workflowId}: ${action} by ${reviewer}`);
+      this.logger.log(`Gate decision for ${sanitizeLog(workflowId)}: ${action} by ${sanitizeLog(reviewer)}`);
       return ResultUtils.ok(decision);
     } catch (error) {
       return ResultUtils.err('TEMPORAL_ERROR', `Failed to signal workflow: ${(error as Error).message}`);
@@ -62,7 +62,7 @@ export class GateService {
       const handle = client.workflow.getHandle(workflowId);
       await handle.cancel();
 
-      this.logger.log(`Workflow ${workflowId} cancelled: ${reason}`);
+      this.logger.log(`Workflow ${sanitizeLog(workflowId)} cancelled: ${sanitizeLog(reason)}`);
       return ResultUtils.ok(undefined);
     } catch (error) {
       return ResultUtils.err('TEMPORAL_ERROR', (error as Error).message);

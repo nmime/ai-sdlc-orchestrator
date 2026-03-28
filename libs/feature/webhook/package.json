@@ -1,5 +1,5 @@
 {
-  "name": "@ai-sdlc/feature-webhook",
+  "name": "@app/feature-webhook",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts"

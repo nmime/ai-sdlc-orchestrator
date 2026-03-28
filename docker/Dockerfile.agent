@@ -3,7 +3,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   git curl python3 python3-pip golang-go \
   && rm -rf /var/lib/apt/lists/*
 RUN npm install -g typescript ts-node
+RUN groupadd -r agent && useradd -r -g agent -m agent
 WORKDIR /workspace
 COPY docker/scripts/publish_artifact.sh /usr/local/bin/publish_artifact
-RUN chmod +x /usr/local/bin/publish_artifact
+RUN chmod +x /usr/local/bin/publish_artifact && chown -R agent:agent /workspace
+USER agent
 ENTRYPOINT ["/bin/bash"]

@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
-import { WorkflowMirror, AgentSession, CostAlert, Tenant } from '@ai-sdlc/db';
+import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { AgentSession, CostAlert, Tenant, WorkflowMirror } from '@app/db';
+import { FastifyRequest } from 'fastify';
 
 @ApiTags('costs')
 @Controller('costs')
@@ -14,27 +15,33 @@ export class CostController {
   @Get('tenants/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get monthly cost breakdown for tenant' })
-  async getTenantCosts(@Param('tenantId') tenantId: string): Promise<Record<string, unknown>> {
-    const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
-    const workflows: WorkflowMirror[] = await this.em.find(WorkflowMirror, { tenant: tenantId });
+  async getTenantCosts(@Param('tenantId') tenantId: string, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
+    const userTenantId = (req as any).user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
-    let totalAi = 0;
-    let totalSandbox = 0;
-    for (const wf of workflows) {
-      totalAi += Number(wf.aiCostUsd);
-      totalSandbox += Number(wf.sandboxCostUsd);
-    }
+    const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const conn = this.em.getConnection();
+    const resultRows = await conn.execute<Array<{ count: string; total_ai: string; total_sandbox: string }>>(
+      `SELECT COUNT(*) as count, COALESCE(SUM(ai_cost_usd), 0) as total_ai, COALESCE(SUM(sandbox_cost_usd), 0) as total_sandbox FROM workflow_mirror WHERE tenant_id = ? AND created_at >= ?`,
+      [tenantId, startOfMonth.toISOString()],
+    );
+    const r = resultRows[0] ?? { count: '0', total_ai: '0', total_sandbox: '0' };
+    const totalAi = Number(r.total_ai);
+    const totalSandbox = Number(r.total_sandbox);
 
     return {
       tenantId,
-      month: new Date().toISOString().slice(0, 7),
+      month: now.toISOString().slice(0, 7),
       aiCostUsd: totalAi,
       sandboxCostUsd: totalSandbox,
       totalCostUsd: totalAi + totalSandbox,
       limitUsd: Number(tenant.monthlyCostLimitUsd),
       reservedUsd: Number(tenant.monthlyCostReservedUsd),
       actualUsd: Number(tenant.monthlyCostActualUsd),
-      workflowCount: workflows.length,
+      workflowCount: Number(r.count),
     };
   }
 
@@ -44,19 +51,25 @@ export class CostController {
   async getTenantAlerts(
     @Param('tenantId') tenantId: string,
     @Query('limit') limit?: string,
+    @Req() req?: FastifyRequest,
   ): Promise<CostAlert[]> {
+    const userTenantId = (req as any)?.user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     return this.em.find(CostAlert, { tenant: tenantId }, {
       orderBy: { createdAt: 'DESC' },
-      limit: parseInt(limit || '50', 10),
+      limit: Math.min(parseInt(limit || '50', 10) || 50, 200),
     });
   }
 
   @Get('workflows/:workflowId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost breakdown for a workflow' })
-  async getWorkflowCost(@Param('workflowId') workflowId: string): Promise<Record<string, unknown>> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId });
-    const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id });
+  async getWorkflowCost(@Req() req: FastifyRequest, @Param('workflowId') workflowId: string): Promise<Record<string, unknown>> {
+    const tenantId = (req as any).user?.tenantId;
+    if (!tenantId) throw new ForbiddenException('Tenant context required');
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
+    const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, { limit: 200 });
 
     return {
       workflowId,
@@ -83,24 +96,25 @@ export class CostController {
   @Get('tenants/:tenantId/by-repo')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get costs grouped by repo' })
-  async getCostsByRepo(@Param('tenantId') tenantId: string): Promise<Record<string, unknown>[]> {
-    const workflows: WorkflowMirror[] = await this.em.find(WorkflowMirror, { tenant: tenantId });
-    const byRepo = new Map<string, { ai: number; sandbox: number; count: number }>();
+  async getCostsByRepo(@Param('tenantId') tenantId: string, @Req() req: FastifyRequest): Promise<Record<string, unknown>[]> {
+    const userTenantId = (req as any).user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
-    for (const wf of workflows) {
-      const existing = byRepo.get(wf.repoId) || { ai: 0, sandbox: 0, count: 0 };
-      existing.ai += Number(wf.aiCostUsd);
-      existing.sandbox += Number(wf.sandboxCostUsd);
-      existing.count++;
-      byRepo.set(wf.repoId, existing);
-    }
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    return Array.from(byRepo.entries()).map(([repoId, data]) => ({
-      repoId,
-      aiCostUsd: data.ai,
-      sandboxCostUsd: data.sandbox,
-      totalCostUsd: data.ai + data.sandbox,
-      workflowCount: data.count,
+    const conn = this.em.getConnection();
+    const rows = await conn.execute<Array<{ repo_id: string; ai: string; sandbox: string; count: string }>>(
+      `SELECT repo_id, COALESCE(SUM(ai_cost_usd), 0) as ai, COALESCE(SUM(sandbox_cost_usd), 0) as sandbox, COUNT(*) as count FROM workflow_mirror WHERE tenant_id = ? AND created_at >= ? GROUP BY repo_id`,
+      [tenantId, startOfMonth.toISOString()],
+    );
+
+    return rows.map(row => ({
+      repoId: row.repo_id,
+      aiCostUsd: Number(row.ai),
+      sandboxCostUsd: Number(row.sandbox),
+      totalCostUsd: Number(row.ai) + Number(row.sandbox),
+      workflowCount: Number(row.count),
     }));
   }
 }

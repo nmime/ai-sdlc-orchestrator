@@ -1,16 +1,25 @@
+import { ForbiddenException } from '@nestjs/common';
 import { CostController } from '../cost.controller';
+
+const mockConn = {
+  execute: vi.fn(),
+};
 
 const mockEm = {
   find: vi.fn(),
   findOneOrFail: vi.fn(),
   findAndCount: vi.fn(),
+  getConnection: vi.fn().mockReturnValue(mockConn),
 };
+
+const mockReq = (tenantId: string) => ({ user: { tenantId } }) as any;
 
 describe('CostController (integration)', () => {
   let controller: CostController;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEm.getConnection.mockReturnValue(mockConn);
     controller = new CostController(mockEm as any);
   });
 
@@ -19,16 +28,17 @@ describe('CostController (integration)', () => {
       mockEm.findOneOrFail.mockResolvedValue({
         monthlyCostLimitUsd: 100, monthlyCostReservedUsd: 10, monthlyCostActualUsd: 50,
       });
-      mockEm.find.mockResolvedValue([
-        { aiCostUsd: 3, sandboxCostUsd: 1 },
-        { aiCostUsd: 5, sandboxCostUsd: 2 },
-      ]);
-      const result = await controller.getTenantCosts('t-1');
+      mockConn.execute.mockResolvedValue([{ count: '2', total_ai: '8', total_sandbox: '3' }]);
+      const result = await controller.getTenantCosts('t-1', mockReq('t-1'));
       expect(result.tenantId).toBe('t-1');
       expect(result.aiCostUsd).toBe(8);
       expect(result.sandboxCostUsd).toBe(3);
       expect(result.totalCostUsd).toBe(11);
       expect(result.workflowCount).toBe(2);
+    });
+
+    it('rejects tenant mismatch', async () => {
+      await expect(controller.getTenantCosts('t-1', mockReq('t-2'))).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -36,18 +46,22 @@ describe('CostController (integration)', () => {
     it('returns alerts', async () => {
       const alerts = [{ id: 'a-1', alertType: 'TENANT_TOTAL' }];
       mockEm.find.mockResolvedValue(alerts);
-      const result = await controller.getTenantAlerts('t-1');
+      const result = await controller.getTenantAlerts('t-1', undefined, mockReq('t-1'));
       expect(result).toEqual(alerts);
     });
 
     it('respects limit parameter', async () => {
       mockEm.find.mockResolvedValue([]);
-      await controller.getTenantAlerts('t-1', '10');
+      await controller.getTenantAlerts('t-1', '10', mockReq('t-1'));
       expect(mockEm.find).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
         expect.objectContaining({ limit: 10 }),
       );
+    });
+
+    it('rejects tenant mismatch', async () => {
+      await expect(controller.getTenantAlerts('t-1', undefined, mockReq('t-2'))).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -63,24 +77,31 @@ describe('CostController (integration)', () => {
           startedAt: new Date('2025-01-01'), completedAt: new Date('2025-01-01T00:05:00'),
         },
       ]);
-      const result = await controller.getWorkflowCost('wf-1');
+      const result = await controller.getWorkflowCost({ user: { tenantId: 't-1' } } as any, 'wf-1');
       expect(result.totalCostUsd).toBe(5);
-      expect((result.sessions as any)[0].duration).toBe(300);
+      expect((result.sessions as unknown as Array<{ duration: number }>)[0].duration).toBe(300);
+    });
+
+    it('rejects when no tenant context', async () => {
+      await expect(controller.getWorkflowCost({ user: {} } as any, 'wf-1')).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('GET /costs/tenants/:tenantId/by-repo', () => {
     it('groups costs by repo', async () => {
-      mockEm.find.mockResolvedValue([
-        { repoId: 'repo-1', aiCostUsd: 3, sandboxCostUsd: 1 },
-        { repoId: 'repo-1', aiCostUsd: 2, sandboxCostUsd: 1 },
-        { repoId: 'repo-2', aiCostUsd: 5, sandboxCostUsd: 3 },
+      mockConn.execute.mockResolvedValue([
+        { repo_id: 'repo-1', ai: '5', sandbox: '2', count: '2' },
+        { repo_id: 'repo-2', ai: '5', sandbox: '3', count: '1' },
       ]);
-      const result = await controller.getCostsByRepo('t-1');
+      const result = await controller.getCostsByRepo('t-1', mockReq('t-1'));
       expect(result).toHaveLength(2);
       const repo1 = result.find(r => r.repoId === 'repo-1')!;
       expect(repo1.totalCostUsd).toBe(7);
       expect(repo1.workflowCount).toBe(2);
+    });
+
+    it('rejects tenant mismatch', async () => {
+      await expect(controller.getCostsByRepo('t-1', mockReq('t-2'))).rejects.toThrow(ForbiddenException);
     });
   });
 });

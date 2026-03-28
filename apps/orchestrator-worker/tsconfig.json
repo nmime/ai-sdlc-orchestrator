@@ -1,7 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/orchestrator-worker"
+    "outDir": "../../dist/apps/orchestrator-worker",
+    "rootDir": "../.."
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [],
+  "exclude": [
+    "src/__tests__/**"
+  ]
 }

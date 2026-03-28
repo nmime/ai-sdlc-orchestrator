@@ -1,18 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantVcsCredential, Tenant, VcsProvider } from '@ai-sdlc/db';
+import { Result, err } from 'neverthrow';
+import { ResultUtils, PinoLoggerService, sanitizeLog } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantVcsCredential, Tenant, VcsProvider } from '@app/db';
+import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
 
-export interface CreateVcsCredentialDto {
-  provider: VcsProvider;
-  host: string;
-  secretRef: string;
+export class CreateVcsCredentialDto {
+  @IsEnum(VcsProvider)
+  provider!: VcsProvider;
+
+  @IsString()
+  @MaxLength(500)
+  host!: string;
+
+  @IsString()
+  @MaxLength(500)
+  secretRef!: string;
 }
 
-export interface UpdateVcsCredentialDto {
+export class UpdateVcsCredentialDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   host?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   secretRef?: string;
 }
 
@@ -33,12 +48,12 @@ export class TenantVcsCredentialService {
     cred.secretRef = dto.secretRef;
 
     await this.em.persistAndFlush(cred);
-    this.logger.log(`VCS credential created for ${dto.provider}/${dto.host} tenant ${tenantId}`);
+    this.logger.log(`VCS credential created for ${sanitizeLog(dto.provider)}/${sanitizeLog(dto.host)} tenant ${sanitizeLog(tenantId)}`);
     return ResultUtils.ok(cred);
   }
 
   async list(tenantId: string): Promise<Result<TenantVcsCredential[], AppError>> {
-    const creds = await this.em.find(TenantVcsCredential, { tenant: tenantId });
+    const creds = await this.em.find(TenantVcsCredential, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(creds);
   }
 
@@ -62,7 +77,7 @@ export class TenantVcsCredentialService {
 
   async delete(tenantId: string, id: string): Promise<Result<void, AppError>> {
     const findResult = await this.findById(tenantId, id);
-    if (findResult.isErr()) return findResult as unknown as Result<void, AppError>;
+    if (findResult.isErr()) return err(findResult.error);
     await this.em.removeAndFlush(findResult.value);
     return ResultUtils.ok(undefined);
   }

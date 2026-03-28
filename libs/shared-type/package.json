@@ -1,5 +1,5 @@
 {
-  "name": "@ai-sdlc/shared-type",
+  "name": "@app/shared-type",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts"

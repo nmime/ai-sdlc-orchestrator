@@ -15,68 +15,71 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
     "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@ai-sdlc/common": [
+      "@app/common": [
         "libs/common/src/index.ts"
       ],
-      "@ai-sdlc/common/*": [
+      "@app/common/*": [
         "libs/common/src/*"
       ],
-      "@ai-sdlc/db": [
+      "@app/db": [
         "libs/db/src/index.ts"
       ],
-      "@ai-sdlc/db/*": [
+      "@app/db/*": [
         "libs/db/src/*"
       ],
-      "@ai-sdlc/shared-type": [
+      "@app/shared-type": [
         "libs/shared-type/src/index.ts"
       ],
-      "@ai-sdlc/shared-type/*": [
+      "@app/shared-type/*": [
         "libs/shared-type/src/*"
       ],
-      "@ai-sdlc/workflow-dsl": [
+      "@app/workflow-dsl": [
         "libs/workflow-dsl/src/index.ts"
       ],
-      "@ai-sdlc/workflow-dsl/*": [
+      "@app/workflow-dsl/*": [
         "libs/workflow-dsl/src/*"
       ],
-      "@ai-sdlc/feature-workflow": [
+      "@app/feature-workflow": [
         "libs/feature/workflow/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-registry": [
+      "@app/feature-agent-registry": [
         "libs/feature/agent/registry/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-claude-code": [
+      "@app/feature-agent-claude-code": [
         "libs/feature/agent/claude-code/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-sandbox": [
+      "@app/feature-agent-sandbox": [
         "libs/feature/agent/sandbox/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-credential-proxy": [
+      "@app/feature-agent-credential-proxy": [
         "libs/feature/agent/credential-proxy/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-prompt": [
+      "@app/feature-agent-prompt": [
         "libs/feature/agent/shared/prompt/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-mcp-policy": [
+      "@app/feature-agent-mcp-policy": [
         "libs/feature/agent/shared/mcp-policy/src/index.ts"
       ],
-      "@ai-sdlc/feature-agent-security": [
+      "@app/feature-agent-security": [
         "libs/feature/agent/shared/security/src/index.ts"
       ],
-      "@ai-sdlc/feature-webhook": [
+      "@app/feature-webhook": [
         "libs/feature/webhook/src/index.ts"
       ],
-      "@ai-sdlc/feature-gate": [
+      "@app/feature-gate": [
         "libs/feature/gate/src/index.ts"
       ],
-      "@ai-sdlc/feature-tenant": [
+      "@app/feature-tenant": [
         "libs/feature/tenant/src/index.ts"
       ]
     },

@@ -1,5 +1,5 @@
 import { McpPolicyService } from '../mcp-policy.service';
-import { McpServerPolicy } from '@ai-sdlc/db';
+import { McpServerPolicy } from '@app/db';
 
 const mockEm = {
   find: vi.fn(),
@@ -12,7 +12,7 @@ describe('McpPolicyService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new McpPolicyService(mockEm as any, mockLogger as any);
+    service = new McpPolicyService(mockEm, mockLogger);
   });
 
   it('returns all enabled servers for OPEN policy', async () => {

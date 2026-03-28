@@ -1,29 +1,86 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantMcpServer, Tenant, McpTransport } from '@ai-sdlc/db';
+import { Result, err } from 'neverthrow';
+import { ResultUtils, PinoLoggerService, sanitizeRecord, sanitizeLog } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantMcpServer, Tenant, McpTransport } from '@app/db';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsObject, MaxLength, ArrayMaxSize } from 'class-validator';
 
-export interface CreateMcpServerDto {
-  name: string;
-  transport: McpTransport;
+export class CreateMcpServerDto {
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @IsEnum(McpTransport)
+  transport!: McpTransport;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
   url?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   command?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
   args?: string[];
+
+  @IsOptional()
+  @IsObject()
   headersSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
   envSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsBoolean()
   isEnabled?: boolean;
 }
 
-export interface UpdateMcpServerDto {
+export class UpdateMcpServerDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   name?: string;
+
+  @IsOptional()
+  @IsEnum(McpTransport)
   transport?: McpTransport;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
   url?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   command?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
   args?: string[];
+
+  @IsOptional()
+  @IsObject()
   headersSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
   envSecretRef?: Record<string, string>;
+
+  @IsOptional()
+  @IsBoolean()
   isEnabled?: boolean;
 }
 
@@ -47,17 +104,17 @@ export class TenantMcpServerService {
     if (dto.url !== undefined) server.url = dto.url;
     if (dto.command !== undefined) server.command = dto.command;
     if (dto.args !== undefined) server.args = dto.args;
-    if (dto.headersSecretRef !== undefined) server.headersSecretRef = dto.headersSecretRef;
-    if (dto.envSecretRef !== undefined) server.envSecretRef = dto.envSecretRef;
+    if (dto.headersSecretRef !== undefined) server.headersSecretRef = sanitizeRecord(dto.headersSecretRef) as Record<string, string>;
+    if (dto.envSecretRef !== undefined) server.envSecretRef = sanitizeRecord(dto.envSecretRef) as Record<string, string>;
     if (dto.isEnabled !== undefined) server.isEnabled = dto.isEnabled;
 
     await this.em.persistAndFlush(server);
-    this.logger.log(`MCP server created: ${server.name} for tenant ${tenantId}`);
+    this.logger.log(`MCP server created: ${sanitizeLog(server.name)} for tenant ${sanitizeLog(tenantId)}`);
     return ResultUtils.ok(server);
   }
 
   async list(tenantId: string): Promise<Result<TenantMcpServer[], AppError>> {
-    const servers = await this.em.find(TenantMcpServer, { tenant: tenantId });
+    const servers = await this.em.find(TenantMcpServer, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(servers);
   }
 
@@ -77,8 +134,8 @@ export class TenantMcpServerService {
     if (dto.url !== undefined) server.url = dto.url;
     if (dto.command !== undefined) server.command = dto.command;
     if (dto.args !== undefined) server.args = dto.args;
-    if (dto.headersSecretRef !== undefined) server.headersSecretRef = dto.headersSecretRef;
-    if (dto.envSecretRef !== undefined) server.envSecretRef = dto.envSecretRef;
+    if (dto.headersSecretRef !== undefined) server.headersSecretRef = sanitizeRecord(dto.headersSecretRef) as Record<string, string>;
+    if (dto.envSecretRef !== undefined) server.envSecretRef = sanitizeRecord(dto.envSecretRef) as Record<string, string>;
     if (dto.isEnabled !== undefined) server.isEnabled = dto.isEnabled;
 
     await this.em.flush();
@@ -87,7 +144,7 @@ export class TenantMcpServerService {
 
   async delete(tenantId: string, id: string): Promise<Result<void, AppError>> {
     const findResult = await this.findById(tenantId, id);
-    if (findResult.isErr()) return findResult as unknown as Result<void, AppError>;
+    if (findResult.isErr()) return err(findResult.error);
     await this.em.removeAndFlush(findResult.value);
     return ResultUtils.ok(undefined);
   }

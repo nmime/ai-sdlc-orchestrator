@@ -1,200 +1,146 @@
 import { useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
+import { Card, Chip, Spinner, ProgressBar } from '@heroui/react';
+import { apiFetch } from '../lib/api';
 
 interface CostSummary {
-  budgetLimitUsd: number;
-  budgetUsedUsd: number;
-  aiBudgetUsedUsd: number;
-  sandboxBudgetUsedUsd: number;
-  remainingUsd: number;
+  tenantId: string;
+  month: string;
+  aiCostUsd: number;
+  sandboxCostUsd: number;
+  totalCostUsd: number;
+  limitUsd: number;
+  reservedUsd: number;
+  actualUsd: number;
+  workflowCount: number;
 }
 
 interface CostAlert {
   id: string;
-  alertType: string;
-  thresholdPct: number;
-  actualUsd: number;
-  limitUsd: number;
-  acknowledged: boolean;
-  createdAt: string;
+  threshold: number;
+  currentUsage: number;
+  alertedAt: string;
 }
 
-interface DailyCost {
-  date: string;
-  aiCost: number;
-  sandboxCost: number;
-  total: number;
+interface RepoCost {
+  repoUrl: string;
+  totalCostUsd: number;
+  workflowCount: number;
 }
-
-async function fetchCostSummary(tenantId: string): Promise<CostSummary> {
-  const res = await fetch(`/api/costs/summary/${tenantId}`);
-  if (!res.ok) throw new Error('Failed to fetch costs');
-  return res.json();
-}
-
-async function fetchCostAlerts(tenantId: string): Promise<CostAlert[]> {
-  const res = await fetch(`/api/costs/alerts/${tenantId}`);
-  if (!res.ok) throw new Error('Failed to fetch alerts');
-  return res.json();
-}
-
-async function fetchDailyCosts(tenantId: string): Promise<DailyCost[]> {
-  const res = await fetch(`/api/costs/daily/${tenantId}`);
-  if (!res.ok) throw new Error('Failed to fetch daily costs');
-  return res.json();
-}
-
-const COLORS = ['#6366f1', '#f59e0b', '#10b981'];
 
 export function CostDashboard() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['costs', 'default'],
-    queryFn: () => fetchCostSummary('default'),
-    refetchInterval: 10000,
-  });
+  const tenantId = localStorage.getItem('tenant_id') || '00000000-0000-0000-0000-000000000001';
 
-  const { data: alerts } = useQuery({
-    queryKey: ['cost-alerts', 'default'],
-    queryFn: () => fetchCostAlerts('default'),
+  const { data: summary, isLoading, error } = useQuery({
+    queryKey: ['cost-summary', tenantId],
+    queryFn: () => apiFetch<CostSummary>(`/costs/tenants/${tenantId}`),
     refetchInterval: 30000,
   });
 
-  const { data: dailyCosts } = useQuery({
-    queryKey: ['daily-costs', 'default'],
-    queryFn: () => fetchDailyCosts('default'),
+  const { data: alerts } = useQuery({
+    queryKey: ['cost-alerts', tenantId],
+    queryFn: () => apiFetch<CostAlert[]>(`/costs/tenants/${tenantId}/alerts`),
   });
 
-  if (isLoading) return <div className="text-center py-8">Loading cost data...</div>;
-  if (!data) return <div className="text-center py-8 text-gray-500">No cost data available</div>;
+  const { data: repoCosts } = useQuery({
+    queryKey: ['cost-by-repo', tenantId],
+    queryFn: () => apiFetch<RepoCost[]>(`/costs/tenants/${tenantId}/by-repo`),
+  });
 
-  const budgetPct = data.budgetLimitUsd > 0 ? (Number(data.budgetUsedUsd) / Number(data.budgetLimitUsd)) * 100 : 0;
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (error) return <Card><Card.Content><p className="text-danger text-sm">Error: {(error as Error).message}</p></Card.Content></Card>;
 
-  const pieData = [
-    { name: 'AI Cost', value: Number(data.aiBudgetUsedUsd) },
-    { name: 'Sandbox Cost', value: Number(data.sandboxBudgetUsedUsd) },
-    { name: 'Remaining', value: data.remainingUsd },
-  ];
-
-  const barData = [
-    { name: 'Budget Limit', value: Number(data.budgetLimitUsd) },
-    { name: 'Total Used', value: Number(data.budgetUsedUsd) },
-    { name: 'AI Used', value: Number(data.aiBudgetUsedUsd) },
-    { name: 'Sandbox Used', value: Number(data.sandboxBudgetUsedUsd) },
-  ];
+  const usagePercent = summary && summary.limitUsd > 0 ? (summary.totalCostUsd / summary.limitUsd) * 100 : 0;
+  const barColor = usagePercent > 90 ? 'danger' : usagePercent > 70 ? 'warning' : 'success';
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Cost Analytics</h2>
+        <p className="text-sm text-default-500">Monthly usage for {summary?.month ?? 'current period'}</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Budget Limit', value: `$${Number(data.budgetLimitUsd).toFixed(2)}`, color: 'text-gray-900' },
-          { label: 'Total Used', value: `$${Number(data.budgetUsedUsd).toFixed(2)}`, color: 'text-indigo-600' },
-          { label: 'AI Cost', value: `$${Number(data.aiBudgetUsedUsd).toFixed(2)}`, color: 'text-amber-600' },
-          { label: 'Remaining', value: `$${data.remainingUsd.toFixed(2)}`, color: 'text-green-600' },
-        ].map((card) => (
-          <div key={card.label} className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">{card.label}</p>
-            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+        <StatCard label="Total Cost" value={`$${(summary?.totalCostUsd ?? 0).toFixed(2)}`} sub={`of $${(summary?.limitUsd ?? 0).toFixed(0)} limit`} />
+        <StatCard label="AI Cost" value={`$${(summary?.aiCostUsd ?? 0).toFixed(2)}`} sub="LLM inference" />
+        <StatCard label="Sandbox Cost" value={`$${(summary?.sandboxCostUsd ?? 0).toFixed(2)}`} sub="Compute time" />
+        <StatCard label="Workflows" value={String(summary?.workflowCount ?? 0)} sub={summary?.month} />
+      </div>
+
+      <Card>
+        <Card.Header>
+          <div className="flex items-center justify-between w-full">
+            <Card.Title>Budget Usage</Card.Title>
+            <Chip color={barColor} variant="soft" size="sm">
+              {usagePercent.toFixed(1)}%
+            </Chip>
           </div>
-        ))}
-      </div>
+        </Card.Header>
+        <Card.Content>
+          <ProgressBar value={Math.min(usagePercent, 100)} color={barColor}>
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
+          <div className="flex justify-between text-xs text-default-400 mt-2">
+            <span>$0</span>
+            <span>${(summary?.limitUsd ?? 0).toFixed(0)}</span>
+          </div>
+        </Card.Content>
+      </Card>
 
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-sm font-semibold mb-2">Budget Utilization</h3>
-        <div className="w-full bg-gray-200 rounded-full h-4">
-          <div
-            className={`h-4 rounded-full transition-all ${budgetPct > 90 ? 'bg-red-500' : budgetPct > 70 ? 'bg-amber-500' : 'bg-indigo-500'}`}
-            style={{ width: `${Math.min(budgetPct, 100)}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-500 mt-1">{budgetPct.toFixed(1)}% used</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-sm font-semibold mb-4">Cost Breakdown</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={100} label>
-                {pieData.map((_, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-sm font-semibold mb-4">Budget Overview</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#6366f1" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {dailyCosts && dailyCosts.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-sm font-semibold mb-4">Daily Cost Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={dailyCosts}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="aiCost" stroke="#6366f1" name="AI Cost" />
-              <Line type="monotone" dataKey="sandboxCost" stroke="#f59e0b" name="Sandbox Cost" />
-              <Line type="monotone" dataKey="total" stroke="#10b981" name="Total" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {alerts && alerts.length > 0 && (
+        <Card>
+          <Card.Header>
+            <Card.Title>Cost Alerts</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <div className="space-y-2">
+              {alerts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <Chip color="warning" variant="soft" size="sm">{a.threshold}%</Chip>
+                    <span className="text-sm text-default-600">Threshold reached ({a.currentUsage.toFixed(1)}% usage)</span>
+                  </div>
+                  <span className="text-xs text-default-400">{new Date(a.alertedAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </Card.Content>
+        </Card>
       )}
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-4 py-3 border-b">
-          <h3 className="text-sm font-semibold">Cost Alerts</h3>
-        </div>
-        {alerts && alerts.length > 0 ? (
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 border-b">
-                <th className="px-4 py-2">Type</th>
-                <th className="px-4 py-2">Threshold</th>
-                <th className="px-4 py-2">Actual</th>
-                <th className="px-4 py-2">Limit</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {alerts.map((alert) => (
-                <tr key={alert.id} className="text-sm">
-                  <td className="px-4 py-2 font-medium">{alert.alertType}</td>
-                  <td className="px-4 py-2">{alert.thresholdPct}%</td>
-                  <td className="px-4 py-2">${Number(alert.actualUsd).toFixed(2)}</td>
-                  <td className="px-4 py-2">${Number(alert.limitUsd).toFixed(2)}</td>
-                  <td className="px-4 py-2">
-                    <span className={`px-1.5 py-0.5 rounded text-xs ${
-                      alert.acknowledged ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {alert.acknowledged ? 'Acknowledged' : 'Active'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-xs text-gray-400">{new Date(alert.createdAt).toLocaleString()}</td>
-                </tr>
+      {repoCosts && repoCosts.length > 0 && (
+        <Card>
+          <Card.Header>
+            <Card.Title>Cost by Repository</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <div className="divide-y divide-divider">
+              {repoCosts.map((r) => (
+                <div key={r.repoUrl} className="flex items-center justify-between py-3">
+                  <span className="text-sm text-default-700 truncate flex-1 mr-4">{r.repoUrl}</span>
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    <span className="text-xs text-default-500">{r.workflowCount} workflows</span>
+                    <span className="text-sm font-semibold text-foreground tabular-nums">${r.totalCostUsd.toFixed(2)}</span>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="px-4 py-6 text-center text-gray-500 text-sm">No cost alerts</div>
-        )}
-      </div>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
     </div>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <Card>
+      <Card.Content className="pt-5">
+        <p className="text-xs text-default-500 uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{value}</p>
+        {sub && <p className="text-xs text-default-400 mt-0.5">{sub}</p>}
+      </Card.Content>
+    </Card>
   );
 }

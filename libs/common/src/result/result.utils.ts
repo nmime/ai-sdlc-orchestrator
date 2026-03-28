@@ -17,7 +17,7 @@ export class ResultUtils {
     }));
   }
 
-  static async unwrapOrThrow<T>(result: Result<T, AppError>): Promise<T> {
+  static unwrapOrThrow<T>(result: Result<T, AppError>): T {
     if (result.isOk()) return result.value;
     throw new Error(`[${result.error.code}] ${result.error.message}`);
   }

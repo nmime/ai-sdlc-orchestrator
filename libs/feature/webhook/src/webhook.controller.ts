@@ -1,11 +1,19 @@
-import { Controller, Post, Body, Headers, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Param, HttpCode, HttpStatus, RawBodyRequest, Req, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { WebhookService } from './webhook.service';
+import { WebhookSignatureService } from './webhook-signature.service';
+import { ResultUtils, sanitizeRecord } from '@app/common';
+import type { FastifyRequest } from 'fastify';
+
+const VALID_PLATFORMS = new Set(['github', 'gitlab', 'jira', 'linear']);
 
 @ApiTags('webhooks')
 @Controller('webhooks')
 export class WebhookController {
-  constructor(private readonly webhookService: WebhookService) {}
+  constructor(
+    private readonly webhookService: WebhookService,
+    private readonly signatureService: WebhookSignatureService,
+  ) {}
 
   @Post(':platform/:tenantId')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -15,13 +23,33 @@ export class WebhookController {
     @Param('tenantId') tenantId: string,
     @Headers() headers: Record<string, string>,
     @Body() body: Record<string, unknown>,
+    @Req() req: RawBodyRequest<FastifyRequest>,
   ): Promise<{ accepted: boolean; deliveryId: string }> {
-    const result = await this.webhookService.processWebhook(platform, tenantId, headers, body);
-
-    if (result.isErr()) {
-      throw new Error(result.error.message);
+    if (!VALID_PLATFORMS.has(platform)) {
+      throw new BadRequestException('unsupported platform');
     }
 
-    return result.value;
+    const secret = await this.webhookService.getWebhookSecret(platform, tenantId);
+    if (!secret) {
+      throw new BadRequestException('Webhook secret not configured for this tenant/platform');
+    }
+    const rawBody = typeof req.rawBody === 'string' ? req.rawBody : JSON.stringify(body);
+    switch (platform) {
+      case 'github':
+        this.signatureService.verifyGitHub(rawBody, headers['x-hub-signature-256'], secret);
+        break;
+      case 'gitlab':
+        this.signatureService.verifyGitLab(headers['x-gitlab-token'], secret);
+        break;
+      case 'jira':
+        this.signatureService.verifyJira(rawBody, headers['x-atlassian-webhook-signature'], secret);
+        break;
+      case 'linear':
+        this.signatureService.verifyLinear(rawBody, headers['linear-signature'], secret);
+        break;
+    }
+
+    const sanitizedBody = sanitizeRecord(body);
+    return ResultUtils.unwrapOrThrow(await this.webhookService.processWebhook(platform, tenantId, headers, sanitizedBody));
   }
 }

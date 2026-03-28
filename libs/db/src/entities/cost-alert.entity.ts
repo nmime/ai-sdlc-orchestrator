@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -16,6 +16,7 @@ export class CostAlert {
   id: string = v4();
 
   @ManyToOne(() => Tenant)
+  @Index()
   tenant!: Tenant;
 
   @Enum(() => AlertType)
@@ -33,6 +34,7 @@ export class CostAlert {
   @Property({ default: false })
   acknowledged: boolean = false;
 
+  @Index()
   @Property()
   createdAt: Date = new Date();
 

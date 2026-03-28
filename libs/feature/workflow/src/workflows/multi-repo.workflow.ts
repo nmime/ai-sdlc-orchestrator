@@ -5,7 +5,7 @@ import {
   setHandler,
   CancellationScope,
 } from '@temporalio/workflow';
-import type { WorkflowInput, WorkflowResult, PublishedArtifact } from '@ai-sdlc/shared-type';
+import type { PublishedArtifact } from '@app/shared-type';
 import type * as activitiesType from '../activities';
 import { orchestrateTaskWorkflow } from './orchestrate-task.workflow';
 
@@ -72,7 +72,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
       const settled = await Promise.allSettled(childHandles.map(async (handlePromise, idx) => {
         const handle = await handlePromise;
         const result = await handle.result();
-        return { repo: input.repos[idx], result };
+        const repo = input.repos[idx]; if (!repo) throw new Error("unreachable"); return { repo, result };
       }));
 
       for (const s of settled) {
@@ -89,6 +89,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
           allArtifacts.push(...result.artifacts);
         } else {
           const repo = input.repos[settled.indexOf(s)];
+          if (!repo) continue;
           results.push({
             repoId: repo.repoId,
             success: false,
@@ -147,7 +148,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
 
   return {
     success: allSuccess,
-    results: results.map(({ costUsd, ...rest }) => rest),
+    results: results.map(({ costUsd: _, ...rest }) => rest),
     totalCostUsd: totalCost,
     artifacts: allArtifacts,
   };

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
 import { ApiKeyService } from './api-key.service';
@@ -14,7 +14,14 @@ import {
 } from './tenant-resource.controllers';
 import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
+import { ApiKeyController } from './api-key.controller';
+import { UserController } from './user.controller';
+import { DslController } from './dsl.controller';
+import { SystemSettingsService } from './system-settings.service';
+import { SystemSettingsController } from './system-settings.controller';
+import { PollingScheduleController } from './polling-schedule.controller';
 
+@Global()
 @Module({
   controllers: [
     TenantController,
@@ -22,6 +29,11 @@ import { RbacGuard } from './guards/rbac.guard';
     TenantVcsCredentialController,
     TenantRepoConfigController,
     TenantWebhookConfigController,
+    ApiKeyController,
+    UserController,
+    DslController,
+    PollingScheduleController,
+    SystemSettingsController,
   ],
   providers: [
     TenantService,
@@ -32,6 +44,7 @@ import { RbacGuard } from './guards/rbac.guard';
     TenantWebhookConfigService,
     AuthGuard,
     RbacGuard,
+    SystemSettingsService,
   ],
   exports: [
     TenantService,
@@ -42,6 +55,7 @@ import { RbacGuard } from './guards/rbac.guard';
     TenantWebhookConfigService,
     AuthGuard,
     RbacGuard,
+    SystemSettingsService,
   ],
 })
 export class TenantModule {}

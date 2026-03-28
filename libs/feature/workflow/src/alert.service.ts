@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService } from '@ai-sdlc/common';
-import { CostAlert, AlertType, Tenant, WorkflowMirror, WorkflowStatus, AgentSession } from '@ai-sdlc/db';
+import { PinoLoggerService } from '@app/common';
+import { CostAlert, AlertType, Tenant, WorkflowMirror, WorkflowStatus, AgentSession } from '@app/db';
 
 @Injectable()
 export class AlertService {
@@ -28,7 +28,7 @@ export class AlertService {
       });
       if (!existing) {
         const alert = new CostAlert();
-        alert.tenant = this.em.getReference(Tenant, tenantId) as any;
+        alert.tenant = this.em.getReference(Tenant, tenantId);
         alert.alertType = AlertType.SYSTEM;
         alert.thresholdPct = 0;
         alert.actualUsd = Number(wf.costUsdTotal);
@@ -60,7 +60,7 @@ export class AlertService {
   async getProviderComparison(tenantId: string): Promise<Array<{ provider: string; avgQuality: number; avgCost: number; successRate: number; count: number }>> {
     const sessions = await this.em.find(AgentSession, {
       workflow: { tenant: tenantId },
-    });
+    }, { limit: 1000 });
 
     const byProvider = new Map<string, { scores: number[]; costs: number[]; successes: number; total: number }>();
     for (const s of sessions) {
