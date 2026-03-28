@@ -25,7 +25,7 @@ export class TenantController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List tenants for current user' })
   async list(@Req() req: FastifyRequest) {
-    const tenantId = (req as any).user?.tenantId;
+    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!tenantId) throw new ForbiddenException('Tenant context required');
     const tenant = ResultUtils.unwrapOrThrow(await this.tenantService.findById(tenantId));
     return [tenant];
@@ -35,7 +35,7 @@ export class TenantController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get tenant by ID' })
   async findById(@Req() req: FastifyRequest, @Param('id') id: string) {
-    const tenantId = (req as any).user?.tenantId;
+    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     return ResultUtils.unwrapOrThrow(await this.tenantService.findById(id));
   }
@@ -44,7 +44,7 @@ export class TenantController {
   @Roles('admin')
   @ApiOperation({ summary: 'Update tenant' })
   async update(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
-    const tenantId = (req as any).user?.tenantId;
+    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     return ResultUtils.unwrapOrThrow(await this.tenantService.update(id, dto));
   }
@@ -54,7 +54,7 @@ export class TenantController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete tenant (soft)' })
   async delete(@Req() req: FastifyRequest, @Param('id') id: string) {
-    const tenantId = (req as any).user?.tenantId;
+    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     ResultUtils.unwrapOrThrow(await this.tenantService.delete(id));
   }

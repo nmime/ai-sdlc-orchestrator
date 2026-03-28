@@ -52,7 +52,7 @@ export class PollingScheduleController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List polling schedules' })
   async list(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: FastifyRequest): Promise<PollingSchedule[]> {
-    const userTenantId = (req as any).user?.tenantId;
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     return this.em.find(PollingSchedule, { tenant: tenantId }, { limit: 200 });
   }
@@ -61,7 +61,7 @@ export class PollingScheduleController {
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Create polling schedule' })
   async create(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Body() body: CreatePollingScheduleDto, @Req() req: FastifyRequest): Promise<PollingSchedule> {
-    const userTenantId = (req as any).user?.tenantId;
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     const repoConfig = await this.em.findOneOrFail(TenantRepoConfig, { id: body.repoConfigId, tenant: tenantId });
     const schedule = new PollingSchedule();
@@ -84,7 +84,7 @@ export class PollingScheduleController {
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Update polling schedule' })
   async update(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdatePollingScheduleDto, @Req() req: FastifyRequest): Promise<PollingSchedule> {
-    const userTenantId = (req as any).user?.tenantId;
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
     if (body.queryFilter !== undefined) {
@@ -105,7 +105,7 @@ export class PollingScheduleController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete polling schedule' })
   async delete(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest): Promise<void> {
-    const userTenantId = (req as any).user?.tenantId;
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
     await this.em.removeAndFlush(schedule);
