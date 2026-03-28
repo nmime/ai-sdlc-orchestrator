@@ -48,13 +48,25 @@ export class DslController {
     return this.em.find(WorkflowDsl, { tenant: tenantId }, { orderBy: { name: 'ASC', version: 'DESC' }, limit: 200 });
   }
 
-  @Get(':id')
+  @Post('validate')
   @Roles('admin', 'operator', 'viewer')
-  @ApiOperation({ summary: 'Get DSL by ID' })
-  async get(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest): Promise<WorkflowDsl> {
+  @ApiOperation({ summary: 'Validate a DSL definition' })
+  async validate(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Body() body: { yaml?: string }, @Req() req: FastifyRequest): Promise<{ valid: boolean; errors: string[] }> {
     const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
-    return this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
+    if (!body.yaml || typeof body.yaml !== 'string' || body.yaml.trim().length === 0) {
+      return { valid: false, errors: ['YAML content is required'] };
+    }
+    try {
+      const hasName = /^name:/m.test(body.yaml);
+      const hasSteps = /^steps:/m.test(body.yaml);
+      const errors: string[] = [];
+      if (!hasName) errors.push('Missing required field: name');
+      if (!hasSteps) errors.push('Missing required field: steps');
+      return { valid: errors.length === 0, errors };
+    } catch {
+      return { valid: false, errors: ['Failed to parse YAML'] };
+    }
   }
 
   @Post()
@@ -64,7 +76,7 @@ export class DslController {
     const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     const existing = await this.em.find(WorkflowDsl, { tenant: tenantId, name: body.name }, { orderBy: { version: 'DESC' }, limit: 1 });
-    const nextVersion = existing.length > 0 ? existing[0]?.version ?? 0 + 1 : 1;
+    const nextVersion = existing.length > 0 ? (existing[0]?.version ?? 0) + 1 : 1;
 
     let definition: Record<string, unknown>;
     try {
@@ -81,6 +93,15 @@ export class DslController {
     dsl.isActive = body.isActive ?? true;
     await this.em.persistAndFlush(dsl);
     return dsl;
+  }
+
+  @Get(':id')
+  @Roles('admin', 'operator', 'viewer')
+  @ApiOperation({ summary: 'Get DSL by ID' })
+  async get(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest): Promise<WorkflowDsl> {
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
+    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+    return this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
   }
 
   @Put(':id')

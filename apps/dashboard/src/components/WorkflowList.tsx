@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '../lib/api';
 
 interface Workflow {
   id: string;
@@ -8,12 +9,6 @@ interface Workflow {
   totalCostUsd: number;
   startedAt: string;
   completedAt?: string;
-}
-
-async function fetchWorkflows(): Promise<{ items: Workflow[]; total: number }> {
-  const res = await fetch('/api/workflows');
-  if (!res.ok) throw new Error('Failed to fetch workflows');
-  return res.json();
 }
 
 const statusColors: Record<string, string> = {
@@ -29,12 +24,14 @@ const statusColors: Record<string, string> = {
 export function WorkflowList() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['workflows'],
-    queryFn: fetchWorkflows,
+    queryFn: () => apiFetch<{ data: Workflow[]; total: number }>('/workflows'),
     refetchInterval: 5000,
   });
 
   if (isLoading) return <div className="text-center py-8">Loading workflows...</div>;
-  if (error) return <div className="text-center py-8 text-red-600">Error loading workflows</div>;
+  if (error) return <div className="text-center py-8 text-red-600">Error: {(error as Error).message}</div>;
+
+  const workflows = data?.data ?? [];
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -42,7 +39,7 @@ export function WorkflowList() {
         <h2 className="text-lg font-semibold">Workflows ({data?.total ?? 0})</h2>
       </div>
       <div className="divide-y">
-        {data?.items.map((wf) => (
+        {workflows.length > 0 ? workflows.map((wf) => (
           <div key={wf.id} className="px-4 py-3 flex items-center justify-between">
             <div>
               <p className="font-medium text-gray-900">{wf.taskTitle}</p>
@@ -52,11 +49,11 @@ export function WorkflowList() {
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[wf.status] || 'bg-gray-100'}`}>
                 {wf.status}
               </span>
-              <span className="text-sm text-gray-600">${wf.totalCostUsd.toFixed(2)}</span>
+              <span className="text-sm text-gray-600">${(wf.totalCostUsd ?? 0).toFixed(2)}</span>
               <span className="text-xs text-gray-400">{new Date(wf.startedAt).toLocaleString()}</span>
             </div>
           </div>
-        )) ?? <div className="px-4 py-8 text-center text-gray-500">No workflows yet</div>}
+        )) : <div className="px-4 py-8 text-center text-gray-500">No workflows yet</div>}
       </div>
     </div>
   );

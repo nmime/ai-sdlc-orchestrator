@@ -1,10 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { CostController } from '../cost.controller';
 
-const mockQb = {
-  select: vi.fn().mockReturnThis(),
-  where: vi.fn().mockReturnThis(),
-  groupBy: vi.fn().mockReturnThis(),
+const mockConn = {
   execute: vi.fn(),
 };
 
@@ -12,7 +9,7 @@ const mockEm = {
   find: vi.fn(),
   findOneOrFail: vi.fn(),
   findAndCount: vi.fn(),
-  createQueryBuilder: vi.fn().mockReturnValue(mockQb),
+  getConnection: vi.fn().mockReturnValue(mockConn),
 };
 
 const mockReq = (tenantId: string) => ({ user: { tenantId } }) as any;
@@ -22,7 +19,8 @@ describe('CostController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new CostController(mockEm);
+    mockEm.getConnection.mockReturnValue(mockConn);
+    controller = new CostController(mockEm as any);
   });
 
   describe('GET /costs/tenants/:tenantId', () => {
@@ -30,7 +28,7 @@ describe('CostController (integration)', () => {
       mockEm.findOneOrFail.mockResolvedValue({
         monthlyCostLimitUsd: 100, monthlyCostReservedUsd: 10, monthlyCostActualUsd: 50,
       });
-      mockQb.execute.mockResolvedValue({ count: '2', total_ai: '8', total_sandbox: '3' });
+      mockConn.execute.mockResolvedValue([{ count: '2', total_ai: '8', total_sandbox: '3' }]);
       const result = await controller.getTenantCosts('t-1', mockReq('t-1'));
       expect(result.tenantId).toBe('t-1');
       expect(result.aiCostUsd).toBe(8);
@@ -91,7 +89,7 @@ describe('CostController (integration)', () => {
 
   describe('GET /costs/tenants/:tenantId/by-repo', () => {
     it('groups costs by repo', async () => {
-      mockQb.execute.mockResolvedValue([
+      mockConn.execute.mockResolvedValue([
         { repo_id: 'repo-1', ai: '5', sandbox: '2', count: '2' },
         { repo_id: 'repo-2', ai: '5', sandbox: '3', count: '1' },
       ]);

@@ -5,8 +5,9 @@ import { GatePanel } from './components/GatePanel';
 import { TenantConfig } from './components/TenantConfig';
 import { SessionViewer } from './components/SessionViewer';
 import { DslEditor } from './components/DslEditor';
+import { Settings } from './components/Settings';
 
-type Tab = 'workflows' | 'costs' | 'gates' | 'tenants' | 'sessions' | 'dsl-editor';
+type Tab = 'workflows' | 'costs' | 'gates' | 'tenants' | 'sessions' | 'dsl-editor' | 'settings';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'workflows', label: 'Workflows' },
@@ -15,6 +16,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'tenants', label: 'Tenants' },
   { key: 'sessions', label: 'Sessions' },
   { key: 'dsl-editor', label: 'DSL Editor' },
+  { key: 'settings', label: 'Settings' },
 ];
 
 export function App() {
@@ -49,6 +51,7 @@ export function App() {
         {activeTab === 'tenants' && <TenantConfig />}
         {activeTab === 'sessions' && <SessionViewer />}
         {activeTab === 'dsl-editor' && <DslEditor />}
+        {activeTab === 'settings' && <Settings />}
       </main>
     </div>
   );

@@ -1,58 +1,41 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../lib/api';
 
-interface TenantSettings {
+interface TenantData {
   id: string;
   slug: string;
-  displayName: string;
-  budgetLimitUsd: number;
-  costAlertThresholds: number[];
+  name: string;
+  status: string;
   maxConcurrentWorkflows: number;
-  maxFixAttempts: number;
-  maxReviewAttempts: number;
-  defaultModel: string;
-  autoMerge: boolean;
-  requireGateApproval: boolean;
-  allowedRepos: string[];
-  webhookSecret?: string;
+  maxConcurrentSandboxes: number;
+  monthlyCostLimitUsd: number;
+  monthlyCostActualUsd: number;
+  monthlyAiCostActualUsd: number;
+  monthlySandboxCostActualUsd: number;
+  defaultAgentProvider?: string;
+  defaultAgentModel?: string;
+  mcpServerPolicy: string;
+  costAlertThresholds?: number[];
+  sandboxHourlyRateUsd: number;
   createdAt: string;
   updatedAt: string;
 }
 
-async function fetchTenants(): Promise<TenantSettings[]> {
-  const res = await fetch('/api/tenants');
-  if (!res.ok) throw new Error('Failed to fetch tenants');
-  return res.json();
-}
-
-async function updateTenant(id: string, patch: Partial<TenantSettings>): Promise<TenantSettings> {
-  const res = await fetch(`/api/tenants/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  if (!res.ok) throw new Error('Failed to update tenant');
-  return res.json();
-}
-
-function TenantCard({ tenant, onSave }: { tenant: TenantSettings; onSave: (id: string, patch: Partial<TenantSettings>) => void }) {
+function TenantCard({ tenant, onSave }: { tenant: TenantData; onSave: (id: string, patch: Partial<TenantData>) => void }) {
   const [editing, setEditing] = useState(false);
-  const [budgetLimit, setBudgetLimit] = useState(String(tenant.budgetLimitUsd));
+  const [costLimit, setCostLimit] = useState(String(tenant.monthlyCostLimitUsd));
   const [maxConcurrent, setMaxConcurrent] = useState(String(tenant.maxConcurrentWorkflows));
-  const [maxFix, setMaxFix] = useState(String(tenant.maxFixAttempts));
-  const [maxReview, setMaxReview] = useState(String(tenant.maxReviewAttempts));
-  const [autoMerge, setAutoMerge] = useState(tenant.autoMerge);
-  const [requireGate, setRequireGate] = useState(tenant.requireGateApproval);
+  const [maxSandboxes, setMaxSandboxes] = useState(String(tenant.maxConcurrentSandboxes));
+  const [mcpPolicy, setMcpPolicy] = useState(tenant.mcpServerPolicy);
 
   const handleSave = () => {
     onSave(tenant.id, {
-      budgetLimitUsd: parseFloat(budgetLimit),
+      monthlyCostLimitUsd: parseFloat(costLimit),
       maxConcurrentWorkflows: parseInt(maxConcurrent, 10),
-      maxFixAttempts: parseInt(maxFix, 10),
-      maxReviewAttempts: parseInt(maxReview, 10),
-      autoMerge,
-      requireGateApproval: requireGate,
-    });
+      maxConcurrentSandboxes: parseInt(maxSandboxes, 10),
+      mcpServerPolicy: mcpPolicy,
+    } as Partial<TenantData>);
     setEditing(false);
   };
 
@@ -60,8 +43,8 @@ function TenantCard({ tenant, onSave }: { tenant: TenantSettings; onSave: (id: s
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold">{tenant.displayName}</h3>
-          <p className="text-sm text-gray-500">{tenant.slug}</p>
+          <h3 className="text-lg font-semibold">{tenant.name}</h3>
+          <p className="text-sm text-gray-500">{tenant.slug} &middot; <span className={`px-1.5 py-0.5 rounded text-xs ${tenant.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{tenant.status}</span></p>
         </div>
         <button
           onClick={() => editing ? handleSave() : setEditing(true)}
@@ -73,37 +56,43 @@ function TenantCard({ tenant, onSave }: { tenant: TenantSettings; onSave: (id: s
         </button>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Budget Limit (USD)" value={budgetLimit} onChange={setBudgetLimit} editing={editing} type="number" />
+        <Field label="Monthly Cost Limit (USD)" value={costLimit} onChange={setCostLimit} editing={editing} type="number" />
         <Field label="Max Concurrent Workflows" value={maxConcurrent} onChange={setMaxConcurrent} editing={editing} type="number" />
-        <Field label="Max Fix Attempts" value={maxFix} onChange={setMaxFix} editing={editing} type="number" />
-        <Field label="Max Review Attempts" value={maxReview} onChange={setMaxReview} editing={editing} type="number" />
+        <Field label="Max Concurrent Sandboxes" value={maxSandboxes} onChange={setMaxSandboxes} editing={editing} type="number" />
         <div>
-          <p className="text-sm text-gray-500">Auto Merge</p>
+          <p className="text-sm text-gray-500">MCP Server Policy</p>
           {editing ? (
-            <input type="checkbox" checked={autoMerge} onChange={(e) => setAutoMerge(e.target.checked)} />
+            <select value={mcpPolicy} onChange={(e) => setMcpPolicy(e.target.value)} className="w-full px-2 py-1 border rounded text-sm">
+              <option value="curated">Curated</option>
+              <option value="open">Open</option>
+            </select>
           ) : (
-            <p className="font-medium">{autoMerge ? 'Yes' : 'No'}</p>
+            <p className="font-medium">{tenant.mcpServerPolicy}</p>
           )}
         </div>
         <div>
-          <p className="text-sm text-gray-500">Require Gate Approval</p>
-          {editing ? (
-            <input type="checkbox" checked={requireGate} onChange={(e) => setRequireGate(e.target.checked)} />
-          ) : (
-            <p className="font-medium">{requireGate ? 'Yes' : 'No'}</p>
-          )}
+          <p className="text-sm text-gray-500">Actual Monthly Cost</p>
+          <p className="font-medium">${Number(tenant.monthlyCostActualUsd).toFixed(2)}</p>
         </div>
         <div>
-          <p className="text-sm text-gray-500">Default Model</p>
-          <p className="font-medium">{tenant.defaultModel}</p>
+          <p className="text-sm text-gray-500">AI Cost (Month)</p>
+          <p className="font-medium">${Number(tenant.monthlyAiCostActualUsd).toFixed(2)}</p>
         </div>
         <div>
-          <p className="text-sm text-gray-500">Allowed Repos</p>
-          <p className="font-medium text-sm">{tenant.allowedRepos?.length ? tenant.allowedRepos.join(', ') : 'All'}</p>
+          <p className="text-sm text-gray-500">Sandbox Cost (Month)</p>
+          <p className="font-medium">${Number(tenant.monthlySandboxCostActualUsd).toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Default Agent</p>
+          <p className="font-medium text-sm">{tenant.defaultAgentProvider ? `${tenant.defaultAgentProvider}/${tenant.defaultAgentModel}` : 'Not set'}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500">Cost Alert Thresholds</p>
           <p className="font-medium">{tenant.costAlertThresholds?.map(t => `${t}%`).join(', ') || 'None'}</p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Sandbox Rate</p>
+          <p className="font-medium">${Number(tenant.sandboxHourlyRateUsd).toFixed(2)}/hr</p>
         </div>
         <div>
           <p className="text-sm text-gray-500">Created</p>
@@ -121,12 +110,7 @@ function Field({ label, value, onChange, editing, type }: {
     <div>
       <p className="text-sm text-gray-500">{label}</p>
       {editing ? (
-        <input
-          type={type || 'text'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full px-2 py-1 border rounded text-sm"
-        />
+        <input type={type || 'text'} value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-sm" />
       ) : (
         <p className="font-medium">{value}</p>
       )}
@@ -139,16 +123,21 @@ export function TenantConfig() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['tenants'],
-    queryFn: fetchTenants,
+    queryFn: () => apiFetch<TenantData[]>('/tenants'),
   });
 
   const mutation = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<TenantSettings> }) => updateTenant(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<TenantData> }) =>
+      apiFetch(`/tenants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenants'] }),
   });
 
   if (isLoading) return <div className="text-center py-8">Loading tenant configuration...</div>;
-  if (error) return <div className="text-center py-8 text-red-600">Error loading tenants</div>;
+  if (error) return <div className="text-center py-8 text-red-600">Error: {(error as Error).message}</div>;
 
   return (
     <div className="space-y-4">
@@ -158,13 +147,9 @@ export function TenantConfig() {
       {mutation.isError && (
         <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">Failed to update tenant</div>
       )}
-      {data?.map((tenant) => (
-        <TenantCard
-          key={tenant.id}
-          tenant={tenant}
-          onSave={(id, patch) => mutation.mutate({ id, patch })}
-        />
-      )) ?? <div className="text-center py-8 text-gray-500">No tenants configured</div>}
+      {data && data.length > 0 ? data.map((tenant) => (
+        <TenantCard key={tenant.id} tenant={tenant} onSave={(id, patch) => mutation.mutate({ id, patch })} />
+      )) : <div className="text-center py-8 text-gray-500">No tenants configured</div>}
     </div>
   );
 }

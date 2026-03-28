@@ -32,7 +32,7 @@ export class RbacGuard implements CanActivate {
     if (tenantId) {
       if (!user.tenantId) throw new ForbiddenException('Tenant context required');
       const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
-      const isDevTenantAllowed = user.tenantId === 'dev-tenant' && (nodeEnv === 'development' || nodeEnv === 'test');
+      const isDevTenantAllowed = user.tenantId === '00000000-0000-0000-0000-000000000001' && (nodeEnv === 'development' || nodeEnv === 'test');
       if (user.tenantId !== tenantId && !isDevTenantAllowed) {
         throw new ForbiddenException('Access denied for this tenant');
       }

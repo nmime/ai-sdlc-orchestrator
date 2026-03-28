@@ -61,7 +61,7 @@ describe('RbacGuard', () => {
   it('allows dev-tenant to access any tenant', () => {
     const guard = createGuard(['admin']);
     expect(guard.canActivate(
-      mockContext({ role: 'admin', tenantId: 'dev-tenant' }, { tenantId: 'tenant-b' }),
+      mockContext({ role: 'admin', tenantId: '00000000-0000-0000-0000-000000000001' }, { tenantId: 'tenant-b' }),
     )).toBe(true);
   });
 
