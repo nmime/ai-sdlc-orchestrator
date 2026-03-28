@@ -1,7 +1,7 @@
 import { Tenant, TenantStatus } from '../entities/tenant.entity';
 import { TenantUser, TenantRole } from '../entities/tenant-user.entity';
 import { TenantApiKey, ApiKeyRole } from '../entities/tenant-api-key.entity';
-import { TenantRepoConfig, AgentProvider } from '../entities/tenant-repo-config.entity';
+import { TenantRepoConfig, CloneStrategy } from '../entities/tenant-repo-config.entity';
 import { WebhookDelivery, DeliveryStatus } from '../entities/webhook-delivery.entity';
 import { WorkflowMirror, WorkflowStatus } from '../entities/workflow-mirror.entity';
 import { WorkflowDsl } from '../entities/workflow-dsl.entity';
@@ -38,6 +38,12 @@ describe('Entity defaults', () => {
     expect(config.costLimitUsd).toBe(5);
     expect(config.maxConcurrentWorkflows).toBe(1);
     expect(config.createdAt).toBeInstanceOf(Date);
+  });
+
+  it('TenantRepoConfig agentProvider is string-based (not enum)', () => {
+    const config = new TenantRepoConfig();
+    config.agentProvider = 'custom-provider-v2';
+    expect(config.agentProvider).toBe('custom-provider-v2');
   });
 
   it('WebhookDelivery should default to RECEIVED', () => {
@@ -105,8 +111,8 @@ describe('Entity enums', () => {
     ]);
   });
 
-  it('AgentProvider should have all values', () => {
-    expect(Object.values(AgentProvider)).toEqual(['claude_code', 'openhands', 'aider']);
+  it('CloneStrategy should have all values', () => {
+    expect(Object.values(CloneStrategy)).toEqual(['full', 'sparse', 'shallow']);
   });
 
   it('SessionStatus should have all values', () => {
