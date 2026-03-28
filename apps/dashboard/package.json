@@ -14,10 +14,12 @@
     "@tanstack/react-query": "^5.67.0",
     "@tanstack/react-router": "^1.120.0",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hot-toast": "^2.6.0",
     "recharts": "^2.15.0"
   },
   "devDependencies": {

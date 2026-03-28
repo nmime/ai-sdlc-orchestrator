@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Chip, Spinner, EmptyState } from '@heroui/react';
-import { apiFetch } from '../lib/api';
-import { ShieldCheck } from 'lucide-react';
+import { apiFetch, mutationOptions } from '../lib/api';
+import { RelativeTime } from '../components/RelativeTime';
+import { ShieldCheck, GitBranch, MessageSquare } from 'lucide-react';
 
 interface Workflow {
   id: string;
@@ -11,11 +12,12 @@ interface Workflow {
   temporalWorkflowId: string;
   repoUrl: string;
   branchName: string;
+  startedAt: string;
 }
 
 export function GatesPage() {
   const queryClient = useQueryClient();
-  const [comment, setComment] = useState('');
+  const [comments, setComments] = useState<Record<string, string>>({});
   const [confirmReject, setConfirmReject] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -29,11 +31,12 @@ export function GatesPage() {
       apiFetch(`/gates/${workflowId}/${action === 'reject' ? 'request-changes' : 'approve'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewer: 'dashboard-user', comment }),
+        body: JSON.stringify({ reviewer: 'dashboard-user', comment: comments[workflowId] || '' }),
       }),
+    ...mutationOptions('Gate decision submitted'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gate-workflows'] });
-      setComment('');
+      setComments({});
       setConfirmReject(null);
     },
   });
@@ -54,10 +57,10 @@ export function GatesPage() {
           <Card.Content className="py-16">
             <EmptyState>
               <div className="text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
-                  <ShieldCheck size={24} className="text-success" />
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/10">
+                  <ShieldCheck size={28} className="text-success" />
                 </div>
-                <h3 className="text-base font-medium text-foreground">All clear</h3>
+                <h3 className="text-lg font-medium text-foreground">All clear</h3>
                 <p className="mt-1 text-sm text-default-500">No workflows are awaiting gate approval.</p>
               </div>
             </EmptyState>
@@ -69,27 +72,38 @@ export function GatesPage() {
             <Card key={wf.id}>
               <Card.Header>
                 <div className="flex items-center justify-between w-full">
-                  <div>
-                    <Card.Title>{wf.taskTitle}</Card.Title>
-                    <Card.Description>{wf.repoUrl}{wf.branchName ? ` / ${wf.branchName}` : ''}</Card.Description>
+                  <div className="min-w-0">
+                    <Card.Title className="truncate">{wf.taskTitle}</Card.Title>
+                    <Card.Description className="flex items-center gap-2 mt-1">
+                      <GitBranch size={12} />
+                      <span className="truncate">{wf.repoUrl.replace('https://github.com/', '')}</span>
+                      {wf.branchName && <code className="font-mono text-xs">{wf.branchName}</code>}
+                    </Card.Description>
                   </div>
-                  <Chip color="warning" variant="soft" size="sm">Awaiting Gate</Chip>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <RelativeTime date={wf.startedAt} className="text-xs text-default-400 hidden md:block" />
+                    <Chip color="warning" variant="soft" size="sm">Awaiting Gate</Chip>
+                  </div>
                 </div>
               </Card.Header>
               <Card.Content>
-                <p className="text-xs text-default-400 font-mono mb-4">{wf.temporalWorkflowId}</p>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Review comment (optional)"
-                    className="flex-1 px-3 py-2 rounded-lg border border-divider bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-default-400"
-                  />
-                  <Button variant="primary" size="sm" onPress={() => mutation.mutate({ workflowId: wf.temporalWorkflowId, action: 'approve' })} isDisabled={mutation.isPending}>Approve</Button>
+                  <div className="relative flex-1">
+                    <MessageSquare size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400" />
+                    <input
+                      type="text"
+                      value={comments[wf.temporalWorkflowId] ?? ''}
+                      onChange={(e) => setComments(prev => ({ ...prev, [wf.temporalWorkflowId]: e.target.value }))}
+                      placeholder="Review comment (optional)"
+                      className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-divider bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-default-400"
+                    />
+                  </div>
+                  <Button variant="primary" size="sm" onPress={() => mutation.mutate({ workflowId: wf.temporalWorkflowId, action: 'approve' })} isDisabled={mutation.isPending}>
+                    Approve
+                  </Button>
                   {confirmReject === wf.temporalWorkflowId ? (
                     <>
-                      <Button variant="danger" size="sm" onPress={() => mutation.mutate({ workflowId: wf.temporalWorkflowId, action: 'reject' })} isDisabled={mutation.isPending}>Confirm</Button>
+                      <Button variant="danger" size="sm" onPress={() => mutation.mutate({ workflowId: wf.temporalWorkflowId, action: 'reject' })} isDisabled={mutation.isPending}>Confirm Reject</Button>
                       <Button variant="ghost" size="sm" onPress={() => setConfirmReject(null)}>Cancel</Button>
                     </>
                   ) : (

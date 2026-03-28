@@ -1,107 +1,117 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, Chip, Spinner, ProgressBar } from '@heroui/react';
 import { apiFetch, getTenantId } from '../lib/api';
-import { DollarSign, TrendingUp, AlertTriangle, BarChart3 } from 'lucide-react';
+import { DollarSign, AlertTriangle, BarChart3, Cpu, Monitor } from 'lucide-react';
 
-interface CostSummary {
-  tenantId: string;
-  month: string;
-  aiCostUsd: number;
-  sandboxCostUsd: number;
+interface CostData {
   totalCostUsd: number;
   limitUsd: number;
-  reservedUsd: number;
-  actualUsd: number;
-  workflowCount: number;
-}
-
-interface RepoCost {
-  repoUrl: string;
-  totalCostUsd: number;
+  aiCostUsd: number;
+  sandboxCostUsd: number;
   workflowCount: number;
 }
 
 export function CostsPage() {
   const tenantId = getTenantId();
 
-  const { data: summary, isLoading } = useQuery({
-    queryKey: ['cost-summary', tenantId],
-    queryFn: () => apiFetch<CostSummary>(`/costs/tenants/${tenantId}`),
+  const { data: costs, isLoading } = useQuery({
+    queryKey: ['costs', tenantId],
+    queryFn: () => apiFetch<CostData>(`/costs/tenants/${tenantId}`),
     refetchInterval: 30000,
   });
 
-  const { data: repoCosts } = useQuery({
-    queryKey: ['cost-by-repo', tenantId],
-    queryFn: () => apiFetch<RepoCost[]>(`/costs/tenants/${tenantId}/by-repo`),
-  });
-
   if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (!costs) return null;
 
-  const usagePercent = summary && summary.limitUsd > 0 ? (summary.totalCostUsd / summary.limitUsd) * 100 : 0;
-  const barColor = usagePercent > 90 ? 'danger' : usagePercent > 70 ? 'warning' : 'success';
+  const usagePercent = costs.limitUsd > 0 ? (costs.totalCostUsd / costs.limitUsd) * 100 : 0;
+  const avgCost = costs.workflowCount > 0 ? costs.totalCostUsd / costs.workflowCount : 0;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Cost Analytics</h1>
-        <p className="text-sm text-default-500 mt-1">Monthly usage for {summary?.month ?? 'current period'}</p>
+        <h1 className="text-2xl font-bold text-foreground">Cost Management</h1>
+        <p className="text-sm text-default-500 mt-1">Monitor and control your AI spending</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard icon={DollarSign} label="Total Cost" value={`$${(summary?.totalCostUsd ?? 0).toFixed(2)}`} sub={`of $${(summary?.limitUsd ?? 0).toFixed(0)} limit`} />
-        <StatCard icon={TrendingUp} label="AI Cost" value={`$${(summary?.aiCostUsd ?? 0).toFixed(2)}`} sub="LLM inference" />
-        <StatCard icon={BarChart3} label="Sandbox Cost" value={`$${(summary?.sandboxCostUsd ?? 0).toFixed(2)}`} sub="Compute time" />
-        <StatCard icon={AlertTriangle} label="Workflows" value={String(summary?.workflowCount ?? 0)} sub="this month" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={DollarSign} label="Monthly Spend" value={`$${costs.totalCostUsd.toFixed(2)}`} sub={`of $${costs.limitUsd.toFixed(0)} limit`} color="primary" />
+        <StatCard icon={Cpu} label="AI Cost" value={`$${costs.aiCostUsd.toFixed(2)}`} sub={`${costs.totalCostUsd > 0 ? ((costs.aiCostUsd / costs.totalCostUsd) * 100).toFixed(0) : 0}% of total`} color="accent" />
+        <StatCard icon={Monitor} label="Sandbox Cost" value={`$${costs.sandboxCostUsd.toFixed(2)}`} sub={`${costs.totalCostUsd > 0 ? ((costs.sandboxCostUsd / costs.totalCostUsd) * 100).toFixed(0) : 0}% of total`} color="success" />
+        <StatCard icon={BarChart3} label="Workflows" value={String(costs.workflowCount)} sub={`avg $${avgCost.toFixed(2)} each`} color="warning" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <Card.Header>
+            <Card.Title>Budget Utilization</Card.Title>
+            <Card.Description>Monthly budget progress</Card.Description>
+          </Card.Header>
+          <Card.Content className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-3xl font-bold text-foreground tabular-nums">{usagePercent.toFixed(1)}%</span>
+              {usagePercent > 90 && (
+                <Chip color="danger" variant="soft" size="sm">
+                  <AlertTriangle size={12} className="mr-1" /> Critical
+                </Chip>
+              )}
+              {usagePercent > 70 && usagePercent <= 90 && (
+                <Chip color="warning" variant="soft" size="sm">Warning</Chip>
+              )}
+            </div>
+            <ProgressBar value={Math.min(usagePercent, 100)} color={usagePercent > 90 ? 'danger' : usagePercent > 70 ? 'warning' : 'success'}>
+              <ProgressBar.Track><ProgressBar.Fill /></ProgressBar.Track>
+            </ProgressBar>
+            <div className="flex justify-between text-sm">
+              <span className="text-default-500">$0</span>
+              <span className="text-default-500">${costs.limitUsd.toFixed(0)}</span>
+            </div>
+          </Card.Content>
+        </Card>
+
+        <Card>
+          <Card.Header>
+            <Card.Title>Cost Breakdown</Card.Title>
+            <Card.Description>Where your money goes</Card.Description>
+          </Card.Header>
+          <Card.Content className="space-y-4">
+            <CostBar label="AI Provider" value={costs.aiCostUsd} total={costs.totalCostUsd} color="bg-primary" />
+            <CostBar label="Sandbox Compute" value={costs.sandboxCostUsd} total={costs.totalCostUsd} color="bg-success" />
+            <div className="pt-4 border-t border-divider">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Total this month</span>
+                <span className="text-lg font-bold text-foreground tabular-nums">${costs.totalCostUsd.toFixed(2)}</span>
+              </div>
+            </div>
+          </Card.Content>
+        </Card>
       </div>
 
       <Card>
         <Card.Header>
-          <div className="flex items-center justify-between w-full">
-            <Card.Title>Budget Usage</Card.Title>
-            <Chip color={barColor} variant="soft" size="sm">{usagePercent.toFixed(1)}%</Chip>
-          </div>
+          <Card.Title>Efficiency Metrics</Card.Title>
         </Card.Header>
         <Card.Content>
-          <ProgressBar value={Math.min(usagePercent, 100)} color={barColor}>
-            <ProgressBar.Track><ProgressBar.Fill /></ProgressBar.Track>
-          </ProgressBar>
-          <div className="flex justify-between text-xs text-default-400 mt-2">
-            <span>$0</span>
-            <span>${(summary?.limitUsd ?? 0).toFixed(0)}</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center p-4 rounded-xl bg-default-50">
+              <p className="text-3xl font-bold text-foreground tabular-nums">{costs.workflowCount}</p>
+              <p className="text-sm text-default-500 mt-1">Total Workflows</p>
+            </div>
+            <div className="text-center p-4 rounded-xl bg-default-50">
+              <p className="text-3xl font-bold text-foreground tabular-nums">${avgCost.toFixed(2)}</p>
+              <p className="text-sm text-default-500 mt-1">Avg Cost per Workflow</p>
+            </div>
+            <div className="text-center p-4 rounded-xl bg-default-50">
+              <p className="text-3xl font-bold text-foreground tabular-nums">${(costs.limitUsd - costs.totalCostUsd).toFixed(2)}</p>
+              <p className="text-sm text-default-500 mt-1">Remaining Budget</p>
+            </div>
           </div>
         </Card.Content>
       </Card>
-
-      {repoCosts && repoCosts.length > 0 && (
-        <Card>
-          <Card.Header><Card.Title>Cost by Repository</Card.Title></Card.Header>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-divider">
-                  <th className="px-5 py-3 text-left text-xs font-medium text-default-500 uppercase">Repository</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-default-500 uppercase">Workflows</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-default-500 uppercase">Total Cost</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-divider">
-                {repoCosts.map((r) => (
-                  <tr key={r.repoUrl} className="hover:bg-default-50">
-                    <td className="px-5 py-3 text-sm text-foreground truncate max-w-[400px]">{r.repoUrl}</td>
-                    <td className="px-5 py-3 text-right text-sm text-default-500">{r.workflowCount}</td>
-                    <td className="px-5 py-3 text-right text-sm font-semibold tabular-nums">${r.totalCostUsd.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; label: string; value: string; sub?: string }) {
+function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string; sub: string; color: string }) {
   return (
     <Card>
       <Card.Content className="pt-5">
@@ -109,13 +119,29 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; 
           <div>
             <p className="text-xs text-default-500 uppercase tracking-wider">{label}</p>
             <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{value}</p>
-            {sub && <p className="text-xs text-default-400 mt-0.5">{sub}</p>}
+            <p className="text-xs text-default-400 mt-0.5">{sub}</p>
           </div>
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Icon size={20} className="text-primary" />
+          <div className={`w-10 h-10 rounded-lg bg-${color}/10 flex items-center justify-center`}>
+            <Icon size={20} className={`text-${color}`} />
           </div>
         </div>
       </Card.Content>
     </Card>
+  );
+}
+
+function CostBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm text-default-600">{label}</span>
+        <span className="text-sm font-medium text-foreground tabular-nums">${value.toFixed(2)}</span>
+      </div>
+      <div className="h-2 bg-default-100 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-default-400 mt-0.5">{pct.toFixed(0)}% of total</p>
+    </div>
   );
 }
