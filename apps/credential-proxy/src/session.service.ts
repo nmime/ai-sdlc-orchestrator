@@ -1,8 +1,8 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { randomBytes, createHmac } from 'crypto';
 
-interface SessionData {
+export interface SessionData {
   tenantId: string;
   workflowId: string;
   sessionId: string;
@@ -10,6 +10,7 @@ interface SessionData {
   expiresAt: number;
   requestCount: number;
   createdAt: number;
+  providerApiKeys?: Record<string, string>;
 }
 
 const MAX_SESSIONS = 10_000;
@@ -40,6 +41,7 @@ export class SessionService implements OnModuleInit, OnModuleDestroy {
     sessionId: string,
     ttlSeconds = 3600,
     scopes: string[] = ['git', 'mcp', 'ai-api'],
+    providerApiKeys?: Record<string, string>,
   ): { token: string; expiresAt: string } {
     if (this.sessions.size >= MAX_SESSIONS) {
       throw new Error('Global session limit reached');
@@ -64,6 +66,7 @@ export class SessionService implements OnModuleInit, OnModuleDestroy {
       expiresAt,
       requestCount: 0,
       createdAt: Date.now(),
+      providerApiKeys,
     });
 
     return { token, expiresAt: new Date(expiresAt).toISOString() };

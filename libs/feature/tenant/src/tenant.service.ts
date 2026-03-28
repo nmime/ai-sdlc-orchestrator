@@ -3,9 +3,19 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, sanitizeRecord } from '@app/common';
 import type { AppError } from '@app/common';
-import { Tenant, TenantStatus, TenantUser, TenantRole } from '@app/db';
+import { Tenant, TenantStatus, TenantUser, TenantRole, McpServerPolicy } from '@app/db';
 import { CreateTenantDto, UpdateTenantDto } from './dto';
 export { CreateTenantDto, UpdateTenantDto } from './dto';
+
+const TENANT_SCALAR_FIELDS: (keyof Tenant)[] = [
+  'name', 'monthlyCostLimitUsd', 'monthlyAiCostLimitUsd', 'monthlySandboxCostLimitUsd',
+  'defaultAgentProvider', 'defaultAgentModel', 'maxConcurrentWorkflows', 'maxConcurrentSandboxes',
+  'costAlertThresholds', 'sandboxHourlyRateUsd', 'agentProviderApiKeyRefs',
+  'agentMaxTurns', 'agentMaxDurationMs', 'sandboxTimeoutMs',
+  'aiInputCostPer1m', 'aiOutputCostPer1m', 'budgetReservationUsd',
+  'sanitizerMode', 'rateLimitMax', 'rateLimitWindow', 'webhookMaxRetries',
+  'aiProviderConfigs', 'status',
+];
 
 @Injectable()
 export class TenantService {
@@ -57,16 +67,17 @@ export class TenantService {
     if (findResult.isErr()) return findResult;
 
     const tenant = findResult.value;
-    if (dto.name !== undefined) tenant.name = dto.name;
-    if (dto.monthlyCostLimitUsd !== undefined) tenant.monthlyCostLimitUsd = dto.monthlyCostLimitUsd;
-    if (dto.monthlyAiCostLimitUsd !== undefined) tenant.monthlyAiCostLimitUsd = dto.monthlyAiCostLimitUsd;
-    if (dto.monthlySandboxCostLimitUsd !== undefined) tenant.monthlySandboxCostLimitUsd = dto.monthlySandboxCostLimitUsd;
-    if (dto.defaultAgentProvider !== undefined) tenant.defaultAgentProvider = dto.defaultAgentProvider;
-    if (dto.defaultAgentModel !== undefined) tenant.defaultAgentModel = dto.defaultAgentModel;
-    if (dto.maxConcurrentWorkflows !== undefined) tenant.maxConcurrentWorkflows = dto.maxConcurrentWorkflows;
-    if (dto.maxConcurrentSandboxes !== undefined) tenant.maxConcurrentSandboxes = dto.maxConcurrentSandboxes;
+    const dtoRecord = dto as Record<string, unknown>;
+    const tenantRecord = tenant as unknown as Record<string, unknown>;
+
+    for (const field of TENANT_SCALAR_FIELDS) {
+      if (dtoRecord[field] !== undefined) {
+        tenantRecord[field] = dtoRecord[field];
+      }
+    }
+
+    if (dto.mcpServerPolicy !== undefined) tenant.mcpServerPolicy = dto.mcpServerPolicy as McpServerPolicy;
     if (dto.meta !== undefined) tenant.meta = sanitizeRecord(dto.meta);
-    if (dto.status !== undefined) tenant.status = dto.status;
 
     await this.em.flush();
     return ResultUtils.ok(tenant);

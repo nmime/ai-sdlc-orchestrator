@@ -2,7 +2,7 @@ import {
   Controller, Post, Get, Param, Body, Headers, Req, Res,
   HttpCode, HttpStatus, UnauthorizedException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
-import { IsString, IsOptional, IsNumber, IsArray, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsArray, IsObject, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 import { timingSafeEqual } from 'crypto';
 import { CredentialProxyService } from './credential-proxy.service';
 import { SessionService } from './session.service';
@@ -34,6 +34,10 @@ export class CreateSessionDto {
   @ArrayMaxSize(20)
   @IsString({ each: true })
   scopes?: string[];
+
+  @IsOptional()
+  @IsObject()
+  providerApiKeys?: Record<string, string>;
 }
 
 export class ResolveHostDto {
@@ -74,7 +78,7 @@ export class CredentialProxyController {
   ) {
     this.requireInternalToken(internalToken);
     if (!body.tenantId || !body.sessionId) throw new BadRequestException('tenantId and sessionId required');
-    return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds, body.scopes);
+    return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds, body.scopes, body.providerApiKeys);
   }
 
   @Post('sessions/:sessionId/revoke')
@@ -143,7 +147,7 @@ export class CredentialProxyController {
     const headers = request.headers as Record<string, string>;
 
     try {
-      const upstream = await this.credentialService.proxyAiRequest(provider, pathAfterProvider, body, headers);
+      const upstream = await this.credentialService.proxyAiRequest(provider, pathAfterProvider, body, headers, session.providerApiKeys);
 
       const contentType = upstream.headers.get('content-type') || 'application/json';
 
@@ -258,7 +262,7 @@ export class CredentialProxyController {
     }
   }
 
-  private requireSession(auth: string, scope: string): { tenantId: string; workflowId: string; sessionId: string } {
+  private requireSession(auth: string, scope: string): { tenantId: string; workflowId: string; sessionId: string; providerApiKeys?: Record<string, string> } {
     if (!auth?.startsWith('Bearer ')) throw new UnauthorizedException('Missing session token');
     const token = auth.slice(7);
     const session = this.sessionService.validate(token);

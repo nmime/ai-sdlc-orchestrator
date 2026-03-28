@@ -17,6 +17,8 @@ import { RbacGuard } from './guards/rbac.guard';
 import { ApiKeyController } from './api-key.controller';
 import { UserController } from './user.controller';
 import { DslController } from './dsl.controller';
+import { SystemSettingsService } from './system-settings.service';
+import { SystemSettingsController } from './system-settings.controller';
 import { PollingScheduleController } from './polling-schedule.controller';
 
 @Global()
@@ -31,6 +33,7 @@ import { PollingScheduleController } from './polling-schedule.controller';
     UserController,
     DslController,
     PollingScheduleController,
+    SystemSettingsController,
   ],
   providers: [
     TenantService,
@@ -41,6 +44,7 @@ import { PollingScheduleController } from './polling-schedule.controller';
     TenantWebhookConfigService,
     AuthGuard,
     RbacGuard,
+    SystemSettingsService,
   ],
   exports: [
     TenantService,
@@ -51,6 +55,7 @@ import { PollingScheduleController } from './polling-schedule.controller';
     TenantWebhookConfigService,
     AuthGuard,
     RbacGuard,
+    SystemSettingsService,
   ],
 })
 export class TenantModule {}

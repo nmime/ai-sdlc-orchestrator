@@ -1,3 +1,4 @@
+export { SystemSettings } from "./entities/system-settings.entity";
 export { Tenant, TenantStatus, McpServerPolicy } from './entities/tenant.entity';
 export { TenantMcpServer, McpTransport } from './entities/tenant-mcp-server.entity';
 export { TenantVcsCredential, VcsProvider } from './entities/tenant-vcs-credential.entity';

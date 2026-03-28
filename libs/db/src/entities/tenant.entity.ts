@@ -87,6 +87,39 @@ export class Tenant {
   @Enum(() => McpServerPolicy)
   mcpServerPolicy: McpServerPolicy = McpServerPolicy.CURATED;
 
+  @Property({ type: 'int', nullable: true })
+  agentMaxTurns?: number;
+
+  @Property({ type: 'int', nullable: true })
+  agentMaxDurationMs?: number;
+
+  @Property({ type: 'int', nullable: true })
+  sandboxTimeoutMs?: number;
+
+  @Property({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  aiInputCostPer1m?: number;
+
+  @Property({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  aiOutputCostPer1m?: number;
+
+  @Property({ type: 'decimal', precision: 8, scale: 2, nullable: true })
+  budgetReservationUsd?: number;
+
+  @Property({ nullable: true })
+  sanitizerMode?: string;
+
+  @Property({ type: 'int', nullable: true })
+  rateLimitMax?: number;
+
+  @Property({ nullable: true })
+  rateLimitWindow?: string;
+
+  @Property({ type: 'int', nullable: true })
+  webhookMaxRetries?: number;
+
+  @Property({ type: 'jsonb', nullable: true })
+  aiProviderConfigs?: Record<string, unknown>;
+
   @Property({ type: 'jsonb', nullable: true })
   meta?: Record<string, unknown>;
 

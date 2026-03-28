@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AiAgentPort } from './ai-agent.port';
-import type { AppConfig } from '@app/common';
+import type { AppConfig, DynamicConfigService } from '@app/common';
 
 export interface ProviderResolutionInput {
   repoAgentProvider?: string;
@@ -18,7 +18,10 @@ export class AgentProviderRegistry {
   private systemDefaultProvider: string;
   private systemDefaultModel: string;
 
-  constructor(private readonly configService: ConfigService<AppConfig, true>) {
+  constructor(
+    private readonly configService: ConfigService<AppConfig, true>,
+    @Optional() @Inject('DynamicConfigService') private readonly dynamicConfig?: DynamicConfigService,
+  ) {
     this.systemDefaultProvider = this.configService.get('DEFAULT_AGENT_PROVIDER') || 'auto';
     this.systemDefaultModel = this.configService.get('DEFAULT_AGENT_MODEL') || '';
   }
@@ -44,10 +47,27 @@ export class AgentProviderRegistry {
     return [...this.providers.keys()];
   }
 
+  async resolveProviderAsync(input: ProviderResolutionInput): Promise<{ provider: AiAgentPort; providerName: string; model: string }> {
+    let defaultProvider = this.systemDefaultProvider;
+    let defaultModel = this.systemDefaultModel;
+
+    if (this.dynamicConfig) {
+      const dbProvider = await this.dynamicConfig.getString('DEFAULT_AGENT_PROVIDER');   
+      if (dbProvider) defaultProvider = dbProvider;
+      const dbModel = await this.dynamicConfig.getString('DEFAULT_AGENT_MODEL');
+      if (dbModel) defaultModel = dbModel;
+    }
+
+    const providerName = input.repoAgentProvider || input.tenantDefaultProvider || defaultProvider;
+    const provider = this.getOrThrow(providerName);
+    const model = this.resolveModel(input, defaultModel);
+    return { provider, providerName: provider.name, model };
+  }
+
   resolveProvider(input: ProviderResolutionInput): { provider: AiAgentPort; providerName: string; model: string } {
     const providerName = input.repoAgentProvider || input.tenantDefaultProvider || this.systemDefaultProvider;
     const provider = this.getOrThrow(providerName);
-    const model = this.resolveModel(input);
+    const model = this.resolveModel(input, this.systemDefaultModel);
     return { provider, providerName: provider.name, model };
   }
 
@@ -56,11 +76,11 @@ export class AgentProviderRegistry {
     return first.done ? undefined : first.value;
   }
 
-  private resolveModel(input: ProviderResolutionInput): string {
+  private resolveModel(input: ProviderResolutionInput, systemDefault: string): string {
     if (input.taskLabel && input.repoModelRouting?.[input.taskLabel]) {
       const routed = input.repoModelRouting[input.taskLabel];
       if (routed) return routed;
     }
-    return input.repoAgentModel || input.tenantDefaultModel || this.systemDefaultModel;
+    return input.repoAgentModel || input.tenantDefaultModel || systemDefault;
   }
 }
