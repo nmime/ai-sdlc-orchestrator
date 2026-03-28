@@ -48,7 +48,7 @@ export class AppErrorExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    if ((exception as any).code === UNIQUE_VIOLATION_CODE) {
+    if ((exception as { code?: string }).code === UNIQUE_VIOLATION_CODE) {
       reply.status(HttpStatus.CONFLICT).send({
         error: 'CONFLICT',
         message: 'Resource already exists',

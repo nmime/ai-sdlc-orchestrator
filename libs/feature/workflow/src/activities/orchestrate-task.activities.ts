@@ -228,7 +228,7 @@ export async function createSandbox(input: {
   sparseCheckoutPaths?: string[];
   env?: Record<string, string>;
 }): Promise<{ sandboxId: string }> {
-  const em = emFactory();
+  const _em = emFactory();
   const sandboxEnv: Record<string, string> = {
     REPO_URL: input.repoUrl,
     ...input.env,
@@ -238,13 +238,13 @@ export async function createSandbox(input: {
     sandboxEnv['CREDENTIAL_PROXY_URL'] = process.env['CREDENTIAL_PROXY_URL'] || 'http://localhost:4000';
   }
 
-  const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._\-:\/]+$/;
+  const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._:/-]+$/;
   if (!URL_PATTERN.test(input.repoUrl)) {
     throw new Error(`Invalid repository URL: ${input.repoUrl}`);
   }
 
   if (input.cloneStrategy === 'sparse' && input.sparseCheckoutPaths?.length) {
-    const PATH_PATTERN = /^[a-zA-Z0-9._\/\-]+$/;
+    const PATH_PATTERN = /^[a-zA-Z0-9._/-]+$/;
     if (!input.sparseCheckoutPaths.every(p => PATH_PATTERN.test(p))) {
       throw new Error('Invalid characters in sparse checkout paths');
     }
@@ -259,7 +259,7 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
-  const SAFE_REPO_URL = /^(https:\/\/[a-zA-Z0-9._\-]+\.[a-zA-Z]{2,}\/|git@[a-zA-Z0-9._\-]+:)/;
+  const SAFE_REPO_URL = /^(https:\/\/[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}\/|git@[a-zA-Z0-9._-]+:)/;
   if (!SAFE_REPO_URL.test(input.repoUrl)) {
     throw new Error('Invalid repository URL scheme');
   }
@@ -519,7 +519,7 @@ export async function verifyAgentOutput(input: {
   maxDiffLines?: number;
   allowedPaths?: string[];
 }): Promise<void> {
-  const em = emFactory();
+  const _em = emFactory();
   if (!input.branchName) return;
 
   const diffResult = await sandboxAdapter.exec(input.sandboxId, 'cd /workspace && git diff --stat origin/main...HEAD');
@@ -602,7 +602,7 @@ export async function cleanupAndEscalate(input: {
   repoUrl: string;
   errorMessage?: string;
 }): Promise<void> {
-  const em = emFactory();
+  const _em = emFactory();
   await updateWorkflowMirror({
     tenantId: input.tenantId,
     temporalWorkflowId: input.workflowId,

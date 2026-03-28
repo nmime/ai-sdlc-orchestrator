@@ -72,7 +72,7 @@ export async function multiRepoWorkflow(input: MultiRepoInput): Promise<MultiRep
       const settled = await Promise.allSettled(childHandles.map(async (handlePromise, idx) => {
         const handle = await handlePromise;
         const result = await handle.result();
-        return { repo: input.repos[idx]!, result };
+        const repo = input.repos[idx]; if (!repo) throw new Error("unreachable"); return { repo, result };
       }));
 
       for (const s of settled) {

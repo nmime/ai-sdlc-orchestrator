@@ -38,7 +38,7 @@ export class UserController {
   @Roles('admin')
   @ApiOperation({ summary: 'Add user to tenant' })
   async addUser(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Body() dto: AddUserDto, @Req() req: FastifyRequest) {
-    const userTenantId = (req as any).user?.tenantId;
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     return ResultUtils.unwrapOrThrow(
       await this.tenantService.addUser(tenantId, dto.externalId, dto.provider, dto.email, (dto.role || 'viewer') as TenantRole),
@@ -49,7 +49,7 @@ export class UserController {
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'List users for tenant' })
   async listUsers(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: FastifyRequest) {
-    const userTenantId = (req as any).user?.tenantId;
+    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
     if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     return ResultUtils.unwrapOrThrow(await this.tenantService.getUsers(tenantId));
   }

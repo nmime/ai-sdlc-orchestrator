@@ -4,7 +4,7 @@ import * as jose from 'jose';
 import type { AppConfig } from '@app/common';
 import { ApiKeyService } from '../api-key.service';
 
-interface AuthenticatedUser {
+export interface AuthenticatedUser {
   id: string;
   email: string;
   role: string;
