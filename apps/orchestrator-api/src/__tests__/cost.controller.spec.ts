@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CostController } from '../cost.controller';
 
 const mockConn = {
@@ -7,7 +7,7 @@ const mockConn = {
 
 const mockEm = {
   find: vi.fn(),
-  findOneOrFail: vi.fn(),
+  findOne: vi.fn(),
   findAndCount: vi.fn(),
   getConnection: vi.fn().mockReturnValue(mockConn),
 };
@@ -23,7 +23,7 @@ describe('CostController (integration)', () => {
 
   describe('GET /costs/tenants/:tenantId', () => {
     it('returns cost breakdown', async () => {
-      mockEm.findOneOrFail.mockResolvedValue({
+      mockEm.findOne.mockResolvedValue({
         monthlyCostLimitUsd: 100, monthlyCostReservedUsd: 10, monthlyCostActualUsd: 50,
       });
       mockConn.execute.mockResolvedValue([{ count: '2', total_ai: '8', total_sandbox: '3' }]);
@@ -37,6 +37,11 @@ describe('CostController (integration)', () => {
 
     it('rejects tenant mismatch', async () => {
       await expect(controller.getTenantCosts('t-1', 't-2')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns 404 for unknown tenant', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+      await expect(controller.getTenantCosts('t-1', 't-1')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -65,7 +70,7 @@ describe('CostController (integration)', () => {
 
   describe('GET /costs/workflows/:workflowId', () => {
     it('returns workflow cost with sessions', async () => {
-      mockEm.findOneOrFail.mockResolvedValue({
+      mockEm.findOne.mockResolvedValue({
         id: 'wf-1', temporalWorkflowId: 'wf-1', costUsdTotal: 5, aiCostUsd: 3, sandboxCostUsd: 2,
       });
       mockEm.find.mockResolvedValue([
@@ -78,6 +83,11 @@ describe('CostController (integration)', () => {
       const result = await controller.getWorkflowCost('t-1', 'wf-1');
       expect(result.totalCostUsd).toBe(5);
       expect((result.sessions as unknown as Array<{ duration: number }>)[0].duration).toBe(300);
+    });
+
+    it('returns 404 for unknown workflow', async () => {
+      mockEm.findOne.mockResolvedValue(null);
+      await expect(controller.getWorkflowCost('t-1', 'wf-unknown')).rejects.toThrow(NotFoundException);
     });
   });
 

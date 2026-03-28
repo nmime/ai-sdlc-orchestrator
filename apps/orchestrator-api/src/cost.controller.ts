@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
@@ -17,7 +17,8 @@ export class CostController {
   async getTenantCosts(@Param('tenantId') tenantId: string, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
     if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
-    const tenant = await this.em.findOneOrFail(Tenant, { id: tenantId });
+    const tenant = await this.em.findOne(Tenant, { id: tenantId });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -63,7 +64,8 @@ export class CostController {
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost breakdown for a workflow' })
   async getWorkflowCost(@TenantId() tenantId: string, @Param('workflowId') workflowId: string): Promise<Record<string, unknown>> {
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
+    const mirror = await this.em.findOne(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
+    if (!mirror) throw new NotFoundException(`Workflow ${workflowId} not found`);
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, { limit: 200 });
 
     return {
