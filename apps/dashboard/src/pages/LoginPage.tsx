@@ -11,8 +11,12 @@ export function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) {
+      _setError('API token is required');
+      return;
+    }
     setAuth({
-      token: token || 'dev-dashboard',
+      token,
       tenantId,
       role: 'admin',
       email: 'admin@local',
@@ -71,7 +75,7 @@ export function LoginPage() {
                 type="password"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="Bearer token (leave empty for dev mode)"
+                placeholder="Bearer token"
                 className="w-full px-4 py-2.5 rounded-lg border border-divider bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-default-400"
               />
             </div>
@@ -91,11 +95,13 @@ export function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-4">
-            <button onClick={handleDevLogin} className="w-full px-4 py-2.5 rounded-lg border border-divider text-sm text-default-600 hover:bg-default-100 transition-colors">
-              Quick Dev Login (no auth)
-            </button>
-          </div>
+          {import.meta.env.DEV && (
+            <div className="mt-4">
+              <button onClick={handleDevLogin} className="w-full px-4 py-2.5 rounded-lg border border-divider text-sm text-default-600 hover:bg-default-100 transition-colors">
+                Quick Dev Login (no auth)
+              </button>
+            </div>
+          )}
 
           <p className="mt-6 text-center text-xs text-default-400">
             <Link to="/" className="hover:text-foreground transition-colors">Back to home</Link>

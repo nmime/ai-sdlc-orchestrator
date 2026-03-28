@@ -13,6 +13,11 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
 });
 
+Object.defineProperty(globalThis, 'window', {
+  value: globalThis,
+  writable: true,
+});
+
 import { apiFetch, getTenantId } from '../lib/api';
 
 describe('api', () => {
@@ -22,16 +27,16 @@ describe('api', () => {
   });
 
   describe('apiFetch', () => {
-    it('makes fetch call with default auth header', async () => {
+    it('makes fetch call without auth header when not authenticated', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ data: [] }),
       });
       const result = await apiFetch('/workflows');
       expect(result).toEqual({ data: [] });
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/workflows', expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer dev-dashboard' }),
-      }));
+      const callArgs = mockFetch.mock.calls[0]!;
+      expect(callArgs[0]).toBe('/api/v1/workflows');
+      expect(callArgs[1]!.headers).not.toHaveProperty('Authorization');
     });
 
     it('uses token from auth state in localStorage', async () => {
@@ -61,6 +66,11 @@ describe('api', () => {
     });
 
     it('passes through custom headers and method', async () => {
+      mockLocalStorage['ai_sdlc_auth'] = JSON.stringify({
+        token: 'test-token',
+        tenantId: 'tenant-1',
+        role: 'admin',
+      });
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ valid: true }),
@@ -74,9 +84,26 @@ describe('api', () => {
         method: 'POST',
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
-          Authorization: 'Bearer dev-dashboard',
+          Authorization: 'Bearer test-token',
         }),
       }));
+    });
+
+    it('clears auth and redirects on 401 response', async () => {
+      mockLocalStorage['ai_sdlc_auth'] = JSON.stringify({
+        token: 'expired-token',
+        tenantId: 'tenant-1',
+        role: 'admin',
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve('Unauthorized'),
+        statusText: 'Unauthorized',
+      });
+      await expect(apiFetch('/protected')).rejects.toThrow();
+      expect(mockLocalStorage).not.toHaveProperty('ai_sdlc_auth');
+      expect(window.location.href).toContain('/login');
     });
   });
 
