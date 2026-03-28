@@ -11,3 +11,4 @@ export { EncryptionService } from './encryption/encryption.service';
 export { sanitizeRecord } from './validation/sanitize-record';
 export { sanitizeLog } from './validation/sanitize-log';
 export { isInternalUrl } from './validation/is-internal-url';
+export { DynamicConfigService } from './config/dynamic-config.service';

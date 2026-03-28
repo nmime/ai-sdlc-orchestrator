@@ -88,11 +88,12 @@ export class CredentialProxyService {
     path: string,
     body: unknown,
     headers: Record<string, string>,
+    tenantApiKeys?: Record<string, string>,
   ): Promise<Response> {
     validateId(provider, 'provider');
 
     const providerConfig = this.resolveProviderConfig(provider);
-    const apiKey = this.resolveApiKey(provider);
+    const apiKey = this.resolveApiKey(provider, tenantApiKeys);
 
     const proxyHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -133,9 +134,11 @@ export class CredentialProxyService {
     throw new Error(`Unknown AI provider: ${provider}. Available: ${this.listProviders().join(', ')}. Configure via AI_PROVIDER_CONFIGS env or registerProvider().`);
   }
 
-  private resolveApiKey(provider: string): string {
+  private resolveApiKey(provider: string, tenantApiKeys?: Record<string, string>): string {
+    if (tenantApiKeys?.[provider]) return tenantApiKeys[provider];
+
     const apiKey = this.configService.get<string>(`${provider.toUpperCase()}_API_KEY`);
-    if (!apiKey) throw new Error(`No API key configured for ${provider}. Set ${provider.toUpperCase()}_API_KEY env var.`);
+    if (!apiKey) throw new Error(`No API key configured for ${provider}. Set ${provider.toUpperCase()}_API_KEY env var or configure tenant-level keys.`);
     return apiKey;
   }
 }
