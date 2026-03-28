@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Tabs, Card, Chip } from '@heroui/react';
 import { WorkflowList } from './components/WorkflowList';
 import { CostDashboard } from './components/CostDashboard';
 import { GatePanel } from './components/GatePanel';
@@ -7,50 +8,57 @@ import { SessionViewer } from './components/SessionViewer';
 import { DslEditor } from './components/DslEditor';
 import { Settings } from './components/Settings';
 
-type Tab = 'workflows' | 'costs' | 'gates' | 'tenants' | 'sessions' | 'dsl-editor' | 'settings';
+const TABS = [
+  { id: 'workflows', label: 'Workflows' },
+  { id: 'costs', label: 'Costs' },
+  { id: 'gates', label: 'Gates' },
+  { id: 'tenants', label: 'Tenants' },
+  { id: 'sessions', label: 'Sessions' },
+  { id: 'dsl', label: 'DSL Editor' },
+  { id: 'settings', label: 'Settings' },
+] as const;
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'workflows', label: 'Workflows' },
-  { key: 'costs', label: 'Costs' },
-  { key: 'gates', label: 'Gates' },
-  { key: 'tenants', label: 'Tenants' },
-  { key: 'sessions', label: 'Sessions' },
-  { key: 'dsl-editor', label: 'DSL Editor' },
-  { key: 'settings', label: 'Settings' },
-];
+type TabId = (typeof TABS)[number]['id'];
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('workflows');
+  const [activeTab, setActiveTab] = useState<TabId>('workflows');
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">AI SDLC Orchestrator</h1>
-          <nav className="flex gap-4">
-            {TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`px-3 py-1 rounded-md text-sm font-medium ${
-                  activeTab === key
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+    <div className="min-h-full bg-default-50">
+      <header className="bg-background border-b border-divider sticky top-0 z-50">
+        <div className="max-w-[1440px] mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              </div>
+              <div>
+                <h1 className="text-sm font-bold text-foreground">AI SDLC Orchestrator</h1>
+                <p className="text-[11px] text-default-400">Development Environment</p>
+              </div>
+            </div>
+            <Chip color="success" variant="soft" size="sm">System Healthy</Chip>
+          </div>
+
+          <div className="-mb-px">
+            <Tabs selectedKey={activeTab} onSelectionChange={(key) => setActiveTab(key as TabId)}>
+              <Tabs.List>
+                {TABS.map((tab) => (
+                  <Tabs.Tab key={tab.id} id={tab.id}>{tab.label}</Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs>
+          </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-6">
+
+      <main className="max-w-[1440px] mx-auto px-6 py-6">
         {activeTab === 'workflows' && <WorkflowList />}
         {activeTab === 'costs' && <CostDashboard />}
         {activeTab === 'gates' && <GatePanel />}
         {activeTab === 'tenants' && <TenantConfig />}
         {activeTab === 'sessions' && <SessionViewer />}
-        {activeTab === 'dsl-editor' && <DslEditor />}
+        {activeTab === 'dsl' && <DslEditor />}
         {activeTab === 'settings' && <Settings />}
       </main>
     </div>

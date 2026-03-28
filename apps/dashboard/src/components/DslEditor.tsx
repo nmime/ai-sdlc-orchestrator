@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { Card, Button, Chip, Spinner } from '@heroui/react';
 import { apiFetch } from '../lib/api';
 
 interface DslRecord {
@@ -72,124 +73,119 @@ export function DslEditor() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">DSL Editor</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => validateMutation.mutate(yaml)}
-                disabled={validateMutation.isPending}
-                className="px-3 py-1.5 bg-gray-600 text-white rounded-md text-sm hover:bg-gray-700 disabled:opacity-50"
-              >
-                {validateMutation.isPending ? 'Validating...' : 'Validate'}
-              </button>
-              <button
-                onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending}
-                className="px-3 py-1.5 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {saveMutation.isPending ? 'Saving...' : 'Save DSL'}
-              </button>
-            </div>
-          </div>
-          <input
-            type="text"
-            value={dslName}
-            onChange={(e) => setDslName(e.target.value)}
-            placeholder="DSL name"
-            className="w-full px-3 py-1.5 border rounded-md text-sm"
-          />
-          <textarea
-            value={yaml}
-            onChange={(e) => setYaml(e.target.value)}
-            className="w-full h-96 font-mono text-sm p-4 bg-gray-900 text-green-400 rounded-lg border-0 resize-none focus:ring-2 focus:ring-indigo-500"
-            spellCheck={false}
-          />
-          {validateMutation.data && (
-            <div className={`rounded-md p-3 ${
-              validateMutation.data.valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-            }`}>
-              {validateMutation.data.valid ? (
-                <p className="text-sm text-green-700">DSL is valid</p>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-red-700">Validation errors:</p>
-                  <ul className="text-sm text-red-600 list-disc list-inside">
-                    {validateMutation.data.errors?.map((err, i) => <li key={i}>{err}</li>)}
-                  </ul>
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">DSL Editor</h2>
+        <p className="text-sm text-default-500">Define and validate workflow definitions</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 space-y-4">
+          <Card>
+            <Card.Header>
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-3 flex-1 mr-4">
+                  <input
+                    type="text"
+                    value={dslName}
+                    onChange={(e) => setDslName(e.target.value)}
+                    placeholder="DSL name"
+                    className="bg-default-100 rounded-lg px-3 py-1.5 text-sm text-foreground border-0 outline-none focus:ring-2 focus:ring-primary w-48"
+                  />
                 </div>
-              )}
-            </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onPress={() => validateMutation.mutate(yaml)} isDisabled={validateMutation.isPending}>
+                    {validateMutation.isPending ? 'Validating...' : 'Validate'}
+                  </Button>
+                  <Button variant="primary" size="sm" onPress={() => saveMutation.mutate()} isDisabled={saveMutation.isPending}>
+                    {saveMutation.isPending ? 'Saving...' : 'Save DSL'}
+                  </Button>
+                </div>
+              </div>
+            </Card.Header>
+            <Card.Content>
+              <textarea
+                value={yaml}
+                onChange={(e) => setYaml(e.target.value)}
+                className="w-full h-[420px] font-mono text-sm p-4 bg-[#1e1e2e] text-[#cdd6f4] rounded-xl border-0 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                spellCheck={false}
+              />
+            </Card.Content>
+          </Card>
+
+          {validateMutation.data && (
+            <Card variant={validateMutation.data.valid ? undefined : undefined}>
+              <Card.Content>
+                {validateMutation.data.valid ? (
+                  <div className="flex items-center gap-2">
+                    <Chip color="success" variant="soft" size="sm">Valid</Chip>
+                    <span className="text-sm text-success">DSL definition is valid</span>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Chip color="danger" variant="soft" size="sm">Invalid</Chip>
+                      <span className="text-sm font-medium text-danger">Validation errors</span>
+                    </div>
+                    <ul className="text-sm text-danger space-y-1 list-disc list-inside">
+                      {validateMutation.data.errors?.map((err, i) => <li key={i}>{err}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
           )}
+
           {saveMutation.isSuccess && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-3">
-              <p className="text-sm text-green-700">DSL saved successfully</p>
-            </div>
+            <Card><Card.Content><div className="flex items-center gap-2"><Chip color="success" variant="soft" size="sm">Saved</Chip><span className="text-sm text-success">DSL saved successfully</span></div></Card.Content></Card>
           )}
           {saveMutation.isError && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-700">Failed to save DSL: {(saveMutation.error as Error).message}</p>
-            </div>
+            <Card><Card.Content><p className="text-sm text-danger">Failed to save: {(saveMutation.error as Error).message}</p></Card.Content></Card>
           )}
         </div>
 
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Saved DSLs</h2>
-            <div className="bg-white rounded-lg shadow">
-              {dslList && dslList.length > 0 ? (
-                <div className="divide-y">
-                  {dslList.map((d) => (
-                    <div key={d.id} className="px-4 py-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">{d.name} <span className="text-xs text-gray-400">v{d.version}</span></p>
-                        <p className="text-xs text-gray-500">{new Date(d.createdAt).toLocaleString()}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-xs ${d.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {d.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        <button
-                          onClick={() => { setYaml(JSON.stringify(d.definition, null, 2)); setDslName(d.name); }}
-                          className="text-xs text-indigo-600 hover:text-indigo-800"
-                        >
-                          Load
-                        </button>
-                      </div>
+        <div className="lg:col-span-2 space-y-4">
+          <Card>
+            <Card.Header>
+              <Card.Title className="text-sm">Saved DSLs</Card.Title>
+            </Card.Header>
+            {dslList && dslList.length > 0 ? (
+              <div className="divide-y divide-divider">
+                {dslList.map((d) => (
+                  <div key={d.id} className="px-5 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{d.name} <span className="text-default-400">v{d.version}</span></p>
+                      <p className="text-xs text-default-400">{new Date(d.createdAt).toLocaleString()}</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="px-4 py-8 text-center text-gray-500">No DSLs saved yet</div>
-              )}
-            </div>
-          </div>
+                    <div className="flex items-center gap-2">
+                      <Chip color={d.isActive ? 'success' : 'default'} variant="soft" size="sm">{d.isActive ? 'Active' : 'Inactive'}</Chip>
+                      <Button variant="ghost" size="sm" onPress={() => { setYaml(JSON.stringify(d.definition, null, 2)); setDslName(d.name); }}>Load</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Card.Content><p className="text-sm text-default-400 text-center py-4">No DSLs saved yet</p></Card.Content>
+            )}
+          </Card>
 
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold">Recent Workflows</h2>
-            <div className="bg-white rounded-lg shadow">
-              {workflows?.data && workflows.data.length > 0 ? (
-                <div className="divide-y">
-                  {workflows.data.map((wf) => (
-                    <div key={wf.id} className="px-4 py-3 flex items-center justify-between">
-                      <p className="text-sm font-medium">{wf.taskTitle || wf.id.slice(0, 8)}</p>
-                      <span className={`px-2 py-0.5 rounded text-xs ${
-                        wf.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        wf.status === 'running' ? 'bg-blue-100 text-blue-700' :
-                        wf.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {wf.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="px-4 py-8 text-center text-gray-500">No workflows yet</div>
-              )}
-            </div>
-          </div>
+          <Card>
+            <Card.Header>
+              <Card.Title className="text-sm">Recent Workflows</Card.Title>
+            </Card.Header>
+            {workflows?.data && workflows.data.length > 0 ? (
+              <div className="divide-y divide-divider">
+                {workflows.data.map((wf) => (
+                  <div key={wf.id} className="px-5 py-3 flex items-center justify-between">
+                    <p className="text-sm font-medium text-foreground truncate">{wf.taskTitle || wf.id.slice(0, 8)}</p>
+                    <Chip color={wf.status === 'completed' ? 'success' : wf.status === 'failed' ? 'danger' : wf.status === 'running' ? 'accent' : 'default'} variant="soft" size="sm">{wf.status}</Chip>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Card.Content><p className="text-sm text-default-400 text-center py-4">No workflows yet</p></Card.Content>
+            )}
+          </Card>
         </div>
       </div>
     </div>
