@@ -1,5 +1,4 @@
-@import 'tailwindcss';
-@import '@heroui/react/styles';
+@import '@heroui/styles/css';
 
 :root {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
