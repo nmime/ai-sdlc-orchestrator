@@ -213,6 +213,17 @@ services:
       - api
     restart: unless-stopped
 
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost
+    ports:
+      - '${TEMPORAL_UI_PORT:-8088}:8080'
+    depends_on:
+      - temporal
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   es_data:
