@@ -1,141 +1,108 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Chip, Spinner } from '@heroui/react';
 import { apiFetch, getTenantId } from '../lib/api';
-import { Webhook, RefreshCw, CheckCircle2, XCircle, Clock } from 'lucide-react';
-
-interface WebhookConfig {
-  id: string;
-  platform: string;
-  url: string;
-  secret?: string;
-  isActive: boolean;
-  createdAt: string;
-}
+import { Pagination } from '../components/Pagination';
+import { RelativeTime } from '../components/RelativeTime';
+import { Webhook, RefreshCw } from 'lucide-react';
 
 interface WebhookDelivery {
   id: string;
-  platform: string;
+  provider: string;
   eventType: string;
   status: string;
-  statusCode: number | null;
+  httpStatus?: number;
   retryCount: number;
   createdAt: string;
+  processedAt?: string;
+  repoUrl?: string;
+  taskTitle?: string;
 }
+
+const STATUS_COLOR: Record<string, 'default' | 'success' | 'danger' | 'warning'> = {
+  delivered: 'success', processed: 'success', pending: 'warning', failed: 'danger', retrying: 'warning',
+};
+
+const PAGE_SIZE = 20;
 
 export function WebhooksPage() {
   const tenantId = getTenantId();
+  const [page, setPage] = useState(1);
 
-  const { data: configs, isLoading } = useQuery({
-    queryKey: ['webhook-configs', tenantId],
-    queryFn: () => apiFetch<WebhookConfig[]>(`/tenants/${tenantId}/webhooks`).catch(() => []),
-  });
-
-  const { data: deliveries } = useQuery({
-    queryKey: ['webhook-deliveries', tenantId],
-    queryFn: () => apiFetch<{ data: WebhookDelivery[] }>(`/webhook-deliveries?limit=20`).catch(() => ({ data: [] })),
+  const { data, isLoading } = useQuery({
+    queryKey: ['webhooks', tenantId, page],
+    queryFn: () => apiFetch<{ data: WebhookDelivery[]; total: number }>(
+      `/webhook-deliveries?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`
+    ),
     refetchInterval: 10000,
   });
 
-  const DELIVERY_STATUS: Record<string, { color: 'success' | 'danger' | 'warning' | 'default'; icon: React.ElementType }> = {
-    delivered: { color: 'success', icon: CheckCircle2 },
-    failed: { color: 'danger', icon: XCircle },
-    pending: { color: 'warning', icon: Clock },
-    retrying: { color: 'warning', icon: RefreshCw },
-  };
+  const deliveries = data?.data ?? [];
+  const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Webhooks</h1>
-          <p className="text-sm text-default-500 mt-1">Configure and monitor webhook integrations</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Webhook Deliveries</h1>
+        <p className="text-sm text-default-500 mt-1">{data?.total ?? 0} total deliveries</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card><Card.Content className="pt-5">
-          <p className="text-xs text-default-500 uppercase tracking-wider">Configurations</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{configs?.length ?? 0}</p>
-          <p className="text-xs text-default-400 mt-0.5">active webhooks</p>
-        </Card.Content></Card>
-        <Card><Card.Content className="pt-5">
-          <p className="text-xs text-default-500 uppercase tracking-wider">Recent Deliveries</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{deliveries?.data?.length ?? 0}</p>
-          <p className="text-xs text-default-400 mt-0.5">last 20 events</p>
-        </Card.Content></Card>
-        <Card><Card.Content className="pt-5">
-          <p className="text-xs text-default-500 uppercase tracking-wider">Failed</p>
-          <p className="text-2xl font-bold text-danger mt-1">{deliveries?.data?.filter(d => d.status === 'failed').length ?? 0}</p>
-          <p className="text-xs text-default-400 mt-0.5">requiring attention</p>
-        </Card.Content></Card>
-      </div>
-
-      <Card>
-        <Card.Header>
-          <Card.Title>Webhook Configurations</Card.Title>
-        </Card.Header>
-        {isLoading ? (
-          <Card.Content><div className="flex justify-center py-8"><Spinner /></div></Card.Content>
-        ) : !configs || configs.length === 0 ? (
-          <Card.Content className="py-12">
-            <div className="text-center">
-              <Webhook size={32} className="mx-auto text-default-300 mb-2" />
-              <p className="text-sm text-default-400">No webhook configurations. Configure webhooks via the API.</p>
-            </div>
+      {isLoading ? (
+        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+      ) : deliveries.length === 0 ? (
+        <Card>
+          <Card.Content className="py-16 text-center">
+            <Webhook size={32} className="mx-auto text-default-300 mb-3" />
+            <p className="text-base font-medium text-foreground">No webhook deliveries</p>
+            <p className="text-sm text-default-500 mt-1">Deliveries appear when external services send webhooks.</p>
           </Card.Content>
-        ) : (
-          <div className="divide-y divide-divider">
-            {configs.map((c) => (
-              <div key={c.id} className="px-5 py-3.5 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Chip variant="soft" size="sm">{c.platform}</Chip>
-                    <span className="text-sm text-foreground">{c.url}</span>
-                  </div>
-                </div>
-                <Chip color={c.isActive ? 'success' : 'default'} variant="soft" size="sm">{c.isActive ? 'Active' : 'Inactive'}</Chip>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card>
-        <Card.Header><Card.Title>Recent Deliveries</Card.Title></Card.Header>
-        {deliveries?.data && deliveries.data.length > 0 ? (
+        </Card>
+      ) : (
+        <Card>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-divider">
-                  <th className="px-5 py-3 text-left text-xs font-medium text-default-500 uppercase">Platform</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-default-500 uppercase">Provider</th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-default-500 uppercase">Event</th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-default-500 uppercase">Status</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-default-500 uppercase">HTTP</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-default-500 uppercase">Retries</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-default-500 uppercase">Time</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-default-500 uppercase">Task</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium text-default-500 uppercase">Received</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-divider">
-                {deliveries.data.map((d) => {
-                  const info = DELIVERY_STATUS[d.status] ?? { color: 'default' as const, icon: Clock };
-                  return (
-                    <tr key={d.id} className="hover:bg-default-50">
-                      <td className="px-5 py-3"><Chip variant="soft" size="sm">{d.platform}</Chip></td>
-                      <td className="px-5 py-3 text-sm text-foreground">{d.eventType}</td>
-                      <td className="px-5 py-3"><Chip color={info.color} variant="soft" size="sm">{d.status}</Chip></td>
-                      <td className="px-5 py-3 text-right text-sm text-default-500">{d.statusCode ?? '—'}</td>
-                      <td className="px-5 py-3 text-right text-sm text-default-500">{d.retryCount}</td>
-                      <td className="px-5 py-3 text-right text-xs text-default-400">{new Date(d.createdAt).toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
+                {deliveries.map((d) => (
+                  <tr key={d.id} className="hover:bg-default-50 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <span className="text-sm font-medium text-foreground capitalize">{d.provider}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <code className="text-xs font-mono text-default-500">{d.eventType}</code>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <Chip color={STATUS_COLOR[d.status] ?? 'default'} variant="soft" size="sm">{d.status}</Chip>
+                        {d.retryCount > 0 && (
+                          <span className="text-xs text-default-400 flex items-center gap-1">
+                            <RefreshCw size={10} /> {d.retryCount}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-sm text-default-500 truncate block max-w-[200px]">{d.taskTitle || '-'}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <RelativeTime date={d.createdAt} className="text-xs text-default-400" />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        ) : (
-          <Card.Content><p className="text-sm text-default-400 text-center py-4">No deliveries yet</p></Card.Content>
-        )}
-      </Card>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </Card>
+      )}
     </div>
   );
 }
