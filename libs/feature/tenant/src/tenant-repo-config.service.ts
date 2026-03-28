@@ -3,7 +3,7 @@ import { EntityManager } from '@mikro-orm/postgresql';
 import { Result, err } from 'neverthrow';
 import { ResultUtils, PinoLoggerService, sanitizeRecord, sanitizeLog } from '@app/common';
 import type { AppError } from '@app/common';
-import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@app/db';
+import { TenantRepoConfig, Tenant, CloneStrategy } from "@app/db";
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 
 export class CreateRepoConfigDto {
@@ -57,8 +57,8 @@ export class CreateRepoConfigDto {
   maxConcurrentWorkflows?: number;
 
   @IsOptional()
-  @IsEnum(AgentProvider)
-  agentProvider?: AgentProvider;
+  @IsString()
+  agentProvider?: string;
 
   @IsOptional()
   @IsString()
@@ -179,8 +179,8 @@ export class UpdateRepoConfigDto {
   maxConcurrentWorkflows?: number;
 
   @IsOptional()
-  @IsEnum(AgentProvider)
-  agentProvider?: AgentProvider;
+  @IsString()
+  agentProvider?: string;
 
   @IsOptional()
   @IsString()

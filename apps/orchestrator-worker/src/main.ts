@@ -5,12 +5,12 @@ import pino from 'pino';
 
 import { initActivities, activities } from '@app/feature-workflow';
 import { AgentProviderRegistry } from '@app/feature-agent-registry';
-import { ClaudeAgentAdapter } from '@app/feature-agent-claude-code';
 import { E2bSandboxAdapter } from '@app/feature-agent-sandbox';
 import { PromptFormatter } from '@app/feature-agent-prompt';
 import { CredentialProxyClient } from '@app/feature-agent-credential-proxy';
 import { PinoLoggerService } from '@app/common';
 import type { AppConfig } from '@app/common';
+import type { AiAgentPort } from '@app/feature-agent-registry';
 import { ConfigService } from '@nestjs/config';
 
 const ROOT = process.env['APP_ROOT'] || path.resolve(__dirname, '../../..');
@@ -22,6 +22,22 @@ const logger = pino({
       ? { target: 'pino-pretty', options: { colorize: true } }
       : undefined,
 });
+
+async function loadAdapters(configService: ConfigService<AppConfig, true>, pinoLogger: PinoLoggerService): Promise<AiAgentPort[]> {
+  const adapters: AiAgentPort[] = [];
+
+  if (configService.get('ANTHROPIC_API_KEY', { infer: true })) {
+    const { ClaudeAgentAdapter } = await import('@app/feature-agent-claude-code');
+    adapters.push(new ClaudeAgentAdapter(configService, pinoLogger));
+    logger.info('Loaded agent adapter: claude_code');
+  }
+
+  if (adapters.length === 0) {
+    logger.warn('No agent adapters loaded. Set ANTHROPIC_API_KEY (or other provider keys) to enable agent capabilities.');
+  }
+
+  return adapters;
+}
 
 async function run() {
   logger.info('Starting orchestrator-worker...');
@@ -47,9 +63,12 @@ async function run() {
   const configService = new ConfigService<AppConfig, true>(process.env as Record<string, string>);
 
   const sandboxAdapter = new E2bSandboxAdapter(configService, pinoLogger);
-  const agentRegistry = new AgentProviderRegistry();
-  const claudeAdapter = new ClaudeAgentAdapter(configService, pinoLogger);
-  agentRegistry.register(claudeAdapter);
+  const agentRegistry = new AgentProviderRegistry(configService);
+
+  const adapters = await loadAdapters(configService, pinoLogger);
+  for (const adapter of adapters) {
+    agentRegistry.register(adapter);
+  }
 
   const promptFormatter = new PromptFormatter();
   const credentialProxy = new CredentialProxyClient(pinoLogger, configService);
@@ -86,7 +105,7 @@ async function run() {
     },
   });
 
-  logger.info('Worker started, listening on task queue: orchestrator-queue');
+  logger.info(`Worker started, ${adapters.length} agent adapter(s) loaded, listening on task queue: orchestrator-queue`);
 
   const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   shutdownSignals.forEach((signal) => {

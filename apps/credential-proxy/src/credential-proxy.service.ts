@@ -16,9 +16,56 @@ function validateHost(value: string): void {
   }
 }
 
+export interface AiProviderConfig {
+  baseUrl: string;
+  authType: 'api-key-header' | 'bearer';
+  authHeader?: string;
+  extraHeaders?: Record<string, string>;
+}
+
+const DEFAULT_PROVIDER_CONFIGS: Record<string, AiProviderConfig> = {
+  anthropic: {
+    baseUrl: 'https://api.anthropic.com',
+    authType: 'api-key-header',
+    authHeader: 'x-api-key',
+    extraHeaders: { 'anthropic-version': '2023-06-01' },
+  },
+  openai: {
+    baseUrl: 'https://api.openai.com',
+    authType: 'bearer',
+  },
+};
+
 @Injectable()
 export class CredentialProxyService {
-  constructor(private readonly configService: ConfigService) {}
+  private providerConfigs: Map<string, AiProviderConfig>;
+
+  constructor(private readonly configService: ConfigService) {
+    this.providerConfigs = new Map(Object.entries(DEFAULT_PROVIDER_CONFIGS));
+    this.loadProviderConfigs();
+  }
+
+  private loadProviderConfigs(): void {
+    const configJson = this.configService.get<string>('AI_PROVIDER_CONFIGS');
+    if (configJson) {
+      try {
+        const configs = JSON.parse(configJson) as Record<string, AiProviderConfig>;
+        for (const [name, config] of Object.entries(configs)) {
+          this.providerConfigs.set(name, config);
+        }
+      } catch {
+        // ignore invalid JSON, use defaults
+      }
+    }
+  }
+
+  registerProvider(name: string, config: AiProviderConfig): void {
+    this.providerConfigs.set(name, config);
+  }
+
+  listProviders(): string[] {
+    return [...this.providerConfigs.keys()];
+  }
 
   async getGitCredential(tenantId: string, host: string): Promise<{ username: string; password: string }> {
     validateId(tenantId, 'tenantId');
@@ -43,33 +90,52 @@ export class CredentialProxyService {
     headers: Record<string, string>,
   ): Promise<Response> {
     validateId(provider, 'provider');
-    const baseUrls: Record<string, string> = {
-      anthropic: 'https://api.anthropic.com',
-      openai: 'https://api.openai.com',
-    };
 
-    const baseUrl = baseUrls[provider];
-    if (!baseUrl) throw new Error(`Unknown AI provider: ${provider}`);
-
-    const apiKeyEnv = `${provider.toUpperCase()}_API_KEY`;
-    const apiKey = this.configService.get<string>(apiKeyEnv);
-    if (!apiKey) throw new Error(`No API key configured for ${provider}`);
+    const providerConfig = this.resolveProviderConfig(provider);
+    const apiKey = this.resolveApiKey(provider);
 
     const proxyHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    if (provider === 'anthropic') {
-      proxyHeaders['x-api-key'] = apiKey;
-      proxyHeaders['anthropic-version'] = headers['anthropic-version'] || '2023-06-01';
+    if (providerConfig.authType === 'api-key-header') {
+      proxyHeaders[providerConfig.authHeader || 'x-api-key'] = apiKey;
     } else {
       proxyHeaders['Authorization'] = `Bearer ${apiKey}`;
     }
 
-    return fetch(`${baseUrl}${path}`, {
+    if (providerConfig.extraHeaders) {
+      for (const [key, defaultValue] of Object.entries(providerConfig.extraHeaders)) {
+        proxyHeaders[key] = headers[key] || defaultValue;
+      }
+    }
+
+    return fetch(`${providerConfig.baseUrl}${path}`, {
       method: 'POST',
       headers: proxyHeaders,
       body: JSON.stringify(body),
     });
+  }
+
+  private resolveProviderConfig(provider: string): AiProviderConfig {
+    const envBaseUrl = this.configService.get<string>(`AI_BASE_URL_${provider.toUpperCase()}`);
+    const registered = this.providerConfigs.get(provider);
+
+    if (envBaseUrl) {
+      return {
+        ...(registered || { authType: 'bearer' as const }),
+        baseUrl: envBaseUrl,
+      };
+    }
+
+    if (registered) return registered;
+
+    throw new Error(`Unknown AI provider: ${provider}. Available: ${this.listProviders().join(', ')}. Configure via AI_PROVIDER_CONFIGS env or registerProvider().`);
+  }
+
+  private resolveApiKey(provider: string): string {
+    const apiKey = this.configService.get<string>(`${provider.toUpperCase()}_API_KEY`);
+    if (!apiKey) throw new Error(`No API key configured for ${provider}. Set ${provider.toUpperCase()}_API_KEY env var.`);
+    return apiKey;
   }
 }

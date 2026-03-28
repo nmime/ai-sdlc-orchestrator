@@ -1,7 +1,7 @@
 export { Tenant, TenantStatus, McpServerPolicy } from './entities/tenant.entity';
 export { TenantMcpServer, McpTransport } from './entities/tenant-mcp-server.entity';
 export { TenantVcsCredential, VcsProvider } from './entities/tenant-vcs-credential.entity';
-export { TenantRepoConfig, AgentProvider, CloneStrategy } from './entities/tenant-repo-config.entity';
+export { TenantRepoConfig, CloneStrategy } from './entities/tenant-repo-config.entity';
 export { TenantApiKey, ApiKeyRole } from './entities/tenant-api-key.entity';
 export { TenantUser, TenantRole } from './entities/tenant-user.entity';
 export { TenantWebhookConfig, WebhookPlatform, WebhookConfigStatus } from './entities/tenant-webhook-config.entity';

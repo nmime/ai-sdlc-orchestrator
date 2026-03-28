@@ -105,7 +105,7 @@ export class DslCompiler {
       steps,
       stepMap,
       defaults: {
-        agentProvider: config.defaults?.agentProvider ?? 'claude',
+        agentProvider: config.defaults?.agentProvider ?? 'auto',
         sandboxProvider: config.defaults?.sandboxProvider ?? 'e2b',
         maxRetries: config.defaults?.maxRetries ?? 3,
         maxCostPerTaskUsd: config.defaults?.maxCostPerTaskUsd ?? 50,
