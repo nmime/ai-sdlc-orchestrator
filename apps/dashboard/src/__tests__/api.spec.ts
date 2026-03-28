@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+(globalThis as Record<string, unknown>).fetch = mockFetch;
 
 const mockLocalStorage: Record<string, string> = {};
-Object.defineProperty(global, 'localStorage', {
+Object.defineProperty(globalThis, 'localStorage', {
   value: {
     getItem: (k: string) => mockLocalStorage[k] ?? null,
     setItem: (k: string, v: string) => { mockLocalStorage[k] = v; },
