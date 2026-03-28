@@ -1,4 +1,4 @@
-FROM node:24-slim AS builder
+FROM node:25-slim AS builder
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
@@ -8,7 +8,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm nx build orchestrator-api
 
-FROM node:24-slim
+FROM node:25-slim
 WORKDIR /app
 RUN corepack enable && addgroup --system app && adduser --system --ingroup app app
 COPY --from=builder /app/dist/apps/orchestrator-api ./dist
