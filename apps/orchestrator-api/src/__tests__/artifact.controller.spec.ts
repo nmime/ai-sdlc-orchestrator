@@ -4,12 +4,10 @@ import { ArtifactController } from '../artifact.controller';
 const mockPresignedPut = vi.fn().mockResolvedValue('https://minio/presigned-put');
 const mockPresignedGet = vi.fn().mockResolvedValue('https://minio/presigned-get');
 
-vi.mock('minio', () => ({
-  Client: class {
-    presignedPutObject = mockPresignedPut;
-    presignedGetObject = mockPresignedGet;
-  },
-}));
+const mockMinioClient = {
+  presignedPutObject: mockPresignedPut,
+  presignedGetObject: mockPresignedGet,
+};
 
 function createMockEm(overrides: Record<string, unknown> = {}) {
   const em = {
@@ -47,7 +45,7 @@ describe('ArtifactController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     em = createMockEm();
-    controller = new ArtifactController(em, mockConfig as any);
+    controller = new ArtifactController(em, mockConfig as any, mockMinioClient as any);
   });
 
   describe('getPresignedUpload', () => {
