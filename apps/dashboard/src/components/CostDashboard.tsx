@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Card, Chip, Spinner, ProgressBar } from '@heroui/react';
 import { apiFetch } from '../lib/api';
 
 interface CostSummary {
@@ -45,62 +46,88 @@ export function CostDashboard() {
     queryFn: () => apiFetch<RepoCost[]>(`/costs/tenants/${tenantId}/by-repo`),
   });
 
-  if (isLoading) return <div className="text-center py-8">Loading cost data...</div>;
-  if (error) return <div className="text-center py-8 text-red-600">Error: {(error as Error).message}</div>;
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (error) return <Card><Card.Content><p className="text-danger text-sm">Error: {(error as Error).message}</p></Card.Content></Card>;
 
   const usagePercent = summary && summary.limitUsd > 0 ? (summary.totalCostUsd / summary.limitUsd) * 100 : 0;
+  const barColor = usagePercent > 90 ? 'danger' : usagePercent > 70 ? 'warning' : 'success';
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Cost Analytics</h2>
+        <p className="text-sm text-default-500">Monthly usage for {summary?.month ?? 'current period'}</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard label="Total Cost" value={`$${(summary?.totalCostUsd ?? 0).toFixed(2)}`} sub={`of $${(summary?.limitUsd ?? 0).toFixed(0)} limit`} />
-        <StatCard label="AI Cost" value={`$${(summary?.aiCostUsd ?? 0).toFixed(2)}`} />
-        <StatCard label="Sandbox Cost" value={`$${(summary?.sandboxCostUsd ?? 0).toFixed(2)}`} />
+        <StatCard label="AI Cost" value={`$${(summary?.aiCostUsd ?? 0).toFixed(2)}`} sub="LLM inference" />
+        <StatCard label="Sandbox Cost" value={`$${(summary?.sandboxCostUsd ?? 0).toFixed(2)}`} sub="Compute time" />
         <StatCard label="Workflows" value={String(summary?.workflowCount ?? 0)} sub={summary?.month} />
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-sm font-semibold mb-3">Budget Usage</h3>
-        <div className="w-full bg-gray-200 rounded-full h-4">
-          <div
-            className={`h-4 rounded-full transition-all ${
-              usagePercent > 90 ? 'bg-red-500' : usagePercent > 70 ? 'bg-yellow-500' : 'bg-green-500'
-            }`}
-            style={{ width: `${Math.min(usagePercent, 100)}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-500 mt-1">{usagePercent.toFixed(1)}% used</p>
-      </div>
+      <Card>
+        <Card.Header>
+          <div className="flex items-center justify-between w-full">
+            <Card.Title>Budget Usage</Card.Title>
+            <Chip color={barColor} variant="soft" size="sm">
+              {usagePercent.toFixed(1)}%
+            </Chip>
+          </div>
+        </Card.Header>
+        <Card.Content>
+          <ProgressBar value={Math.min(usagePercent, 100)} color={barColor}>
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
+          <div className="flex justify-between text-xs text-default-400 mt-2">
+            <span>$0</span>
+            <span>${(summary?.limitUsd ?? 0).toFixed(0)}</span>
+          </div>
+        </Card.Content>
+      </Card>
 
       {alerts && alerts.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-yellow-800 mb-2">Cost Alerts</h3>
-          <div className="space-y-2">
-            {alerts.map((a) => (
-              <div key={a.id} className="flex justify-between text-sm">
-                <span className="text-yellow-700">Threshold {a.threshold}% reached ({a.currentUsage.toFixed(1)}%)</span>
-                <span className="text-xs text-yellow-600">{new Date(a.alertedAt).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <Card.Header>
+            <Card.Title>Cost Alerts</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <div className="space-y-2">
+              {alerts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2">
+                    <Chip color="warning" variant="soft" size="sm">{a.threshold}%</Chip>
+                    <span className="text-sm text-default-600">Threshold reached ({a.currentUsage.toFixed(1)}% usage)</span>
+                  </div>
+                  <span className="text-xs text-default-400">{new Date(a.alertedAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </Card.Content>
+        </Card>
       )}
 
       {repoCosts && repoCosts.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-sm font-semibold mb-3">Cost by Repository</h3>
-          <div className="divide-y">
-            {repoCosts.map((r) => (
-              <div key={r.repoUrl} className="flex justify-between py-2">
-                <span className="text-sm text-gray-700 truncate">{r.repoUrl}</span>
-                <div className="flex gap-4 text-sm">
-                  <span className="text-gray-600">{r.workflowCount} workflows</span>
-                  <span className="font-medium">${r.totalCostUsd.toFixed(2)}</span>
+        <Card>
+          <Card.Header>
+            <Card.Title>Cost by Repository</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <div className="divide-y divide-divider">
+              {repoCosts.map((r) => (
+                <div key={r.repoUrl} className="flex items-center justify-between py-3">
+                  <span className="text-sm text-default-700 truncate flex-1 mr-4">{r.repoUrl}</span>
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    <span className="text-xs text-default-500">{r.workflowCount} workflows</span>
+                    <span className="text-sm font-semibold text-foreground tabular-nums">${r.totalCostUsd.toFixed(2)}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </Card.Content>
+        </Card>
       )}
     </div>
   );
@@ -108,10 +135,12 @@ export function CostDashboard() {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-    </div>
+    <Card>
+      <Card.Content className="pt-5">
+        <p className="text-xs text-default-500 uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{value}</p>
+        {sub && <p className="text-xs text-default-400 mt-0.5">{sub}</p>}
+      </Card.Content>
+    </Card>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Card, Chip, Spinner, EmptyState } from '@heroui/react';
 import { apiFetch } from '../lib/api';
 
 interface Workflow {
@@ -29,15 +30,15 @@ interface AgentSession {
   completedAt: string | null;
 }
 
-const statusColors: Record<string, string> = {
-  running: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-500',
+const STATUS_COLOR: Record<string, 'default' | 'accent' | 'success' | 'warning' | 'danger'> = {
+  running: 'accent',
+  completed: 'success',
+  failed: 'danger',
+  cancelled: 'default',
 };
 
 export function SessionViewer() {
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: workflows, isLoading } = useQuery({
     queryKey: ['session-workflows'],
@@ -46,82 +47,109 @@ export function SessionViewer() {
   });
 
   const { data: sessions } = useQuery({
-    queryKey: ['sessions', selectedWorkflowId],
-    queryFn: () => apiFetch<AgentSession[]>(`/workflows/${selectedWorkflowId}/sessions`),
-    enabled: !!selectedWorkflowId,
+    queryKey: ['sessions', selectedId],
+    queryFn: () => apiFetch<AgentSession[]>(`/workflows/${selectedId}/sessions`),
+    enabled: !!selectedId,
   });
 
-  if (isLoading) return <div className="text-center py-8">Loading...</div>;
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
 
-  const workflowList = workflows?.data ?? [];
-  const sessionList = sessions ?? [];
+  const wfList = workflows?.data ?? [];
+  const sessList = sessions ?? [];
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-12rem)]">
-      <div className="w-1/3 bg-white rounded-lg shadow overflow-auto">
-        <div className="px-4 py-3 border-b sticky top-0 bg-white">
-          <h2 className="text-lg font-semibold">Workflows</h2>
-          <p className="text-xs text-gray-500">Select a workflow to view sessions</p>
-        </div>
-        <div className="divide-y">
-          {workflowList.map((wf) => (
-            <button
-              key={wf.id}
-              onClick={() => setSelectedWorkflowId(wf.id)}
-              className={`w-full text-left px-4 py-3 hover:bg-gray-50 ${
-                selectedWorkflowId === wf.id ? 'bg-indigo-50 border-l-2 border-indigo-500' : ''
-              }`}
-            >
-              <p className="text-sm font-medium truncate">{wf.taskTitle}</p>
-              <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                <span className={`px-1.5 py-0.5 rounded ${statusColors[wf.status] || 'bg-gray-100'}`}>{wf.status}</span>
-                <span>{new Date(wf.startedAt).toLocaleString()}</span>
-              </div>
-            </button>
-          ))}
-          {workflowList.length === 0 && <div className="px-4 py-8 text-center text-gray-500">No workflows yet</div>}
-        </div>
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Agent Sessions</h2>
+        <p className="text-sm text-default-500">Select a workflow to inspect its agent sessions</p>
       </div>
 
-      <div className="w-2/3 bg-white rounded-lg shadow overflow-auto">
-        {selectedWorkflowId ? (
-          sessionList.length > 0 ? (
-            <div className="divide-y">
-              <div className="px-4 py-3 border-b sticky top-0 bg-white">
-                <h3 className="text-sm font-semibold">Agent Sessions ({sessionList.length})</h3>
-              </div>
-              {sessionList.map((s) => (
-                <div key={s.id} className="px-4 py-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{s.stepId} (loop {s.loopIteration})</p>
-                      {s.agentSummary && <p className="text-xs text-gray-500 mt-0.5">{s.agentSummary}</p>}
+      <div className="flex gap-4 h-[calc(100vh-14rem)]">
+        <Card className="w-1/3 overflow-hidden">
+          <Card.Header>
+            <Card.Title className="text-sm">Workflows</Card.Title>
+          </Card.Header>
+          <div className="overflow-y-auto flex-1">
+            {wfList.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-default-400">No workflows yet</div>
+            ) : (
+              <div className="divide-y divide-divider">
+                {wfList.map((wf) => (
+                  <button
+                    key={wf.id}
+                    onClick={() => setSelectedId(wf.id)}
+                    className={`w-full text-left px-4 py-3 transition-colors hover:bg-default-100 ${
+                      selectedId === wf.id ? 'bg-primary-50 border-l-3 border-primary' : ''
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-foreground truncate">{wf.taskTitle}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Chip color={STATUS_COLOR[wf.status] ?? 'default'} variant="soft" size="sm">{wf.status}</Chip>
+                      <span className="text-xs text-default-400">{new Date(wf.startedAt).toLocaleDateString()}</span>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-xs ${statusColors[s.status] || 'bg-gray-100'}`}>{s.status}</span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 text-xs text-gray-600">
-                    <div>Tokens: {(s.inputTokens + s.outputTokens).toLocaleString()}</div>
-                    <div>AI: ${(s.aiCostUsd ?? 0).toFixed(4)}</div>
-                    <div>Sandbox: ${(s.sandboxCostUsd ?? 0).toFixed(4)}</div>
-                    <div>Total: ${(s.totalCostUsd ?? 0).toFixed(4)}</div>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 text-xs text-gray-500">
-                    <div>Tools: {s.toolCallCount}</div>
-                    <div>Turns: {s.turnCount}</div>
-                    <div>Sandbox: {s.sandboxDurationSeconds}s</div>
-                    <div>{s.qualityScore !== null ? `Quality: ${s.qualityScore}` : ''}</div>
-                  </div>
-                  {s.errorCode && <p className="text-xs text-red-600">Error: {s.errorCode}</p>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card className="w-2/3 overflow-hidden">
+          {selectedId ? (
+            sessList.length > 0 ? (
+              <>
+                <Card.Header>
+                  <Card.Title className="text-sm">Agent Sessions ({sessList.length})</Card.Title>
+                </Card.Header>
+                <div className="overflow-y-auto divide-y divide-divider">
+                  {sessList.map((s) => (
+                    <div key={s.id} className="px-5 py-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{s.stepId} <span className="text-default-400">loop {s.loopIteration}</span></p>
+                          {s.agentSummary && <p className="text-xs text-default-500 mt-0.5">{s.agentSummary}</p>}
+                        </div>
+                        <Chip color={STATUS_COLOR[s.status] ?? 'default'} variant="soft" size="sm">{s.status}</Chip>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3">
+                        <StatMini label="Tokens" value={(s.inputTokens + s.outputTokens).toLocaleString()} />
+                        <StatMini label="AI Cost" value={`$${(s.aiCostUsd ?? 0).toFixed(4)}`} />
+                        <StatMini label="Sandbox" value={`$${(s.sandboxCostUsd ?? 0).toFixed(4)}`} />
+                        <StatMini label="Total" value={`$${(s.totalCostUsd ?? 0).toFixed(4)}`} />
+                      </div>
+                      <div className="grid grid-cols-4 gap-3">
+                        <StatMini label="Tools" value={String(s.toolCallCount)} />
+                        <StatMini label="Turns" value={String(s.turnCount)} />
+                        <StatMini label="Sandbox Time" value={`${s.sandboxDurationSeconds}s`} />
+                        <StatMini label="Quality" value={s.qualityScore !== null ? String(s.qualityScore) : '—'} />
+                      </div>
+                      {s.errorCode && <p className="text-xs text-danger">Error: {s.errorCode}</p>}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full text-default-400 text-sm">No sessions for this workflow</div>
+            )
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">No sessions for this workflow</div>
-          )
-        ) : (
-          <div className="flex items-center justify-center h-full text-gray-400">Select a workflow to view its agent sessions</div>
-        )}
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-default-300 mb-2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <p className="text-sm text-default-400">Select a workflow to view sessions</p>
+              </div>
+            </div>
+          )}
+        </Card>
       </div>
+    </div>
+  );
+}
+
+function StatMini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-default-50 rounded-lg px-2.5 py-1.5">
+      <p className="text-[10px] text-default-400 uppercase tracking-wider">{label}</p>
+      <p className="text-xs font-medium text-foreground tabular-nums">{value}</p>
     </div>
   );
 }

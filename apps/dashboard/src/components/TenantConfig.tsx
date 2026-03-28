@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, Button, Chip, Spinner, TextField, Label, Input, Description } from '@heroui/react';
 import { apiFetch } from '../lib/api';
 
 interface TenantData {
@@ -27,93 +28,76 @@ function TenantCard({ tenant, onSave }: { tenant: TenantData; onSave: (id: strin
   const [costLimit, setCostLimit] = useState(String(tenant.monthlyCostLimitUsd));
   const [maxConcurrent, setMaxConcurrent] = useState(String(tenant.maxConcurrentWorkflows));
   const [maxSandboxes, setMaxSandboxes] = useState(String(tenant.maxConcurrentSandboxes));
-  const [mcpPolicy, setMcpPolicy] = useState(tenant.mcpServerPolicy);
 
   const handleSave = () => {
     onSave(tenant.id, {
       monthlyCostLimitUsd: parseFloat(costLimit),
       maxConcurrentWorkflows: parseInt(maxConcurrent, 10),
       maxConcurrentSandboxes: parseInt(maxSandboxes, 10),
-      mcpServerPolicy: mcpPolicy,
     } as Partial<TenantData>);
     setEditing(false);
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold">{tenant.name}</h3>
-          <p className="text-sm text-gray-500">{tenant.slug} &middot; <span className={`px-1.5 py-0.5 rounded text-xs ${tenant.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{tenant.status}</span></p>
+    <Card>
+      <Card.Header>
+        <div className="flex items-center justify-between w-full">
+          <div>
+            <Card.Title>{tenant.name}</Card.Title>
+            <Card.Description className="flex items-center gap-2 mt-1">
+              <span className="font-mono text-xs">{tenant.slug}</span>
+              <Chip color={tenant.status === 'active' ? 'success' : 'default'} variant="soft" size="sm">{tenant.status}</Chip>
+            </Card.Description>
+          </div>
+          <Button variant={editing ? 'primary' : 'secondary'} size="sm" onPress={() => editing ? handleSave() : setEditing(true)}>
+            {editing ? 'Save Changes' : 'Edit'}
+          </Button>
         </div>
-        <button
-          onClick={() => editing ? handleSave() : setEditing(true)}
-          className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-            editing ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-          }`}
-        >
-          {editing ? 'Save' : 'Edit'}
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Monthly Cost Limit (USD)" value={costLimit} onChange={setCostLimit} editing={editing} type="number" />
-        <Field label="Max Concurrent Workflows" value={maxConcurrent} onChange={setMaxConcurrent} editing={editing} type="number" />
-        <Field label="Max Concurrent Sandboxes" value={maxSandboxes} onChange={setMaxSandboxes} editing={editing} type="number" />
-        <div>
-          <p className="text-sm text-gray-500">MCP Server Policy</p>
+      </Card.Header>
+      <Card.Content>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {editing ? (
-            <select value={mcpPolicy} onChange={(e) => setMcpPolicy(e.target.value)} className="w-full px-2 py-1 border rounded text-sm">
-              <option value="curated">Curated</option>
-              <option value="open">Open</option>
-            </select>
+            <>
+              <TextField value={costLimit} onChange={setCostLimit}>
+                <Label>Monthly Cost Limit (USD)</Label>
+                <Input />
+              </TextField>
+              <TextField value={maxConcurrent} onChange={setMaxConcurrent}>
+                <Label>Max Concurrent Workflows</Label>
+                <Input />
+              </TextField>
+              <TextField value={maxSandboxes} onChange={setMaxSandboxes}>
+                <Label>Max Concurrent Sandboxes</Label>
+                <Input />
+              </TextField>
+            </>
           ) : (
-            <p className="font-medium">{tenant.mcpServerPolicy}</p>
+            <>
+              <InfoField label="Monthly Cost Limit" value={`$${Number(tenant.monthlyCostLimitUsd).toFixed(0)}`} />
+              <InfoField label="Actual Cost (Month)" value={`$${Number(tenant.monthlyCostActualUsd).toFixed(2)}`} />
+              <InfoField label="AI Cost (Month)" value={`$${Number(tenant.monthlyAiCostActualUsd).toFixed(2)}`} />
+              <InfoField label="Sandbox Cost (Month)" value={`$${Number(tenant.monthlySandboxCostActualUsd).toFixed(2)}`} />
+              <InfoField label="Max Concurrent Workflows" value={String(tenant.maxConcurrentWorkflows)} />
+              <InfoField label="Max Concurrent Sandboxes" value={String(tenant.maxConcurrentSandboxes)} />
+              <InfoField label="MCP Server Policy" value={tenant.mcpServerPolicy} />
+              <InfoField label="Default Agent" value={tenant.defaultAgentProvider ? `${tenant.defaultAgentProvider}/${tenant.defaultAgentModel}` : 'Not set'} />
+              <InfoField label="Sandbox Rate" value={`$${Number(tenant.sandboxHourlyRateUsd).toFixed(2)}/hr`} />
+              <InfoField label="Cost Alerts" value={tenant.costAlertThresholds?.map(t => `${t}%`).join(', ') || 'None'} />
+              <InfoField label="Created" value={new Date(tenant.createdAt).toLocaleDateString()} />
+              <InfoField label="Updated" value={new Date(tenant.updatedAt).toLocaleDateString()} />
+            </>
           )}
         </div>
-        <div>
-          <p className="text-sm text-gray-500">Actual Monthly Cost</p>
-          <p className="font-medium">${Number(tenant.monthlyCostActualUsd).toFixed(2)}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">AI Cost (Month)</p>
-          <p className="font-medium">${Number(tenant.monthlyAiCostActualUsd).toFixed(2)}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Sandbox Cost (Month)</p>
-          <p className="font-medium">${Number(tenant.monthlySandboxCostActualUsd).toFixed(2)}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Default Agent</p>
-          <p className="font-medium text-sm">{tenant.defaultAgentProvider ? `${tenant.defaultAgentProvider}/${tenant.defaultAgentModel}` : 'Not set'}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Cost Alert Thresholds</p>
-          <p className="font-medium">{tenant.costAlertThresholds?.map(t => `${t}%`).join(', ') || 'None'}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Sandbox Rate</p>
-          <p className="font-medium">${Number(tenant.sandboxHourlyRateUsd).toFixed(2)}/hr</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Created</p>
-          <p className="font-medium text-sm">{new Date(tenant.createdAt).toLocaleDateString()}</p>
-        </div>
-      </div>
-    </div>
+      </Card.Content>
+    </Card>
   );
 }
 
-function Field({ label, value, onChange, editing, type }: {
-  label: string; value: string; onChange: (v: string) => void; editing: boolean; type?: string;
-}) {
+function InfoField({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-sm text-gray-500">{label}</p>
-      {editing ? (
-        <input type={type || 'text'} value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-2 py-1 border rounded text-sm" />
-      ) : (
-        <p className="font-medium">{value}</p>
-      )}
+    <div className="bg-default-50 rounded-lg px-3 py-2.5">
+      <p className="text-[10px] text-default-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-foreground">{value}</p>
     </div>
   );
 }
@@ -136,20 +120,25 @@ export function TenantConfig() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenants'] }),
   });
 
-  if (isLoading) return <div className="text-center py-8">Loading tenant configuration...</div>;
-  if (error) return <div className="text-center py-8 text-red-600">Error: {(error as Error).message}</div>;
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (error) return <Card><Card.Content><p className="text-danger text-sm">Error: {(error as Error).message}</p></Card.Content></Card>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Tenant Configuration</h2>
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Tenant Configuration</h2>
+        <p className="text-sm text-default-500">{data?.length ?? 0} tenant{(data?.length ?? 0) !== 1 ? 's' : ''} configured</p>
       </div>
       {mutation.isError && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">Failed to update tenant</div>
+        <div className="bg-danger-50 border border-danger-200 rounded-lg p-3">
+          <p className="text-sm text-danger">Failed to update tenant configuration</p>
+        </div>
       )}
       {data && data.length > 0 ? data.map((tenant) => (
         <TenantCard key={tenant.id} tenant={tenant} onSave={(id, patch) => mutation.mutate({ id, patch })} />
-      )) : <div className="text-center py-8 text-gray-500">No tenants configured</div>}
+      )) : (
+        <Card><Card.Content className="py-12 text-center text-default-400">No tenants configured</Card.Content></Card>
+      )}
     </div>
   );
 }
