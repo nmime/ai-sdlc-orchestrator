@@ -1,5 +1,5 @@
 {
-  "name": "@ai-sdlc/feature-agent-registry",
+  "name": "@app/feature-agent-registry",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts"

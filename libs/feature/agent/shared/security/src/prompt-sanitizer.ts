@@ -1,19 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { PinoLoggerService } from '@ai-sdlc/common';
+import { PinoLoggerService } from '@app/common';
 
 const INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?previous\s+instructions/i,
   /you\s+are\s+now\s+(a|an)\s+/i,
   /system\s*:\s*/i,
-  /\<\/?system\>/i,
+  /<\/?system>/i,
   /\[INST\]/i,
-  /\<\|im_start\|\>/i,
-  /\<\|im_end\|\>/i,
-  /\<\|endoftext\|\>/i,
+  /<\|im_start\|>/i,
+  /<\|im_end\|>/i,
+  /<\|endoftext\|>/i,
   /BEGIN\s+OVERRIDE/i,
   /ADMIN\s+MODE/i,
   /jailbreak/i,
   /DAN\s+mode/i,
+  /\u200b|\u200c|\u200d|\ufeff/,
+  /(?:(?:\\x|\\u)[0-9a-f]{2,4}\s*){4,}/i,
 ];
 
 const CREDENTIAL_PATTERNS = [
@@ -27,31 +29,43 @@ const CREDENTIAL_PATTERNS = [
 
 const MAX_INPUT_LENGTH = 100_000;
 
+export type SanitizeMode = 'block' | 'warn';
+
 @Injectable()
 export class PromptSanitizer {
+  private mode: SanitizeMode = 'block';
+
   constructor(private readonly logger: PinoLoggerService) {
     this.logger.setContext('PromptSanitizer');
   }
 
-  sanitizeInput(text: string): { sanitized: string; warnings: string[] } {
+  setMode(mode: SanitizeMode): void {
+    this.mode = mode;
+  }
+
+  sanitizeInput(text: string): { sanitized: string; warnings: string[]; blocked: boolean } {
     const warnings: string[] = [];
+    let blocked = false;
 
     if (text.length > MAX_INPUT_LENGTH) {
       text = text.slice(0, MAX_INPUT_LENGTH);
       warnings.push(`Input truncated to ${MAX_INPUT_LENGTH} characters`);
     }
 
-    // eslint-disable-next-line no-control-regex
-    text = text.replace(/\x00/g, '');
+    text = text.replace(/\u0000/g, '');
 
     for (const pattern of INJECTION_PATTERNS) {
       if (pattern.test(text)) {
-        warnings.push(`Potential injection pattern detected: ${pattern.source}`);
+        warnings.push(`Injection pattern detected: ${pattern.source}`);
         this.logger.warn(`Injection pattern matched: ${pattern.source}`);
+        if (this.mode === 'block') {
+          blocked = true;
+          text = text.replace(pattern, '[REDACTED]');
+        }
       }
     }
 
-    return { sanitized: text, warnings };
+    return { sanitized: text, warnings, blocked };
   }
 
   scanOutput(output: string): { clean: boolean; findings: string[] } {

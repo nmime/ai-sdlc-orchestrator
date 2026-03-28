@@ -1,21 +1,49 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantWebhookConfig, Tenant, WebhookPlatform, WebhookConfigStatus } from '@ai-sdlc/db';
+import { Result, err } from 'neverthrow';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantWebhookConfig, Tenant, WebhookPlatform, WebhookConfigStatus } from '@app/db';
+import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
 
-export interface CreateWebhookConfigDto {
-  platform: WebhookPlatform;
+export class CreateWebhookConfigDto {
+  @IsEnum(WebhookPlatform)
+  platform!: WebhookPlatform;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   webhookId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
   webhookUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   secretRef?: string;
 }
 
-export interface UpdateWebhookConfigDto {
+export class UpdateWebhookConfigDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   webhookId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
   webhookUrl?: string;
+
+  @IsOptional()
+  @IsEnum(WebhookConfigStatus)
   status?: WebhookConfigStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   secretRef?: string;
 }
 
@@ -42,7 +70,7 @@ export class TenantWebhookConfigService {
   }
 
   async list(tenantId: string): Promise<Result<TenantWebhookConfig[], AppError>> {
-    const configs = await this.em.find(TenantWebhookConfig, { tenant: tenantId });
+    const configs = await this.em.find(TenantWebhookConfig, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(configs);
   }
 
@@ -68,7 +96,7 @@ export class TenantWebhookConfigService {
 
   async delete(tenantId: string, id: string): Promise<Result<void, AppError>> {
     const findResult = await this.findById(tenantId, id);
-    if (findResult.isErr()) return findResult as unknown as Result<void, AppError>;
+    if (findResult.isErr()) return err(findResult.error);
     await this.em.removeAndFlush(findResult.value);
     return ResultUtils.ok(undefined);
   }

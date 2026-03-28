@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Result } from 'neverthrow';
-import type { AppError } from '@ai-sdlc/common';
-import { ResultUtils } from '@ai-sdlc/common';
-import type { WebhookEvent } from '@ai-sdlc/shared-type';
+import type { AppError } from '@app/common';
+import { ResultUtils } from '@app/common';
+import type { WebhookEvent } from '@app/shared-type';
 
 export interface CiSignal {
   type: 'pipeline_succeeded' | 'pipeline_failed';

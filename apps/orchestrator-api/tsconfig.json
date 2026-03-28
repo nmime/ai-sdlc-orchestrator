@@ -1,7 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/orchestrator-api"
+    "outDir": "../../dist/apps/orchestrator-api",
+    "rootDir": "../.."
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [],
+  "exclude": [
+    "src/__tests__/**"
+  ]
 }

@@ -1,18 +1,18 @@
 import { EntityManager } from '@mikro-orm/postgresql';
 import {
   WorkflowMirror, WorkflowStatus, WorkflowEvent, Tenant, AgentSession, AgentMode,
-  AgentToolCall, ToolCallStatus, SessionStatus, TenantRepoConfig, WorkflowArtifact,
+  SessionStatus, TenantRepoConfig, WorkflowArtifact,
   ArtifactKind, ArtifactStatus, CostAlert, AlertType, StaticAnalysisResult,
-} from '@ai-sdlc/db';
-import type { AgentResult, AgentProvider, StaticAnalysisValue, SessionContext, PublishedArtifact, CostSettlement } from '@ai-sdlc/shared-type';
-import type { SandboxPort } from '@ai-sdlc/feature-agent-registry';
-import type { AgentProviderRegistry } from '@ai-sdlc/feature-agent-registry';
-import type { PromptFormatter } from '@ai-sdlc/feature-agent-prompt';
-import type { CredentialProxyClient } from '@ai-sdlc/feature-agent-credential-proxy';
-import type { McpPolicyService } from '@ai-sdlc/feature-agent-mcp-policy';
-import type { PromptSanitizer } from '@ai-sdlc/feature-agent-security';
+} from '@app/db';
+import type { AgentResult, AgentProvider, StaticAnalysisValue, SessionContext, PublishedArtifact, CostSettlement } from '@app/shared-type';
+import type { SandboxPort } from '@app/feature-agent-registry';
+import type { AgentProviderRegistry } from '@app/feature-agent-registry';
+import type { PromptFormatter } from '@app/feature-agent-prompt';
+import type { CredentialProxyClient } from '@app/feature-agent-credential-proxy';
+import type { McpPolicyService } from '@app/feature-agent-mcp-policy';
+import type { PromptSanitizer } from '@app/feature-agent-security';
 
-let em: EntityManager;
+let emFactory: () => EntityManager;
 let sandboxAdapter: SandboxPort;
 let agentRegistry: AgentProviderRegistry;
 let promptFormatter: PromptFormatter;
@@ -29,7 +29,7 @@ export function initActivities(deps: {
   mcpPolicyService?: McpPolicyService;
   promptSanitizer?: PromptSanitizer;
 }) {
-  em = deps.em;
+  emFactory = () => deps.em.fork();
   sandboxAdapter = deps.sandboxAdapter;
   agentRegistry = deps.agentRegistry;
   promptFormatter = deps.promptFormatter;
@@ -58,11 +58,12 @@ export async function updateWorkflowMirror(input: {
   reviewAttemptCount?: number;
   errorMessage?: string;
 }): Promise<void> {
+  const em = emFactory();
   let mirror = await em.findOne(WorkflowMirror, { temporalWorkflowId: input.temporalWorkflowId });
 
   if (!mirror) {
     mirror = new WorkflowMirror();
-    mirror.tenant = em.getReference(Tenant, input.tenantId) as any;
+    mirror.tenant = em.getReference(Tenant, input.tenantId);
     mirror.temporalWorkflowId = input.temporalWorkflowId;
     mirror.temporalRunId = '';
     mirror.repoId = input.repoId || '';
@@ -78,7 +79,11 @@ export async function updateWorkflowMirror(input: {
   mirror.state = input.state as WorkflowStatus;
   if (input.currentStepId) mirror.currentStepId = input.currentStepId;
   if (input.branchName) mirror.branchName = input.branchName;
-  if (input.mrUrl) mirror.mrUrl = input.mrUrl;
+  if (input.mrUrl) {
+    mirror.mrUrl = input.mrUrl;
+    const mrIdMatch = input.mrUrl.match(/\/(?:merge_requests|pull)\/(\d+)/);  
+    if (mrIdMatch) mirror.mrId = mrIdMatch[1];
+  }
   if (input.costUsdTotal !== undefined) mirror.costUsdTotal = input.costUsdTotal;
   if (input.aiCostUsd !== undefined) mirror.aiCostUsd = input.aiCostUsd;
   if (input.sandboxCostUsd !== undefined) mirror.sandboxCostUsd = input.sandboxCostUsd;
@@ -104,6 +109,7 @@ export async function reserveBudget(input: {
   estimatedCostUsd: number;
   repoId?: string;
 }): Promise<void> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   if (input.repoId) {
@@ -139,6 +145,7 @@ export async function reserveBudget(input: {
 }
 
 async function checkCostAlerts(tenant: Tenant, currentTotal: number): Promise<void> {
+  const em = emFactory();
   if (!tenant.costAlertThresholds?.length || Number(tenant.monthlyCostLimitUsd) <= 0) return;
 
   const pct = (currentTotal / Number(tenant.monthlyCostLimitUsd)) * 100;
@@ -164,6 +171,7 @@ async function checkCostAlerts(tenant: Tenant, currentTotal: number): Promise<vo
 }
 
 export async function settleCost(input: CostSettlement): Promise<void> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   await em.nativeUpdate(
@@ -180,6 +188,7 @@ export async function settleCost(input: CostSettlement): Promise<void> {
 }
 
 export async function checkConcurrency(input: { tenantId: string; repoId: string }): Promise<void> {
+  const em = emFactory();
   const repoConfig = await em.findOne(TenantRepoConfig, { tenant: input.tenantId, repoId: input.repoId });
   const maxConcurrent = repoConfig?.maxConcurrentWorkflows ?? 1;
 
@@ -198,6 +207,7 @@ export async function checkConcurrency(input: { tenantId: string; repoId: string
 }
 
 export async function checkAdmission(input: { tenantId: string }): Promise<void> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
 
   const activeSandboxCount = await em.count(AgentSession, {
@@ -218,6 +228,7 @@ export async function createSandbox(input: {
   sparseCheckoutPaths?: string[];
   env?: Record<string, string>;
 }): Promise<{ sandboxId: string }> {
+  const _em = emFactory();
   const sandboxEnv: Record<string, string> = {
     REPO_URL: input.repoUrl,
     ...input.env,
@@ -225,6 +236,18 @@ export async function createSandbox(input: {
   if (input.sessionToken) {
     sandboxEnv['SESSION_TOKEN'] = input.sessionToken;
     sandboxEnv['CREDENTIAL_PROXY_URL'] = process.env['CREDENTIAL_PROXY_URL'] || 'http://localhost:4000';
+  }
+
+  const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._:/-]+$/;
+  if (!URL_PATTERN.test(input.repoUrl)) {
+    throw new Error(`Invalid repository URL: ${input.repoUrl}`);
+  }
+
+  if (input.cloneStrategy === 'sparse' && input.sparseCheckoutPaths?.length) {
+    const PATH_PATTERN = /^[a-zA-Z0-9._/-]+$/;
+    if (!input.sparseCheckoutPaths.every(p => PATH_PATTERN.test(p))) {
+      throw new Error('Invalid characters in sparse checkout paths');
+    }
   }
 
   const result = await sandboxAdapter.create({
@@ -236,14 +259,20 @@ export async function createSandbox(input: {
 
   const { sandboxId } = result.value;
 
-  let cloneCmd = `git clone ${input.repoUrl} /workspace`;
+  const SAFE_REPO_URL = /^(https:\/\/[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}\/|git@[a-zA-Z0-9._-]+:)/;
+  if (!SAFE_REPO_URL.test(input.repoUrl)) {
+    throw new Error('Invalid repository URL scheme');
+  }
+
+  let cloneCmd = `git clone -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`;
   if (input.cloneStrategy === 'shallow') {
-    cloneCmd = `git clone --depth=1 --shallow-since="30 days ago" ${input.repoUrl} /workspace`;
+    cloneCmd = `git clone --depth=1 --shallow-since="30 days ago" -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`;
   } else if (input.cloneStrategy === 'sparse' && input.sparseCheckoutPaths?.length) {
+    const safePaths = input.sparseCheckoutPaths;
     cloneCmd = [
-      `git clone --filter=blob:none --sparse ${input.repoUrl} /workspace`,
+      `git clone --filter=blob:none --sparse -- '${input.repoUrl.replace(/'/g, "'\\''")}' /workspace`,
       `cd /workspace`,
-      `git sparse-checkout set ${input.sparseCheckoutPaths.join(' ')}`,
+      `git sparse-checkout set ${safePaths.map(p => `'${p.replace(/'/g, "'\\''")}'`).join(' ')}`,
     ].join(' && ');
   }
 
@@ -277,6 +306,7 @@ export async function invokeAgent(input: {
   previousContext?: SessionContext;
   taskLabel?: string;
 }): Promise<AgentResult> {
+  const em = emFactory();
   const tenant = await em.findOneOrFail(Tenant, { id: input.tenantId });
   const repoConfig = await em.findOne(TenantRepoConfig, { tenant: input.tenantId, repoId: input.repoId });
   const mirror = await em.findOne(WorkflowMirror, { temporalWorkflowId: input.temporalWorkflowId });
@@ -326,7 +356,7 @@ export async function invokeAgent(input: {
   };
 
   const session = new AgentSession();
-  session.workflow = mirror ?? em.getReference(WorkflowMirror, input.temporalWorkflowId) as any;
+  session.workflow = mirror ?? em.getReference(WorkflowMirror, input.temporalWorkflowId);
   session.provider = resolved.providerName;
   session.mode = modeMap[input.mode] || AgentMode.IMPLEMENT;
   session.loopIteration = input.loopIteration ?? 0;
@@ -388,14 +418,21 @@ export async function invokeAgent(input: {
   if (diffResult.isOk()) {
     const lines = diffResult.value.stdout.split('\n').filter(Boolean);
     session.diffLinesChanged = lines.length;
-    session.filesModified = lines.filter(l => l.includes('|')).map(l => l.split('|')[0].trim());
+    session.filesModified = lines.filter(l => l.includes('|')).map(l => l.split('|')[0]?.trim() ?? '');
   }
 
   if (repoConfig?.staticAnalysisCommand) {
-    const saResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && ${repoConfig.staticAnalysisCommand}`);
-    if (saResult.isOk()) {
-      session.staticAnalysisResult = saResult.value.exitCode === 0 ? StaticAnalysisResult.PASSED : StaticAnalysisResult.FAILED;
-      session.staticAnalysisOutput = (saResult.value.stdout + saResult.value.stderr).slice(0, 5000);
+    const SAFE_CMD_PREFIXES = ['npm run', 'npx eslint', 'npx prettier', 'yarn lint', 'yarn run', 'pnpm lint', 'pnpm run'];
+    const cmdStr = repoConfig.staticAnalysisCommand.trim();
+    if (!SAFE_CMD_PREFIXES.some(prefix => cmdStr.startsWith(prefix))) {
+      session.staticAnalysisResult = StaticAnalysisResult.FAILED;
+      session.staticAnalysisOutput = 'Blocked: command does not match allowed prefixes';
+    } else {
+      const saResult = await sandboxAdapter.exec(input.sandboxId, `cd /workspace && ${cmdStr}`);
+      if (saResult.isOk()) {
+        session.staticAnalysisResult = saResult.value.exitCode === 0 ? StaticAnalysisResult.PASSED : StaticAnalysisResult.FAILED;
+        session.staticAnalysisOutput = (saResult.value.stdout + saResult.value.stderr).slice(0, 5000);
+      }
     }
   }
 
@@ -437,7 +474,7 @@ export async function invokeAgent(input: {
   return agentResult;
 }
 
-async function createSessionToken(tenantId: string, workflowId: string, sessionId: string): Promise<string | null> {
+async function createSessionToken(tenantId: string, _workflowId: string, _sessionId: string): Promise<string | null> {
   try {
     const result = await credentialProxy.createSession(tenantId, ['git', 'mcp', 'ai-api']);
     if (result.isOk()) return result.value.token;
@@ -482,6 +519,7 @@ export async function verifyAgentOutput(input: {
   maxDiffLines?: number;
   allowedPaths?: string[];
 }): Promise<void> {
+  const _em = emFactory();
   if (!input.branchName) return;
 
   const diffResult = await sandboxAdapter.exec(input.sandboxId, 'cd /workspace && git diff --stat origin/main...HEAD');
@@ -499,7 +537,7 @@ export async function verifyAgentOutput(input: {
         .filter(Boolean)
         .reduce((sum, line) => {
           const parts = line.split('\t');
-          return sum + (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0);
+          return sum + (parseInt(parts[0] ?? '0') || 0) + (parseInt(parts[1] ?? '0') || 0);
         }, 0);
 
       if (totalLines > input.maxDiffLines) {
@@ -526,6 +564,7 @@ export async function collectArtifacts(input: {
   tenantId: string;
   temporalWorkflowId: string;
 }): Promise<PublishedArtifact[]> {
+  const em = emFactory();
   try {
     const result = await sandboxAdapter.exec(input.sandboxId, 'cat /workspace/.artifacts/manifest.json');
     if (result.isOk() && result.value.stdout) {
@@ -536,7 +575,7 @@ export async function collectArtifacts(input: {
         for (const artifact of artifacts) {
           const entity = new WorkflowArtifact();
           entity.workflow = mirror;
-          entity.tenant = em.getReference(Tenant, input.tenantId) as any;
+          entity.tenant = em.getReference(Tenant, input.tenantId);
           entity.kind = (artifact.kind as ArtifactKind) || ArtifactKind.OTHER;
           entity.title = artifact.title;
           entity.uri = artifact.uri;
@@ -563,6 +602,7 @@ export async function cleanupAndEscalate(input: {
   repoUrl: string;
   errorMessage?: string;
 }): Promise<void> {
+  const _em = emFactory();
   await updateWorkflowMirror({
     tenantId: input.tenantId,
     temporalWorkflowId: input.workflowId,

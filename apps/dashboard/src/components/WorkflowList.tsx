@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { Card, Chip, Spinner, EmptyState } from '@heroui/react';
+import { apiFetch } from '../lib/api';
 
 interface Workflow {
   id: string;
@@ -10,54 +12,70 @@ interface Workflow {
   completedAt?: string;
 }
 
-async function fetchWorkflows(): Promise<{ items: Workflow[]; total: number }> {
-  const res = await fetch('/api/workflows');
-  if (!res.ok) throw new Error('Failed to fetch workflows');
-  return res.json();
-}
-
-const statusColors: Record<string, string> = {
-  queued: 'bg-gray-100 text-gray-700',
-  running: 'bg-blue-100 text-blue-700',
-  awaiting_gate: 'bg-yellow-100 text-yellow-700',
-  awaiting_ci: 'bg-orange-100 text-orange-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-500',
+const STATUS_COLOR: Record<string, 'default' | 'accent' | 'success' | 'warning' | 'danger'> = {
+  queued: 'default',
+  running: 'accent',
+  awaiting_gate: 'warning',
+  awaiting_ci: 'warning',
+  completed: 'success',
+  failed: 'danger',
+  cancelled: 'default',
 };
 
 export function WorkflowList() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['workflows'],
-    queryFn: fetchWorkflows,
+    queryFn: () => apiFetch<{ data: Workflow[]; total: number }>('/workflows'),
     refetchInterval: 5000,
   });
 
-  if (isLoading) return <div className="text-center py-8">Loading workflows...</div>;
-  if (error) return <div className="text-center py-8 text-red-600">Error loading workflows</div>;
+  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (error) return <Card><Card.Content><p className="text-danger text-sm">Error: {(error as Error).message}</p></Card.Content></Card>;
+
+  const workflows = data?.data ?? [];
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="px-4 py-3 border-b">
-        <h2 className="text-lg font-semibold">Workflows ({data?.total ?? 0})</h2>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Workflows</h2>
+          <p className="text-sm text-default-500">{data?.total ?? 0} total workflows</p>
+        </div>
       </div>
-      <div className="divide-y">
-        {data?.items.map((wf) => (
-          <div key={wf.id} className="px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">{wf.taskTitle}</p>
-              <p className="text-sm text-gray-500">{wf.repoUrl}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[wf.status] || 'bg-gray-100'}`}>
-                {wf.status}
-              </span>
-              <span className="text-sm text-gray-600">${wf.totalCostUsd.toFixed(2)}</span>
-              <span className="text-xs text-gray-400">{new Date(wf.startedAt).toLocaleString()}</span>
-            </div>
+
+      {workflows.length === 0 ? (
+        <Card>
+          <Card.Content className="py-16">
+            <EmptyState>
+              <div className="text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-default-400"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <h3 className="text-base font-medium text-foreground">No workflows yet</h3>
+                <p className="mt-1 text-sm text-default-500">Workflows will appear here when they are created via the API or triggered by webhooks.</p>
+              </div>
+            </EmptyState>
+          </Card.Content>
+        </Card>
+      ) : (
+        <Card>
+          <div className="divide-y divide-divider">
+            {workflows.map((wf) => (
+              <div key={wf.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground truncate">{wf.taskTitle}</p>
+                  <p className="text-xs text-default-400 mt-0.5 truncate">{wf.repoUrl}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <Chip color={STATUS_COLOR[wf.status] ?? 'default'} variant="soft" size="sm">{wf.status.replace(/_/g, ' ')}</Chip>
+                  <span className="text-xs font-medium text-default-600 tabular-nums">${(wf.totalCostUsd ?? 0).toFixed(2)}</span>
+                  <span className="text-xs text-default-400 tabular-nums">{new Date(wf.startedAt).toLocaleDateString()}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        )) ?? <div className="px-4 py-8 text-center text-gray-500">No workflows yet</div>}
-      </div>
+        </Card>
+      )}
     </div>
   );
 }

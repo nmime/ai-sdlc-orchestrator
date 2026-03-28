@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Sandbox } from 'e2b';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError, AppConfig } from '@ai-sdlc/common';
-import type { SandboxPort, SandboxExecResult } from '@ai-sdlc/feature-agent-registry';
+import { Result, err } from 'neverthrow';
+import { ResultUtils, PinoLoggerService } from '@app/common';
+import type { AppError, AppConfig } from '@app/common';
+import type { SandboxPort, SandboxExecResult } from '@app/feature-agent-registry';
 
 @Injectable()
 export class E2bSandboxAdapter implements SandboxPort {
@@ -81,7 +81,7 @@ export class E2bSandboxAdapter implements SandboxPort {
 
   async uploadArtifact(sandboxId: string, path: string, destinationUrl: string): Promise<Result<string, AppError>> {
     const readResult = await this.readFile(sandboxId, path);
-    if (readResult.isErr()) return readResult as unknown as Result<string, AppError>;
+    if (readResult.isErr()) return err(readResult.error);
 
     this.logger.log(`Artifact from ${path} would be uploaded to ${destinationUrl}`);
     return ResultUtils.ok(destinationUrl);

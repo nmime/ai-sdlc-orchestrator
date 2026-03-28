@@ -1,5 +1,4 @@
 import { ResultUtils } from '../result/result.utils';
-import type { AppError } from '../result/app-error';
 
 describe('ResultUtils', () => {
   it('should create an ok result', () => {
@@ -21,15 +20,15 @@ describe('ResultUtils', () => {
     expect(result._unsafeUnwrapErr().details).toEqual({ field: 'name' });
   });
 
-  it('should unwrap ok result', async () => {
+  it('should unwrap ok result', () => {
     const result = ResultUtils.ok(42);
-    const value = await ResultUtils.unwrapOrThrow(result);
+    const value = ResultUtils.unwrapOrThrow(result);
     expect(value).toBe(42);
   });
 
-  it('should throw on unwrap err result', async () => {
+  it('should throw on unwrap err result', () => {
     const result = ResultUtils.err('INTERNAL_ERROR', 'something broke');
-    await expect(ResultUtils.unwrapOrThrow(result)).rejects.toThrow('[INTERNAL_ERROR] something broke');
+    expect(() => ResultUtils.unwrapOrThrow(result)).toThrow('[INTERNAL_ERROR] something broke');
   });
 
   it('should wrap a promise in ResultAsync', async () => {

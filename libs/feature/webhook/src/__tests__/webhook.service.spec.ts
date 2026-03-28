@@ -1,5 +1,4 @@
 import { WebhookService } from '../webhook.service';
-import { DeliveryStatus } from '@ai-sdlc/db';
 
 const mockEm = {
   getReference: vi.fn().mockReturnValue({ id: 'ref' }),
@@ -31,13 +30,13 @@ describe('WebhookService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new WebhookService(
-      mockEm as any,
-      mockTemporal as any,
-      mockLogger as any,
-      mockJiraHandler as any,
-      mockGitLabHandler as any,
-      mockGitHubHandler as any,
-      mockLinearHandler as any,
+      mockEm,
+      mockTemporal,
+      mockLogger,
+      mockJiraHandler,
+      mockGitLabHandler,
+      mockGitHubHandler,
+      mockLinearHandler,
     );
   });
 
@@ -87,7 +86,7 @@ describe('WebhookService', () => {
       repoUrl: 'https://github.com/test/repo.git',
       rawPayload: {},
     }));
-    const dupError = new Error('duplicate') as any;
+    const dupError: Error & { code?: string } = new Error("duplicate");
     dupError.code = '23505';
     mockEm.persistAndFlush.mockRejectedValue(dupError);
 

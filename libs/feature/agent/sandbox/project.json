@@ -4,6 +4,9 @@
   "projectType": "library",
   "sourceRoot": "libs/feature/agent/sandbox/src",
   "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/agent/sandbox"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p libs/feature/agent/sandbox/tsconfig.json"
     },

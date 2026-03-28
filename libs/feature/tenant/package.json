@@ -1,5 +1,5 @@
 {
-  "name": "@ai-sdlc/feature-tenant",
+  "name": "@app/feature-tenant",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts"

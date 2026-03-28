@@ -1,22 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import type { AgentPromptData, AgentProvider } from '@ai-sdlc/shared-type';
+import type { AgentPromptData } from '@app/shared-type';
+
+export interface PromptFormatStrategy {
+  name: string;
+  format(data: AgentPromptData): string;
+}
 
 @Injectable()
 export class PromptFormatter {
-  format(provider: string, data: AgentPromptData): string {
-    switch (provider) {
-      case 'claude':
-        return this.formatClaudePrompt(data);
-      case 'openhands':
-        return this.formatOpenHandsPrompt(data);
-      case 'aider':
-        return this.formatAiderPrompt(data);
-      default:
-        return this.formatClaudePrompt(data);
-    }
+  private strategies = new Map<string, PromptFormatStrategy>();
+
+  registerStrategy(strategy: PromptFormatStrategy): void {
+    this.strategies.set(strategy.name, strategy);
   }
 
-  private formatClaudePrompt(data: AgentPromptData): string {
+  listStrategies(): string[] {
+    return [...this.strategies.keys()];
+  }
+
+  format(provider: string, data: AgentPromptData): string {
+    const strategy = this.strategies.get(provider);
+    if (strategy) return strategy.format(data);
+    return this.formatDefault(data);
+  }
+
+  private formatDefault(data: AgentPromptData): string {
     const sections: string[] = [
       `# Task`,
       data.taskSeed,
@@ -94,22 +102,5 @@ export class PromptFormatter {
     );
 
     return sections.join('\n');
-  }
-
-  private formatOpenHandsPrompt(data: AgentPromptData): string {
-    return [
-      `Task: ${data.taskSeed}`,
-      `Repository: ${data.repoInfo.url}`,
-      `Branch: ${data.repoInfo.branch}`,
-      data.previousContext ? `Previous: ${data.previousContext.summary}` : '',
-    ].filter(Boolean).join('\n');
-  }
-
-  private formatAiderPrompt(data: AgentPromptData): string {
-    return [
-      data.taskSeed,
-      `Repo: ${data.repoInfo.url} @ ${data.repoInfo.branch}`,
-      data.previousContext ? `Context: ${data.previousContext.summary}` : '',
-    ].filter(Boolean).join('\n');
   }
 }
