@@ -8,7 +8,7 @@
       "command": "npx vitest run --config vitest.config.ts libs/feature/webhook"
     },
     "typecheck": {
-      "command": "tsc --noEmit -p libs/feature/webhook/tsconfig.json"
+      "command": "tsc --noEmit -p libs/feature/webhook/tsconfig.typecheck.json"
     },
     "lint": {
       "command": "eslint libs/feature/webhook/src"
