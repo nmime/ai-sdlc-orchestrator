@@ -1,18 +1,24 @@
+import { getAuth } from './auth';
+
 const API_BASE = '/api/v1';
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('api_token') || 'dev-dashboard';
-  return { Authorization: `Bearer ${token}` };
-}
-
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const auth = getAuth();
+  const headers: Record<string, string> = {
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+
+  if (auth?.token) {
+    headers['Authorization'] = `Bearer ${auth.token}`;
+  } else {
+    headers['Authorization'] = 'Bearer dev-dashboard';
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      ...getAuthHeaders(),
-      ...init?.headers,
-    },
+    headers,
   });
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);
@@ -20,10 +26,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return res.json();
 }
 
-export function setApiToken(token: string) {
-  localStorage.setItem('api_token', token);
-}
-
-export function getApiToken(): string {
-  return localStorage.getItem('api_token') || '';
+export function getTenantId(): string {
+  const auth = getAuth();
+  return auth?.tenantId || '00000000-0000-0000-0000-000000000001';
 }

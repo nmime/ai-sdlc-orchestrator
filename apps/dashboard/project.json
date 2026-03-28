@@ -15,6 +15,9 @@
     },
     "serve": {
       "command": "cd apps/dashboard && npx vite"
+    },
+    "lint": {
+      "command": "eslint apps/dashboard/src"
     }
   }
 }

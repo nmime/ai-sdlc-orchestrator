@@ -13,7 +13,7 @@ Object.defineProperty(global, 'localStorage', {
   writable: true,
 });
 
-import { apiFetch, setApiToken, getApiToken } from '../lib/api';
+import { apiFetch, getTenantId } from '../lib/api';
 
 describe('api', () => {
   beforeEach(() => {
@@ -22,7 +22,7 @@ describe('api', () => {
   });
 
   describe('apiFetch', () => {
-    it('makes fetch call with auth header', async () => {
+    it('makes fetch call with default auth header', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ data: [] }),
@@ -34,8 +34,12 @@ describe('api', () => {
       }));
     });
 
-    it('uses custom token from localStorage', async () => {
-      mockLocalStorage['api_token'] = 'my-custom-token';
+    it('uses token from auth state in localStorage', async () => {
+      mockLocalStorage['ai_sdlc_auth'] = JSON.stringify({
+        token: 'my-custom-token',
+        tenantId: 'tenant-1',
+        role: 'admin',
+      });
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({}),
@@ -76,14 +80,18 @@ describe('api', () => {
     });
   });
 
-  describe('setApiToken / getApiToken', () => {
-    it('stores and retrieves token', () => {
-      setApiToken('new-token');
-      expect(getApiToken()).toBe('new-token');
+  describe('getTenantId', () => {
+    it('returns default tenant id when no auth', () => {
+      expect(getTenantId()).toBe('00000000-0000-0000-0000-000000000001');
     });
 
-    it('returns empty string when no token set', () => {
-      expect(getApiToken()).toBe('');
+    it('returns tenant id from auth state', () => {
+      mockLocalStorage['ai_sdlc_auth'] = JSON.stringify({
+        token: 'tok',
+        tenantId: 'my-tenant-id',
+        role: 'user',
+      });
+      expect(getTenantId()).toBe('my-tenant-id');
     });
   });
 });

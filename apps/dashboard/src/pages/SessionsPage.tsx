@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Chip, Spinner, EmptyState } from '@heroui/react';
+import { Card, Chip, Spinner } from '@heroui/react';
 import { apiFetch } from '../lib/api';
+import { Monitor, Cpu, Coins, Clock } from 'lucide-react';
 
 interface Workflow {
   id: string;
@@ -30,14 +31,11 @@ interface AgentSession {
   completedAt: string | null;
 }
 
-const STATUS_COLOR: Record<string, 'default' | 'accent' | 'success' | 'warning' | 'danger'> = {
-  running: 'accent',
-  completed: 'success',
-  failed: 'danger',
-  cancelled: 'default',
+const STATUS_COLOR: Record<string, 'default' | 'accent' | 'success' | 'danger'> = {
+  running: 'accent', completed: 'success', failed: 'danger', cancelled: 'default',
 };
 
-export function SessionViewer() {
+export function SessionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: workflows, isLoading } = useQuery({
@@ -58,17 +56,15 @@ export function SessionViewer() {
   const sessList = sessions ?? [];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">Agent Sessions</h2>
-        <p className="text-sm text-default-500">Select a workflow to inspect its agent sessions</p>
+        <h1 className="text-2xl font-bold text-foreground">Agent Sessions</h1>
+        <p className="text-sm text-default-500 mt-1">Inspect agent sessions per workflow</p>
       </div>
 
-      <div className="flex gap-4 h-[calc(100vh-14rem)]">
-        <Card className="w-1/3 overflow-hidden">
-          <Card.Header>
-            <Card.Title className="text-sm">Workflows</Card.Title>
-          </Card.Header>
+      <div className="flex gap-6 h-[calc(100vh-14rem)]">
+        <Card className="w-1/3 overflow-hidden flex flex-col">
+          <Card.Header><Card.Title className="text-sm">Workflows</Card.Title></Card.Header>
           <div className="overflow-y-auto flex-1">
             {wfList.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-default-400">No workflows yet</div>
@@ -79,7 +75,7 @@ export function SessionViewer() {
                     key={wf.id}
                     onClick={() => setSelectedId(wf.id)}
                     className={`w-full text-left px-4 py-3 transition-colors hover:bg-default-100 ${
-                      selectedId === wf.id ? 'bg-primary-50 border-l-3 border-primary' : ''
+                      selectedId === wf.id ? 'bg-primary/5 border-l-3 border-primary' : ''
                     }`}
                   >
                     <p className="text-sm font-medium text-foreground truncate">{wf.taskTitle}</p>
@@ -94,16 +90,14 @@ export function SessionViewer() {
           </div>
         </Card>
 
-        <Card className="w-2/3 overflow-hidden">
+        <Card className="w-2/3 overflow-hidden flex flex-col">
           {selectedId ? (
             sessList.length > 0 ? (
               <>
-                <Card.Header>
-                  <Card.Title className="text-sm">Agent Sessions ({sessList.length})</Card.Title>
-                </Card.Header>
-                <div className="overflow-y-auto divide-y divide-divider">
+                <Card.Header><Card.Title className="text-sm">Sessions ({sessList.length})</Card.Title></Card.Header>
+                <div className="overflow-y-auto flex-1 divide-y divide-divider">
                   {sessList.map((s) => (
-                    <div key={s.id} className="px-5 py-4 space-y-2">
+                    <div key={s.id} className="px-5 py-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-foreground">{s.stepId} <span className="text-default-400">loop {s.loopIteration}</span></p>
@@ -111,17 +105,11 @@ export function SessionViewer() {
                         </div>
                         <Chip color={STATUS_COLOR[s.status] ?? 'default'} variant="soft" size="sm">{s.status}</Chip>
                       </div>
-                      <div className="grid grid-cols-4 gap-3">
-                        <StatMini label="Tokens" value={(s.inputTokens + s.outputTokens).toLocaleString()} />
-                        <StatMini label="AI Cost" value={`$${(s.aiCostUsd ?? 0).toFixed(4)}`} />
-                        <StatMini label="Sandbox" value={`$${(s.sandboxCostUsd ?? 0).toFixed(4)}`} />
-                        <StatMini label="Total" value={`$${(s.totalCostUsd ?? 0).toFixed(4)}`} />
-                      </div>
-                      <div className="grid grid-cols-4 gap-3">
-                        <StatMini label="Tools" value={String(s.toolCallCount)} />
-                        <StatMini label="Turns" value={String(s.turnCount)} />
-                        <StatMini label="Sandbox Time" value={`${s.sandboxDurationSeconds}s`} />
-                        <StatMini label="Quality" value={s.qualityScore !== null ? String(s.qualityScore) : '—'} />
+                      <div className="grid grid-cols-4 gap-2">
+                        <MiniStat icon={Cpu} label="Tokens" value={(s.inputTokens + s.outputTokens).toLocaleString()} />
+                        <MiniStat icon={Coins} label="AI Cost" value={`$${(s.aiCostUsd ?? 0).toFixed(4)}`} />
+                        <MiniStat icon={Monitor} label="Sandbox" value={`$${(s.sandboxCostUsd ?? 0).toFixed(4)}`} />
+                        <MiniStat icon={Clock} label="Duration" value={`${s.sandboxDurationSeconds}s`} />
                       </div>
                       {s.errorCode && <p className="text-xs text-danger">Error: {s.errorCode}</p>}
                     </div>
@@ -134,7 +122,7 @@ export function SessionViewer() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-default-300 mb-2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <Monitor size={32} className="mx-auto text-default-300 mb-2" />
                 <p className="text-sm text-default-400">Select a workflow to view sessions</p>
               </div>
             </div>
@@ -145,11 +133,14 @@ export function SessionViewer() {
   );
 }
 
-function StatMini({ label, value }: { label: string; value: string }) {
+function MiniStat({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
-    <div className="bg-default-50 rounded-lg px-2.5 py-1.5">
-      <p className="text-[10px] text-default-400 uppercase tracking-wider">{label}</p>
-      <p className="text-xs font-medium text-foreground tabular-nums">{value}</p>
+    <div className="bg-default-50 rounded-lg px-2.5 py-2 flex items-center gap-2">
+      <Icon size={14} className="text-default-400 flex-shrink-0" />
+      <div>
+        <p className="text-[10px] text-default-400 uppercase">{label}</p>
+        <p className="text-xs font-medium text-foreground tabular-nums">{value}</p>
+      </div>
     </div>
   );
 }
