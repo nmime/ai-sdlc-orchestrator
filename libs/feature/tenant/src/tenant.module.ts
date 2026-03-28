@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { TenantController } from './tenant.controller';
 import { TenantService } from './tenant.service';
 import { ApiKeyService } from './api-key.service';
@@ -19,6 +19,7 @@ import { UserController } from './user.controller';
 import { DslController } from './dsl.controller';
 import { PollingScheduleController } from './polling-schedule.controller';
 
+@Global()
 @Module({
   controllers: [
     TenantController,
