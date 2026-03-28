@@ -5,7 +5,7 @@
   "sourceRoot": "libs/feature/workflow/src",
   "targets": {
     "typecheck": {
-      "command": "tsc --noEmit -p libs/feature/workflow/tsconfig.json"
+      "command": "tsc --noEmit -p libs/feature/workflow/tsconfig.typecheck.json"
     },
     "lint": {
       "command": "eslint libs/feature/workflow/src"

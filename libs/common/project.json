@@ -8,7 +8,7 @@
       "command": "npx vitest run --config vitest.config.ts libs/common"
     },
     "typecheck": {
-      "command": "tsc --noEmit -p libs/common/tsconfig.json"
+      "command": "tsc --noEmit -p libs/common/tsconfig.typecheck.json"
     },
     "lint": {
       "command": "eslint libs/common/src"

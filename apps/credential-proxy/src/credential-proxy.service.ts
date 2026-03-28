@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 const SAFE_ID = /^[a-zA-Z0-9_-]+$/;
 const SAFE_HOST = /^[a-zA-Z0-9._:-]+$/;
@@ -17,11 +18,13 @@ function validateHost(value: string): void {
 
 @Injectable()
 export class CredentialProxyService {
+  constructor(private readonly configService: ConfigService) {}
+
   async getGitCredential(tenantId: string, host: string): Promise<{ username: string; password: string }> {
     validateId(tenantId, 'tenantId');
     validateHost(host);
     const envKey = `VCS_TOKEN_${tenantId.replace(/-/g, '_').toUpperCase()}`;
-    const token = process.env[envKey] || process.env['DEFAULT_VCS_TOKEN'] || '';
+    const token = this.configService.get<string>(envKey) || this.configService.get<string>('DEFAULT_VCS_TOKEN') || '';
     return { username: 'oauth2', password: token };
   }
 
@@ -29,7 +32,7 @@ export class CredentialProxyService {
     validateId(tenantId, 'tenantId');
     validateId(serverName, 'serverName');
     const envKey = `MCP_TOKEN_${serverName.replace(/-/g, '_').toUpperCase()}`;
-    const token = process.env[envKey] || '';
+    const token = this.configService.get<string>(envKey) || '';
     return { token, expiresAt: new Date(Date.now() + 3600_000).toISOString() };
   }
 
@@ -49,7 +52,7 @@ export class CredentialProxyService {
     if (!baseUrl) throw new Error(`Unknown AI provider: ${provider}`);
 
     const apiKeyEnv = `${provider.toUpperCase()}_API_KEY`;
-    const apiKey = process.env[apiKeyEnv];
+    const apiKey = this.configService.get<string>(apiKeyEnv);
     if (!apiKey) throw new Error(`No API key configured for ${provider}`);
 
     const proxyHeaders: Record<string, string> = {
