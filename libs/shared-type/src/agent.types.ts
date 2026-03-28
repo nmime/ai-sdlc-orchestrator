@@ -1,10 +1,4 @@
-export const AGENT_PROVIDER = {
-  CLAUDE: 'claude',
-  OPENHANDS: 'openhands',
-  AIDER: 'aider',
-} as const;
-
-export type AgentProvider = (typeof AGENT_PROVIDER)[keyof typeof AGENT_PROVIDER];
+export type AgentProvider = string;
 
 export const AGENT_RESULT_STATUS = {
   SUCCESS: 'success',

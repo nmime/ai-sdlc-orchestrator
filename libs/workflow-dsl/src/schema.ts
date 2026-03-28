@@ -101,7 +101,7 @@ export const workflowDslSchema = z.object({
   timeout_minutes: z.number().int().min(1).default(240),
   steps: z.array(dslStepSchema).min(1),
   defaults: z.object({
-    agentProvider: z.string().default('claude'),
+    agentProvider: z.string().optional(),
     sandboxProvider: z.string().default('e2b'),
     maxRetries: z.number().int().default(3),
     maxCostPerTaskUsd: z.number().default(50),
