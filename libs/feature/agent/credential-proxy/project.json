@@ -4,6 +4,9 @@
   "projectType": "library",
   "sourceRoot": "libs/feature/agent/credential-proxy/src",
   "targets": {
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts libs/feature/agent/credential-proxy"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p libs/feature/agent/credential-proxy/tsconfig.json"
     },

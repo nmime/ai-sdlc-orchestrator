@@ -7,6 +7,9 @@
     "build": {
       "command": "cd apps/dashboard && npx vite build"
     },
+    "test": {
+      "command": "npx vitest run --config apps/dashboard/vitest.config.ts"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p apps/dashboard/tsconfig.json"
     },

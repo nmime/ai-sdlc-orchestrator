@@ -13,6 +13,9 @@
         "rootDir": "."
       }
     },
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts apps/cli"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p apps/cli/tsconfig.json"
     }

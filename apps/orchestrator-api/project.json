@@ -13,6 +13,9 @@
         "rootDir": "."
       }
     },
+    "test": {
+      "command": "npx vitest run --config vitest.config.ts apps/orchestrator-api"
+    },
     "typecheck": {
       "command": "tsc --noEmit -p apps/orchestrator-api/tsconfig.json"
     }
