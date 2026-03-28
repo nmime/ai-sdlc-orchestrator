@@ -1,11 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService, CreateTenantDto, UpdateTenantDto } from './tenant.service';
 import { ResultUtils } from '@app/common';
 import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
-import type { FastifyRequest } from 'fastify';
+import { TenantId } from './decorators/tenant-id.decorator';
 
 @ApiTags('tenants')
 @Controller('tenants')
@@ -24,9 +24,7 @@ export class TenantController {
   @Get()
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List tenants for current user' })
-  async list(@Req() req: FastifyRequest) {
-    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async list(@TenantId() tenantId: string) {
     const tenant = ResultUtils.unwrapOrThrow(await this.tenantService.findById(tenantId));
     return [tenant];
   }
@@ -34,18 +32,16 @@ export class TenantController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get tenant by ID' })
-  async findById(@Req() req: FastifyRequest, @Param('id') id: string) {
-    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
+  async findById(@TenantId() tenantId: string, @Param('id') id: string) {
+    if (tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     return ResultUtils.unwrapOrThrow(await this.tenantService.findById(id));
   }
 
   @Put(':id')
   @Roles('admin')
   @ApiOperation({ summary: 'Update tenant' })
-  async update(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
-    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
+  async update(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateTenantDto) {
+    if (tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     return ResultUtils.unwrapOrThrow(await this.tenantService.update(id, dto));
   }
 
@@ -53,9 +49,8 @@ export class TenantController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete tenant (soft)' })
-  async delete(@Req() req: FastifyRequest, @Param('id') id: string) {
-    const tenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!tenantId || tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
+  async delete(@TenantId() tenantId: string, @Param('id') id: string) {
+    if (tenantId !== id) throw new ForbiddenException('Access denied for this tenant');
     ResultUtils.unwrapOrThrow(await this.tenantService.delete(id));
   }
 }

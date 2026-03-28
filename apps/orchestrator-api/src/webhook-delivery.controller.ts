@@ -1,9 +1,8 @@
-import { Controller, Get, Param, Query, UseGuards, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
-import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { WebhookDelivery, DeliveryStatus, WebhookPlatform } from '@app/db';
-import { FastifyRequest } from 'fastify';
 
 @ApiTags('webhook-deliveries')
 @Controller('tenants/:tenantId/webhook-deliveries')
@@ -17,14 +16,13 @@ export class WebhookDeliveryController {
   @ApiOperation({ summary: 'List webhook deliveries for tenant' })
   async list(
     @Param('tenantId') tenantId: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('status') status?: string,
-    @Query('platform') platform?: string,
-    @Req() req?: FastifyRequest,
+    @Query('limit') limit: string | undefined,
+    @Query('offset') offset: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('platform') platform: string | undefined,
+    @TenantId() authTenantId: string,
   ): Promise<{ data: WebhookDelivery[]; total: number; limit: number; offset: number }> {
-    const userTenantId = (req as any)?.user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+    if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     if (status && !Object.values(DeliveryStatus).includes(status as DeliveryStatus)) {
       throw new BadRequestException('Invalid status');
     }
@@ -52,10 +50,8 @@ export class WebhookDeliveryController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get webhook delivery by ID' })
-  async findById(@Param('tenantId') tenantId: string, @Param('id') id: string, @Req() req?: FastifyRequest): Promise<WebhookDelivery> {
-    const userTenantId = (req as any)?.user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
-
+  async findById(@Param('tenantId') tenantId: string, @Param('id') id: string, @TenantId() authTenantId: string): Promise<WebhookDelivery> {
+    if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     return this.em.findOneOrFail(WebhookDelivery, { id, tenant: tenantId });
   }
 }

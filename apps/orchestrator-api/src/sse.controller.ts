@@ -1,12 +1,11 @@
-import { Controller, Sse, Query, MessageEvent, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Sse, MessageEvent, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowEvent } from '@app/db';
-import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
-import { Observable, interval, exhaustMap, map, from, EMPTY } from 'rxjs';
+import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
+import { Observable, interval, exhaustMap, map, from } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
-import type { FastifyRequest } from 'fastify';
 
 const MAX_SSE_CONNECTIONS = 100;
 let activeSseConnections = 0;
@@ -24,12 +23,7 @@ export class SseController {
   @Sse('events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Server-Sent Events for workflow updates' })
-  events(@Req() req: FastifyRequest): Observable<MessageEvent> {
-    const tenantId = (req as any).user?.tenantId;
-    if (!tenantId) {
-      throw new ForbiddenException('Tenant context required');
-    }
-
+  events(@TenantId() tenantId: string): Observable<MessageEvent> {
     if (activeSseConnections >= MAX_SSE_CONNECTIONS) {
       throw new ForbiddenException('Too many active SSE connections');
     }

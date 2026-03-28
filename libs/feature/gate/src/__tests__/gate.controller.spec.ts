@@ -13,9 +13,7 @@ const mockEm = {
   findOneOrFail: vi.fn().mockResolvedValue({}),
 };
 
-const mockReq = (overrides: Record<string, unknown> = {}) => ({
-  user: { id: 'u-1', email: 'user@test.com', role: 'admin', tenantId: 'tenant-1', ...overrides },
-}) as unknown as Parameters<typeof controller.decide>[2];
+const mockUser = { id: 'u-1', email: 'user@test.com', role: 'admin', tenantId: 'tenant-1' };
 
 let controller: GateController;
 
@@ -30,7 +28,7 @@ describe('GateController (integration)', () => {
       const decision = { workflowId: 'wf-1', gateId: 'wf-1', action: 'approve', reviewer: 'dev@test.com', timestamp: new Date() };
       mockGateService.submitDecision.mockResolvedValue(ok(decision));
       const action: GateAction = 'approve';
-      const result = await controller.decide('wf-1', { action, reviewer: 'dev@test.com' }, mockReq());
+      const result = await controller.decide('wf-1', { action, reviewer: 'dev@test.com' }, 'tenant-1');
       expect(result).toEqual(decision);
       expect(mockGateService.submitDecision).toHaveBeenCalledWith('wf-1', 'approve', 'dev@test.com', undefined);
     });
@@ -38,7 +36,7 @@ describe('GateController (integration)', () => {
     it('throws on service error', async () => {
       mockGateService.submitDecision.mockResolvedValue(err({ code: 'TEMPORAL_ERROR', message: 'workflow not found' }));
       const action: GateAction = 'approve';
-      await expect(controller.decide('wf-1', { action, reviewer: 'dev' }, mockReq())).rejects.toThrow('workflow not found');
+      await expect(controller.decide('wf-1', { action, reviewer: 'dev' }, 'tenant-1')).rejects.toThrow('workflow not found');
     });
   });
 
@@ -46,14 +44,14 @@ describe('GateController (integration)', () => {
     it('extracts reviewer from req.user', async () => {
       const decision = { workflowId: 'wf-1', action: 'approve', reviewer: 'user@test.com', timestamp: new Date() };
       mockGateService.submitDecision.mockResolvedValue(ok(decision));
-      const result = await controller.approve('wf-1', { comment: 'LGTM' }, mockReq());
+      const result = await controller.approve('wf-1', { comment: 'LGTM' }, mockUser as any, 'tenant-1');
       expect(result).toEqual(decision);
       expect(mockGateService.submitDecision).toHaveBeenCalledWith('wf-1', 'approve', 'user@test.com', 'LGTM');
     });
 
     it('falls back to user.id when no email', async () => {
       mockGateService.submitDecision.mockResolvedValue(ok({}));
-      await controller.approve('wf-1', {}, mockReq({ email: '' }));
+      await controller.approve('wf-1', {}, { ...mockUser, email: '' } as any, 'tenant-1');
       expect(mockGateService.submitDecision).toHaveBeenCalledWith('wf-1', 'approve', 'u-1', undefined);
     });
   });
@@ -61,7 +59,7 @@ describe('GateController (integration)', () => {
   describe('POST request-changes', () => {
     it('submits request_changes action', async () => {
       mockGateService.submitDecision.mockResolvedValue(ok({ action: 'request_changes' }));
-      await controller.requestChanges('wf-1', { comment: 'needs fixes' }, mockReq({ email: 'rev@test.com', role: 'operator' }));
+      await controller.requestChanges('wf-1', { comment: 'needs fixes' }, { ...mockUser, email: 'rev@test.com', role: 'operator' } as any, 'tenant-1');
       expect(mockGateService.submitDecision).toHaveBeenCalledWith('wf-1', 'request_changes', 'rev@test.com', 'needs fixes');
     });
   });
@@ -69,33 +67,28 @@ describe('GateController (integration)', () => {
   describe('GET status', () => {
     it('returns workflow status', async () => {
       mockGateService.getWorkflowStatus.mockResolvedValue(ok({ status: 'RUNNING', runId: 'run-1' }));
-      const result = await controller.getStatus('wf-1', mockReq());
+      const result = await controller.getStatus('wf-1', 'tenant-1');
       expect(result).toEqual({ status: 'RUNNING', runId: 'run-1' });
     });
 
     it('throws on error', async () => {
       mockGateService.getWorkflowStatus.mockResolvedValue(err({ code: 'TEMPORAL_ERROR', message: 'not found' }));
-      await expect(controller.getStatus('wf-1', mockReq())).rejects.toThrow('not found');
+      await expect(controller.getStatus('wf-1', 'tenant-1')).rejects.toThrow('not found');
     });
   });
 
   describe('POST cancel', () => {
     it('returns cancelled flag', async () => {
       mockGateService.cancelWorkflow.mockResolvedValue(ok(undefined));
-      const result = await controller.cancel('wf-1', { reason: 'no longer needed' }, mockReq());
+      const result = await controller.cancel('wf-1', { reason: 'no longer needed' }, 'tenant-1');
       expect(result).toEqual({ cancelled: true });
     });
   });
 
   describe('tenant isolation', () => {
-    it('rejects when tenantId is missing', async () => {
-      const req = { user: { id: 'u-1', email: 'user@test.com', role: 'admin' } } as any;
-      await expect(controller.getStatus('wf-1', req)).rejects.toThrow('Tenant context required');
-    });
-
     it('rejects when workflow belongs to different tenant', async () => {
       mockEm.findOneOrFail.mockRejectedValueOnce(new Error('not found'));
-      await expect(controller.getStatus('wf-1', mockReq())).rejects.toThrow('not found');
+      await expect(controller.getStatus('wf-1', 'tenant-1')).rejects.toThrow('not found');
     });
   });
 });

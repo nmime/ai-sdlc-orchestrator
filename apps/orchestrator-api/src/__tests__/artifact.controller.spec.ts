@@ -43,7 +43,6 @@ const mockConfig = {
 describe('ArtifactController', () => {
   let em: ReturnType<typeof createMockEm>;
   let controller: ArtifactController;
-  const mockReq = { user: { tenantId: 't-1', id: 'u-1', role: 'admin' } } as any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -54,7 +53,7 @@ describe('ArtifactController', () => {
   describe('getPresignedUpload', () => {
     it('creates artifact and returns presigned URL', async () => {
       em.findOneOrFail.mockResolvedValueOnce({ id: 'wf-1' });
-      const result = await controller.getPresignedUpload(mockReq, {
+      const result = await controller.getPresignedUpload('t-1', {
         workflowId: 'wf-abc', tenantId: 't-1', kind: 'diff_patch' as any,
         title: 'My Patch', filename: 'patch.diff',
       });
@@ -65,20 +64,11 @@ describe('ArtifactController', () => {
 
     it('throws if tenant mismatch', async () => {
       await expect(
-        controller.getPresignedUpload(mockReq, {
+        controller.getPresignedUpload('t-1', {
           workflowId: 'wf-1', tenantId: 'other-tenant', kind: 'diff_patch' as any,
           title: 'test', filename: 'test.txt',
         }),
       ).rejects.toThrow('Cannot create artifacts for another tenant');
-    });
-
-    it('throws if no tenant context', async () => {
-      await expect(
-        controller.getPresignedUpload({ user: {} } as any, {
-          workflowId: 'wf-1', tenantId: 't-1', kind: 'diff_patch' as any,
-          title: 'test', filename: 'test.txt',
-        }),
-      ).rejects.toThrow('Tenant context required');
     });
   });
 
@@ -86,7 +76,7 @@ describe('ArtifactController', () => {
     it('publishes artifact', async () => {
       const artifact = { id: 'a-1', status: 'draft' };
       em.findOneOrFail.mockResolvedValueOnce(artifact);
-      const result = await controller.publishArtifact(mockReq, 'a-1');
+      const result = await controller.publishArtifact('t-1', 'a-1');
       expect(result.status).toBe('published');
       expect(artifact.status).toBe('published');
       expect(em.flush).toHaveBeenCalled();
@@ -96,7 +86,7 @@ describe('ArtifactController', () => {
   describe('getDownloadUrl', () => {
     it('returns presigned download URL', async () => {
       em.findOneOrFail.mockResolvedValueOnce({ id: 'a-1', uri: 's3://artifacts/wf-1/a-1/file.txt' });
-      const result = await controller.getDownloadUrl(mockReq, 'a-1');
+      const result = await controller.getDownloadUrl('t-1', 'a-1');
       expect(result.downloadUrl).toBe('https://minio/presigned-get');
       expect(mockPresignedGet).toHaveBeenCalledWith('artifacts', 'wf-1/a-1/file.txt', 3600);
     });

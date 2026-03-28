@@ -7,6 +7,7 @@ export { SystemSettingsController } from './system-settings.controller';
 export { AuthGuard, AuthenticatedUser } from './guards/auth.guard';
 export { RbacGuard } from './guards/rbac.guard';
 export { Roles } from './decorators/roles.decorator';
+export { TenantId, CurrentUser, AuthenticatedRequest } from './decorators/tenant-id.decorator';
 export { CreateTenantDto, UpdateTenantDto, CreateApiKeyDto, GateDecisionDto, GateCommentDto, GateRequireCommentDto, CancelWorkflowDto, UpdateSystemSettingDto } from './dto';
 export { DslController } from './dsl.controller';
 export { PollingScheduleController } from './polling-schedule.controller';
