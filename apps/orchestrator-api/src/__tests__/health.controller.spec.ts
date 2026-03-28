@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HealthController } from '../health.controller';
 
-vi.mock('minio', () => ({
-  Client: class {
-    listBuckets = vi.fn().mockResolvedValue([]);
-  },
-}));
+const mockMinioClient = {
+  listBuckets: vi.fn().mockResolvedValue([]),
+};
 
 const mockDb = { pingCheck: vi.fn().mockResolvedValue({ database: { status: 'up' } }) };
 const mockTemporal = { getClient: vi.fn().mockResolvedValue({}) };
@@ -34,7 +32,7 @@ describe('HealthController', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new HealthController(mockHealth as any, mockDb as any, mockTemporal as any, mockConfig as any);
+    controller = new HealthController(mockHealth as any, mockDb as any, mockTemporal as any, mockMinioClient as any);
   });
 
   describe('liveness', () => {

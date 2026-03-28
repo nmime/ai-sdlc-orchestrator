@@ -1,30 +1,18 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { HealthCheckService, HealthCheck, MikroOrmHealthIndicator } from '@nestjs/terminus';
-import { TemporalClientService } from '@app/common';
-import { ConfigService } from '@nestjs/config';
-import type { AppConfig } from '@app/common';
-import * as Minio from 'minio';
+import { TemporalClientService, MINIO_CLIENT } from '@app/common';
+import type { Client as MinioClient } from 'minio';
 
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
-  private minioClient: Minio.Client;
-
   constructor(
     private readonly health: HealthCheckService,
     private readonly db: MikroOrmHealthIndicator,
     private readonly temporalClient: TemporalClientService,
-    private readonly configService: ConfigService<AppConfig, true>,
-  ) {
-    this.minioClient = new Minio.Client({
-      endPoint: this.configService.get('MINIO_ENDPOINT', { infer: true }) || 'localhost',
-      port: parseInt(this.configService.get('MINIO_PORT', { infer: true }) || '9000', 10),
-      useSSL: this.configService.get('MINIO_USE_SSL', { infer: true }) === 'true',
-      accessKey: (() => { const k = this.configService.get('MINIO_ACCESS_KEY', { infer: true }); if (!k) throw new Error('MINIO_ACCESS_KEY not configured'); return k; })(),
-      secretKey: (() => { const k = this.configService.get('MINIO_SECRET_KEY', { infer: true }); if (!k) throw new Error('MINIO_SECRET_KEY not configured'); return k; })(),
-    });
-  }
+    @Inject(MINIO_CLIENT) private readonly minioClient: MinioClient,
+  ) {}
 
   @Get('live')
   @HealthCheck()

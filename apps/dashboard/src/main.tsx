@@ -24,6 +24,11 @@ import { WebhooksPage } from './pages/WebhooksPage';
 import { isAuthenticated } from './lib/auth';
 import './index.css';
 
+const savedTheme = localStorage.getItem('ai_sdlc_theme') || 'system';
+if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+  document.documentElement.classList.add('dark');
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 5000, retry: 1, refetchOnWindowFocus: false },

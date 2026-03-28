@@ -43,17 +43,17 @@ export class LinearHandler {
 
     const repoUrlMatch = description.match(/repo:\s*(https?:\/\/[^\s]+\.git)/i)
       || description.match(/(https?:\/\/(?:github\.com|gitlab\.com)\/[^\s]+)/i);
-    if (repoUrlMatch?.[1]) return repoUrlMatch[1]!;
+    if (repoUrlMatch?.[1]) return repoUrlMatch[1];
 
     const configs = await this.em.find(TenantRepoConfig, { tenant: tenantId }, { limit: 200 });
-    if (configs.length === 1) return configs[0]!.repoUrl;
+    if (configs.length === 1 && configs[0]) return configs[0].repoUrl;
 
     for (const config of configs) {
       const repoName = config.repoId.toLowerCase();
       if (labels.some(l => l.toLowerCase().includes(repoName))) return config.repoUrl;
     }
 
-    if (configs.length > 0) return configs[0]!.repoUrl;
+    if (configs.length > 0 && configs[0]) return configs[0].repoUrl;
     return '';
   }
 }

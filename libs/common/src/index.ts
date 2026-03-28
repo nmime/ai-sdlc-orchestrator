@@ -12,3 +12,5 @@ export { sanitizeRecord } from './validation/sanitize-record';
 export { sanitizeLog } from './validation/sanitize-log';
 export { isInternalUrl } from './validation/is-internal-url';
 export { DynamicConfigService } from './config/dynamic-config.service';
+export { MinioModule, MINIO_CLIENT } from './minio/minio.module';
+export { RequestIdMiddleware } from './middleware/request-id.middleware';

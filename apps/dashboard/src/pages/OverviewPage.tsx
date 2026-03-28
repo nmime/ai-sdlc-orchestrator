@@ -131,7 +131,16 @@ function StatusChip({ status }: { status: string }) {
   return <Chip color={info.color} variant="soft" size="sm">{info.label}</Chip>;
 }
 
+const COLOR_CLASSES: Record<string, { bg: string; text: string }> = {
+  primary: { bg: 'bg-primary/10', text: 'text-primary' },
+  success: { bg: 'bg-success/10', text: 'text-success' },
+  warning: { bg: 'bg-warning/10', text: 'text-warning' },
+  danger: { bg: 'bg-danger/10', text: 'text-danger' },
+  accent: { bg: 'bg-violet-100', text: 'text-violet-600' },
+};
+
 function StatCard({ icon: Icon, label, value, color, sub }: { icon: React.ElementType; label: string; value: string; color: string; sub?: string }) {
+  const c = COLOR_CLASSES[color] ?? { bg: 'bg-primary/10', text: 'text-primary' };
   return (
     <Card>
       <Card.Content className="pt-5">
@@ -141,8 +150,8 @@ function StatCard({ icon: Icon, label, value, color, sub }: { icon: React.Elemen
             <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{value}</p>
             {sub && <p className="text-xs text-default-400 mt-0.5">{sub}</p>}
           </div>
-          <div className={`w-10 h-10 rounded-lg bg-${color}/10 flex items-center justify-center`}>
-            <Icon size={20} className={`text-${color}`} />
+          <div className={`w-10 h-10 rounded-lg ${c.bg} flex items-center justify-center`}>
+            <Icon size={20} className={c.text} />
           </div>
         </div>
       </Card.Content>
