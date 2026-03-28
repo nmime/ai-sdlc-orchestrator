@@ -1,12 +1,13 @@
-import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, ForbiddenException, BadRequestException, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowArtifact, ArtifactKind, ArtifactStatus, WorkflowMirror, Tenant } from '@app/db';
 import { IsString, IsOptional, IsEnum, MaxLength, Matches } from 'class-validator';
-import * as Minio from 'minio';
+import type { Client as MinioClient } from 'minio';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
+import { MINIO_CLIENT } from '@app/common';
 
 class UploadArtifactDto {
   @IsString()
@@ -41,20 +42,13 @@ class UploadArtifactDto {
 @ApiBearerAuth()
 @UseGuards(AuthGuard, RbacGuard)
 export class ArtifactController {
-  private minioClient: Minio.Client;
   private readonly bucket: string;
 
   constructor(
     private readonly em: EntityManager,
     private readonly configService: ConfigService<AppConfig, true>,
+    @Inject(MINIO_CLIENT) private readonly minioClient: MinioClient,
   ) {
-    this.minioClient = new Minio.Client({
-      endPoint: this.configService.get('MINIO_ENDPOINT', { infer: true }) || 'localhost',
-      port: parseInt(this.configService.get('MINIO_PORT', { infer: true }) || '9000', 10),
-      useSSL: this.configService.get('MINIO_USE_SSL', { infer: true }) === 'true',
-      accessKey: (() => { const k = this.configService.get('MINIO_ACCESS_KEY', { infer: true }); if (!k) throw new Error('MINIO_ACCESS_KEY not configured'); return k; })(),
-      secretKey: (() => { const k = this.configService.get('MINIO_SECRET_KEY', { infer: true }); if (!k) throw new Error('MINIO_SECRET_KEY not configured'); return k; })(),
-    });
     this.bucket = this.configService.get('MINIO_BUCKET', { infer: true }) || 'artifacts';
   }
 

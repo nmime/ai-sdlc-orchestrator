@@ -4,10 +4,11 @@ import { clearAuth, getAuth } from '../lib/auth';
 import {
   LayoutDashboard, GitBranch, DollarSign, ShieldCheck,
   Monitor, FileCode, Settings, Key, Webhook, LogOut,
-  ChevronLeft, ChevronRight, Layers, Menu
+  ChevronLeft, ChevronRight, Layers, Menu, Sun, Moon
 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useTheme } from '../lib/theme';
 
 interface NavItem {
   to: string;
@@ -34,6 +35,7 @@ export function DashboardLayout() {
   const router = useRouterState();
   const currentPath = router.location.pathname;
   const auth = getAuth();
+  const { toggleTheme, theme } = useTheme();
 
   const handleLogout = () => {
     clearAuth();
@@ -79,6 +81,13 @@ export function DashboardLayout() {
       </nav>
 
       <div className="border-t border-divider p-2 space-y-1">
+        <button
+          onClick={toggleTheme}
+          className="hidden lg:flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-default-500 hover:bg-default-100 w-full"
+        >
+          {theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? <Sun size={18} /> : <Moon size={18} />}
+          {!collapsed && <span>{theme === 'system' ? 'System theme' : theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
+        </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="hidden lg:flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-default-500 hover:bg-default-100 w-full"

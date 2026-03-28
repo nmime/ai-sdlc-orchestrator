@@ -14,19 +14,14 @@ export class MetricsInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap({
-        next: () => this.record(method, route, context),
-        error: () => this.record(method, route, context),
         finalize: () => {
           const duration = (performance.now() - start) / 1000;
+          const res = context.switchToHttp().getResponse();
+          const status = String(res.statusCode ?? 200);
+          this.metrics.incCounter('http_requests_total', { method, route, status });
           this.metrics.observeHistogram('http_request_duration_seconds', duration, { method, route });
         },
       }),
     );
-  }
-
-  private record(method: string, route: string, context: ExecutionContext): void {
-    const res = context.switchToHttp().getResponse();
-    const status = String(res.statusCode ?? 200);
-    this.metrics.incCounter('http_requests_total', { method, route, status });
   }
 }
