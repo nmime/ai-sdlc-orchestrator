@@ -74,8 +74,8 @@ export function CostsPage() {
             <Card.Description>Where your money goes</Card.Description>
           </Card.Header>
           <Card.Content className="space-y-4">
-            <CostBar label="AI Provider" value={costs.aiCostUsd} total={costs.totalCostUsd} color="bg-primary" />
-            <CostBar label="Sandbox Compute" value={costs.sandboxCostUsd} total={costs.totalCostUsd} color="bg-success" />
+            <CostBar label="AI Provider" value={costs.aiCostUsd} total={costs.totalCostUsd} color="primary" />
+            <CostBar label="Sandbox Compute" value={costs.sandboxCostUsd} total={costs.totalCostUsd} color="success" />
             <div className="pt-4 border-t border-divider">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground">Total this month</span>
@@ -111,7 +111,15 @@ export function CostsPage() {
   );
 }
 
+const COLOR_CLASSES: Record<string, { bg: string; text: string; bar: string }> = {
+  primary: { bg: 'bg-primary/10', text: 'text-primary', bar: 'bg-primary' },
+  success: { bg: 'bg-success/10', text: 'text-success', bar: 'bg-success' },
+  warning: { bg: 'bg-warning/10', text: 'text-warning', bar: 'bg-warning' },
+  accent: { bg: 'bg-violet-100', text: 'text-violet-600', bar: 'bg-violet-500' },
+};
+
 function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string; sub: string; color: string }) {
+  const c = COLOR_CLASSES[color] ?? { bg: 'bg-primary/10', text: 'text-primary', bar: 'bg-primary' };
   return (
     <Card>
       <Card.Content className="pt-5">
@@ -121,8 +129,8 @@ function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.Elemen
             <p className="text-2xl font-bold text-foreground mt-1 tabular-nums">{value}</p>
             <p className="text-xs text-default-400 mt-0.5">{sub}</p>
           </div>
-          <div className={`w-10 h-10 rounded-lg bg-${color}/10 flex items-center justify-center`}>
-            <Icon size={20} className={`text-${color}`} />
+          <div className={`w-10 h-10 rounded-lg ${c.bg} flex items-center justify-center`}>
+            <Icon size={20} className={c.text} />
           </div>
         </div>
       </Card.Content>
@@ -132,6 +140,7 @@ function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.Elemen
 
 function CostBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
   const pct = total > 0 ? (value / total) * 100 : 0;
+  const c = COLOR_CLASSES[color] ?? { bg: 'bg-primary/10', text: 'text-primary', bar: 'bg-primary' };
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
@@ -139,7 +148,7 @@ function CostBar({ label, value, total, color }: { label: string; value: number;
         <span className="text-sm font-medium text-foreground tabular-nums">${value.toFixed(2)}</span>
       </div>
       <div className="h-2 bg-default-100 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${c.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
       <p className="text-xs text-default-400 mt-0.5">{pct.toFixed(0)}% of total</p>
     </div>
