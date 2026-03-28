@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { HttpException, HttpStatus } from '@nestjs/common';
+import { NotFoundError } from '@mikro-orm/core';
 import { AppErrorExceptionFilter } from '../filters/app-error-exception.filter';
 
 function createMockHost(reply: { status: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn> }) {
@@ -40,7 +41,6 @@ describe('AppErrorExceptionFilter', () => {
     const err = new Error('Entity not found');
     Object.setPrototypeOf(err, { constructor: { name: 'NotFoundError' } });
     (err as any).name = 'NotFoundError';
-    const { NotFoundError } = require('@mikro-orm/core');
     const notFoundErr = Object.create(NotFoundError.prototype);
     notFoundErr.message = 'not found';
     filter.catch(notFoundErr, host);

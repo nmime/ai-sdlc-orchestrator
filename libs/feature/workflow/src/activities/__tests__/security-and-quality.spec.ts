@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
-const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._:\/-]+$/;
+const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9._:/-]+$/;
 const SAFE_REPO_URL = /^(https:\/\/[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}\/|git@[a-zA-Z0-9._-]+:)/;
-const PATH_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
+const PATH_PATTERN = /^[a-zA-Z0-9._/-]+$/;
 const SAFE_CMD_PREFIXES = ['npm run', 'npx eslint', 'npx prettier', 'yarn lint', 'yarn run', 'pnpm lint', 'pnpm run'];
 
 function calculateQualityScore(
@@ -73,7 +73,7 @@ describe('Activity: URL validation patterns', () => {
 
     it('SAFE_REPO_URL is a prefix check — combined with URL_PATTERN for full safety', () => {
       const url = 'https://evil.com/$(cmd)';
-      const passesPrefix = SAFE_REPO_URL.test(url);
+      const _passesPrefix = SAFE_REPO_URL.test(url);
       const passesFullPattern = URL_PATTERN.test(url);
       expect(passesFullPattern).toBe(false);
     });

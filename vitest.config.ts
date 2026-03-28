@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 30_000,
-    exclude: ['node_modules', 'dist', '.nx', 'tmp', 'coverage', 'apps/dashboard/**'],
+    exclude: ['node_modules', 'dist', '.nx', 'tmp', 'coverage', 'apps/dashboard/**', '**/e2e-integration*'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],

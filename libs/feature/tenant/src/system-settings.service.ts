@@ -33,7 +33,7 @@ export class SystemSettingsService {
   async getOrEnv(key: string, envKey?: string): Promise<string | undefined> {
     const dbValue = await this.get(key);
     if (dbValue !== undefined) return dbValue;
-    return this.configService.get(envKey || key as any, { infer: true }) as string | undefined;
+    return this.configService.get((envKey || key) as keyof AppConfig, { infer: true }) as string | undefined;
   }
 
   async getNumber(key: string, envKey?: string): Promise<number | undefined> {

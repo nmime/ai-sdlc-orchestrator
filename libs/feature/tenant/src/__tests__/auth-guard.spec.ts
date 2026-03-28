@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
+import { describe, it, expect } from 'vitest';
 import { AuthGuard } from '../guards/auth.guard';
 import type { ExecutionContext } from '@nestjs/common';
 

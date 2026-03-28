@@ -25,7 +25,7 @@ export class DynamicConfigService {
     }
 
     const env = envFallback
-      ? (this.configService.get(envFallback as any, { infer: true }) as string | undefined)
+      ? (this.configService.get(envFallback as keyof AppConfig, { infer: true }) as string | undefined)
       : undefined;
     return env;
   }
@@ -44,8 +44,8 @@ export class DynamicConfigService {
   }
 
   async getForTenant<K extends keyof Tenant>(tenantId: string, field: K): Promise<Tenant[K] | undefined> {
-    const tenant = await this.em.findOne(Tenant, { id: tenantId }, { fields: [field] as any });
-    return tenant?.[field];
+    const tenant = await this.em.findOne(Tenant, { id: tenantId }, { fields: [field] as never });
+    return tenant?.[field] as Tenant[K] | undefined;
   }
 
   async getAgentConfig(tenantId: string): Promise<{
