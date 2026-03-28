@@ -1,6 +1,14 @@
 import { getAuth } from './auth';
+import toast from 'react-hot-toast';
 
 const API_BASE = '/api/v1';
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string, public body?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = getAuth();
@@ -14,14 +22,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers['Authorization'] = 'Bearer dev-dashboard';
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-  });
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${res.status}: ${text}`);
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); } catch { parsed = undefined; }
+    const msg = (parsed && typeof parsed === 'object' && 'message' in parsed)
+      ? String((parsed as { message: string }).message)
+      : `API ${res.status}: ${text}`;
+    throw new ApiError(res.status, msg, parsed);
   }
   return res.json();
 }
@@ -29,4 +39,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 export function getTenantId(): string {
   const auth = getAuth();
   return auth?.tenantId || '00000000-0000-0000-0000-000000000001';
+}
+
+export function mutationOptions(successMsg: string) {
+  return {
+    onSuccess: () => { toast.success(successMsg); },
+    onError: (err: Error) => { toast.error(err.message); },
+  };
 }
