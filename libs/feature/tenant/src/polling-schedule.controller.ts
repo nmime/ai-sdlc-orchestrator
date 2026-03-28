@@ -1,13 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, BadRequestException, Req, ForbiddenException, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
+import { TenantId } from './decorators/tenant-id.decorator';
 import { PollingSchedule, Tenant, TenantRepoConfig } from '@app/db';
 import { IsString, IsOptional, IsBoolean, IsInt, IsObject, MaxLength } from 'class-validator';
 import { sanitizeRecord } from '@app/common';
-import type { FastifyRequest } from 'fastify';
 
 class CreatePollingScheduleDto {
   @IsString()
@@ -51,18 +51,14 @@ export class PollingScheduleController {
   @Get()
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List polling schedules' })
-  async list(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: FastifyRequest): Promise<PollingSchedule[]> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async list(@TenantId() tenantId: string): Promise<PollingSchedule[]> {
     return this.em.find(PollingSchedule, { tenant: tenantId }, { limit: 200 });
   }
 
   @Post()
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Create polling schedule' })
-  async create(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Body() body: CreatePollingScheduleDto, @Req() req: FastifyRequest): Promise<PollingSchedule> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async create(@TenantId() tenantId: string, @Body() body: CreatePollingScheduleDto): Promise<PollingSchedule> {
     const repoConfig = await this.em.findOneOrFail(TenantRepoConfig, { id: body.repoConfigId, tenant: tenantId });
     const schedule = new PollingSchedule();
     schedule.tenant = this.em.getReference(Tenant, tenantId);
@@ -83,9 +79,7 @@ export class PollingScheduleController {
   @Put(':id')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Update polling schedule' })
-  async update(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdatePollingScheduleDto, @Req() req: FastifyRequest): Promise<PollingSchedule> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async update(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdatePollingScheduleDto): Promise<PollingSchedule> {
     const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
     if (body.queryFilter !== undefined) {
       try {
@@ -104,9 +98,7 @@ export class PollingScheduleController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete polling schedule' })
-  async delete(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest): Promise<void> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async delete(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     const schedule = await this.em.findOneOrFail(PollingSchedule, { id, tenant: tenantId });
     await this.em.removeAndFlush(schedule);
   }

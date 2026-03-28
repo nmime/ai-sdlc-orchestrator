@@ -14,7 +14,6 @@ function createMockTemporalClient() {
 describe('MultiRepoController', () => {
   let controller: MultiRepoController;
   let mockTemporal: ReturnType<typeof createMockTemporalClient>;
-  const mockReq = { user: { tenantId: 't-1', id: 'u-1', role: 'admin' } } as any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -23,7 +22,7 @@ describe('MultiRepoController', () => {
   });
 
   it('starts multi-repo workflow', async () => {
-    const result = await controller.startMultiRepo(mockReq, {
+    const result = await controller.startMultiRepo('t-1', {
       tenantId: 't-1', parentTaskId: 'task-1', taskProvider: 'github',
       repos: [{ repoId: 'r1', repoUrl: 'https://github.com/test/repo', taskId: 'issue-1' }],
     });
@@ -32,17 +31,9 @@ describe('MultiRepoController', () => {
 
   it('throws if tenant mismatch', async () => {
     await expect(
-      controller.startMultiRepo(mockReq, {
+      controller.startMultiRepo('t-1', {
         tenantId: 'other', parentTaskId: 'task-1', taskProvider: 'github', repos: [],
       }),
     ).rejects.toThrow('Cannot start workflows for another tenant');
-  });
-
-  it('throws if no tenant context', async () => {
-    await expect(
-      controller.startMultiRepo({ user: {} } as any, {
-        tenantId: 't-1', parentTaskId: 'task-1', taskProvider: 'github', repos: [],
-      }),
-    ).rejects.toThrow('Tenant context required');
   });
 });

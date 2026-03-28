@@ -12,8 +12,6 @@ const mockEm = {
   getConnection: vi.fn().mockReturnValue(mockConn),
 };
 
-const mockReq = (tenantId: string) => ({ user: { tenantId } }) as any;
-
 describe('CostController (integration)', () => {
   let controller: CostController;
 
@@ -29,7 +27,7 @@ describe('CostController (integration)', () => {
         monthlyCostLimitUsd: 100, monthlyCostReservedUsd: 10, monthlyCostActualUsd: 50,
       });
       mockConn.execute.mockResolvedValue([{ count: '2', total_ai: '8', total_sandbox: '3' }]);
-      const result = await controller.getTenantCosts('t-1', mockReq('t-1'));
+      const result = await controller.getTenantCosts('t-1', 't-1');
       expect(result.tenantId).toBe('t-1');
       expect(result.aiCostUsd).toBe(8);
       expect(result.sandboxCostUsd).toBe(3);
@@ -38,7 +36,7 @@ describe('CostController (integration)', () => {
     });
 
     it('rejects tenant mismatch', async () => {
-      await expect(controller.getTenantCosts('t-1', mockReq('t-2'))).rejects.toThrow(ForbiddenException);
+      await expect(controller.getTenantCosts('t-1', 't-2')).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -46,13 +44,13 @@ describe('CostController (integration)', () => {
     it('returns alerts', async () => {
       const alerts = [{ id: 'a-1', alertType: 'TENANT_TOTAL' }];
       mockEm.find.mockResolvedValue(alerts);
-      const result = await controller.getTenantAlerts('t-1', undefined, mockReq('t-1'));
+      const result = await controller.getTenantAlerts('t-1', undefined, 't-1');
       expect(result).toEqual(alerts);
     });
 
     it('respects limit parameter', async () => {
       mockEm.find.mockResolvedValue([]);
-      await controller.getTenantAlerts('t-1', '10', mockReq('t-1'));
+      await controller.getTenantAlerts('t-1', '10', 't-1');
       expect(mockEm.find).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
@@ -61,7 +59,7 @@ describe('CostController (integration)', () => {
     });
 
     it('rejects tenant mismatch', async () => {
-      await expect(controller.getTenantAlerts('t-1', undefined, mockReq('t-2'))).rejects.toThrow(ForbiddenException);
+      await expect(controller.getTenantAlerts('t-1', undefined, 't-2')).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -77,13 +75,9 @@ describe('CostController (integration)', () => {
           startedAt: new Date('2025-01-01'), completedAt: new Date('2025-01-01T00:05:00'),
         },
       ]);
-      const result = await controller.getWorkflowCost({ user: { tenantId: 't-1' } } as any, 'wf-1');
+      const result = await controller.getWorkflowCost('t-1', 'wf-1');
       expect(result.totalCostUsd).toBe(5);
       expect((result.sessions as unknown as Array<{ duration: number }>)[0].duration).toBe(300);
-    });
-
-    it('rejects when no tenant context', async () => {
-      await expect(controller.getWorkflowCost({ user: {} } as any, 'wf-1')).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -93,7 +87,7 @@ describe('CostController (integration)', () => {
         { repo_id: 'repo-1', ai: '5', sandbox: '2', count: '2' },
         { repo_id: 'repo-2', ai: '5', sandbox: '3', count: '1' },
       ]);
-      const result = await controller.getCostsByRepo('t-1', mockReq('t-1'));
+      const result = await controller.getCostsByRepo('t-1', 't-1');
       expect(result).toHaveLength(2);
       const repo1 = result.find(r => r.repoId === 'repo-1')!;
       expect(repo1.totalCostUsd).toBe(7);
@@ -101,7 +95,7 @@ describe('CostController (integration)', () => {
     });
 
     it('rejects tenant mismatch', async () => {
-      await expect(controller.getCostsByRepo('t-1', mockReq('t-2'))).rejects.toThrow(ForbiddenException);
+      await expect(controller.getCostsByRepo('t-1', 't-2')).rejects.toThrow(ForbiddenException);
     });
   });
 });

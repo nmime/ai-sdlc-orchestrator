@@ -1,13 +1,12 @@
-import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowArtifact, ArtifactKind, ArtifactStatus, WorkflowMirror, Tenant } from '@app/db';
 import { IsString, IsOptional, IsEnum, MaxLength, Matches } from 'class-validator';
 import * as Minio from 'minio';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
-import type { FastifyRequest } from 'fastify';
 
 class UploadArtifactDto {
   @IsString()
@@ -62,11 +61,9 @@ export class ArtifactController {
   @Post('presigned-upload')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Get presigned upload URL for artifact' })
-  async getPresignedUpload(@Req() req: FastifyRequest, @Body() body: UploadArtifactDto): Promise<{ uploadUrl: string; artifactId: string }> {
-    const userTenantId = (req as any).user?.tenantId;
-    if (!userTenantId) throw new ForbiddenException('Tenant context required');
-    if (body.tenantId !== userTenantId) throw new ForbiddenException('Cannot create artifacts for another tenant');
-    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: body.workflowId, tenant: userTenantId });
+  async getPresignedUpload(@TenantId() authTenantId: string, @Body() body: UploadArtifactDto): Promise<{ uploadUrl: string; artifactId: string }> {
+    if (body.tenantId !== authTenantId) throw new ForbiddenException('Cannot create artifacts for another tenant');
+    const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: body.workflowId, tenant: authTenantId });
     const artifact = new WorkflowArtifact();
     artifact.workflow = this.em.getReference(WorkflowMirror, mirror.id);
     artifact.tenant = this.em.getReference(Tenant, body.tenantId);
@@ -87,9 +84,7 @@ export class ArtifactController {
   @Roles('admin', 'operator')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish artifact after upload' })
-  async publishArtifact(@Req() req: FastifyRequest, @Param('id') id: string): Promise<{ status: string }> {
-    const tenantId = (req as any).user?.tenantId;
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async publishArtifact(@TenantId() tenantId: string, @Param('id') id: string): Promise<{ status: string }> {
     const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id, tenant: tenantId });
     artifact.status = ArtifactStatus.PUBLISHED;
     await this.em.flush();
@@ -99,9 +94,7 @@ export class ArtifactController {
   @Get(':id/download')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get presigned download URL for artifact' })
-  async getDownloadUrl(@Req() req: FastifyRequest, @Param('id') id: string): Promise<{ downloadUrl: string }> {
-    const tenantId = (req as any).user?.tenantId;
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async getDownloadUrl(@TenantId() tenantId: string, @Param('id') id: string): Promise<{ downloadUrl: string }> {
     const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id, tenant: tenantId });
     const objectKey = artifact.uri.replace(`s3://${this.bucket}/`, '');
     const presignedTtl = parseInt(this.configService.get('MINIO_PRESIGNED_TTL_SECONDS', { infer: true }) || '3600', 10);

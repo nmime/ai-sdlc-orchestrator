@@ -1,10 +1,9 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { TemporalClientService } from '@app/common';
 import { IsString, IsArray, ValidateNested, IsOptional, IsIn, ArrayMaxSize, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FastifyRequest } from 'fastify';
 
 class RepoInput {
   @IsString()
@@ -61,10 +60,8 @@ export class MultiRepoController {
   @Roles('admin', 'operator')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Start a multi-repo workflow' })
-  async startMultiRepo(@Req() req: FastifyRequest, @Body() body: StartMultiRepoDto): Promise<{ workflowId: string }> {
-    const userTenantId = (req as any).user?.tenantId;
-    if (!userTenantId) throw new ForbiddenException('Tenant context required');
-    if (body.tenantId !== userTenantId) throw new ForbiddenException('Cannot start workflows for another tenant');
+  async startMultiRepo(@TenantId() authTenantId: string, @Body() body: StartMultiRepoDto): Promise<{ workflowId: string }> {
+    if (body.tenantId !== authTenantId) throw new ForbiddenException('Cannot start workflows for another tenant');
     const client = await this.temporalClient.getClient();
     const workflowId = `multi-repo-${body.parentTaskId}`;
 

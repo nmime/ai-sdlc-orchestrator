@@ -15,19 +15,14 @@ function createMockEm() {
 describe('SseController', () => {
   let controller: SseController;
   const mockConfig = { get: () => '100' };
-  const mockReq = { user: { tenantId: 't-1' } } as any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     controller = new SseController(createMockEm(), mockConfig as any);
   });
 
-  it('throws if no tenant context', () => {
-    expect(() => controller.events({ user: {} } as any)).toThrow('Tenant context required');
-  });
-
   it('returns an Observable', () => {
-    const obs = controller.events(mockReq);
+    const obs = controller.events('t-1');
     expect(obs).toBeDefined();
     expect(typeof obs.subscribe).toBe('function');
   });

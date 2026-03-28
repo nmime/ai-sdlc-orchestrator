@@ -1,10 +1,9 @@
-import { Controller, Post, Body, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard, RbacGuard, Roles } from '@app/feature-tenant';
+import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService, isInternalUrl } from '@app/common';
 import { TenantMcpServer, TenantRepoConfig } from '@app/db';
-import { FastifyRequest } from 'fastify';
 import { IsString, IsOptional, MaxLength } from 'class-validator';
 
 export class TestMcpConnectivityDto {
@@ -48,9 +47,8 @@ export class TestController {
   @Post('mcp-connectivity')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test MCP server connectivity' })
-  async testMcpConnectivity(@Body() body: TestMcpConnectivityDto, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
-    const userTenantId = (req as any).user?.tenantId;
-    if (!userTenantId || userTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
+  async testMcpConnectivity(@Body() body: TestMcpConnectivityDto, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
+    if (authTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
     const where: Record<string, unknown> = { tenant: body.tenantId, isEnabled: true };
     if (body.serverName) where['name'] = body.serverName;
@@ -77,9 +75,8 @@ export class TestController {
   @Post('sandbox')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test sandbox boot and health' })
-  async testSandbox(@Body() body: TestSandboxDto, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
-    const userTenantId = (req as any).user?.tenantId;
-    if (!userTenantId || userTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
+  async testSandbox(@Body() body: TestSandboxDto, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
+    if (authTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
     try {
       const client = await this.temporalClient.getClient();
@@ -106,9 +103,8 @@ export class TestController {
   @Post('agent-dry-run')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test agent invocation with mock task' })
-  async testAgentDryRun(@Body() body: TestAgentDryRunDto, @Req() req: FastifyRequest): Promise<Record<string, unknown>> {
-    const userTenantId = (req as any).user?.tenantId;
-    if (!userTenantId || userTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
+  async testAgentDryRun(@Body() body: TestAgentDryRunDto, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
+    if (authTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
     const repoConfig = body.repoId
       ? await this.em.findOne(TenantRepoConfig, { tenant: body.tenantId, repoId: body.repoId })

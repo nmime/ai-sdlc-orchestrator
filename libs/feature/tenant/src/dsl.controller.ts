@@ -1,13 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, BadRequestException, Req, ForbiddenException, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard } from './guards/auth.guard';
 import { RbacGuard } from './guards/rbac.guard';
 import { Roles } from './decorators/roles.decorator';
+import { TenantId } from './decorators/tenant-id.decorator';
 import { WorkflowDsl, Tenant } from '@app/db';
 import { IsString, IsObject, IsOptional, IsBoolean, MaxLength } from 'class-validator';
 import { sanitizeRecord } from '@app/common';
-import type { FastifyRequest } from 'fastify';
 
 class CreateDslDto {
   @IsString()
@@ -42,18 +42,14 @@ export class DslController {
   @Get()
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflow DSLs for tenant' })
-  async list(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Req() req: FastifyRequest): Promise<WorkflowDsl[]> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async list(@TenantId() tenantId: string): Promise<WorkflowDsl[]> {
     return this.em.find(WorkflowDsl, { tenant: tenantId }, { orderBy: { name: 'ASC', version: 'DESC' }, limit: 200 });
   }
 
   @Post('validate')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Validate a DSL definition' })
-  async validate(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Body() body: { yaml?: string }, @Req() req: FastifyRequest): Promise<{ valid: boolean; errors: string[] }> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async validate(@TenantId() tenantId: string, @Body() body: { yaml?: string }): Promise<{ valid: boolean; errors: string[] }> {
     if (!body.yaml || typeof body.yaml !== 'string' || body.yaml.trim().length === 0) {
       return { valid: false, errors: ['YAML content is required'] };
     }
@@ -72,9 +68,7 @@ export class DslController {
   @Post()
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Create a new DSL version' })
-  async create(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Body() body: CreateDslDto, @Req() req: FastifyRequest): Promise<WorkflowDsl> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async create(@TenantId() tenantId: string, @Body() body: CreateDslDto): Promise<WorkflowDsl> {
     const existing = await this.em.find(WorkflowDsl, { tenant: tenantId, name: body.name }, { orderBy: { version: 'DESC' }, limit: 1 });
     const nextVersion = existing.length > 0 ? (existing[0]?.version ?? 0) + 1 : 1;
 
@@ -98,18 +92,14 @@ export class DslController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get DSL by ID' })
-  async get(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest): Promise<WorkflowDsl> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async get(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string): Promise<WorkflowDsl> {
     return this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
   }
 
   @Put(':id')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Update DSL' })
-  async update(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateDslDto, @Req() req: FastifyRequest): Promise<WorkflowDsl> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async update(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Body() body: UpdateDslDto): Promise<WorkflowDsl> {
     const dsl = await this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
     if (body.definition !== undefined) {
       try {
@@ -127,9 +117,7 @@ export class DslController {
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete DSL' })
-  async delete(@Param('tenantId', ParseUUIDPipe) tenantId: string, @Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest): Promise<void> {
-    const userTenantId = (req as { user?: { tenantId?: string } }).user?.tenantId;
-    if (!userTenantId || userTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+  async delete(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     const dsl = await this.em.findOneOrFail(WorkflowDsl, { id, tenant: tenantId });
     await this.em.removeAndFlush(dsl);
   }
