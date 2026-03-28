@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AppConfigModule, LoggerModule, DatabaseModule, TemporalModule, MinioModule } from '@app/common';
+import { AppConfigModule, LoggerModule, DatabaseModule, TemporalModule, MinioModule, RequestIdMiddleware } from '@app/common';
 import { BootstrapService } from '@app/common';
 import { TenantModule } from '@app/feature-tenant';
 import { WebhookModule } from '@app/feature-webhook';
@@ -44,4 +44,8 @@ const isProduction = process.env['NODE_ENV'] === 'production';
   ],
   providers: [BootstrapService, CostResetService, NotificationService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
