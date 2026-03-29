@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, Button, Chip } from '@heroui/react';
 import { apiFetch, getTenantId } from '../lib/api';
 import { getAuth, setAuth } from '../lib/auth';
-import { Settings, Database, User } from 'lucide-react';
+import { Settings, Database, User, Shield, AlertTriangle } from 'lucide-react';
 
 interface SystemSetting {
   key: string;
@@ -56,16 +56,21 @@ export function SettingsPage() {
             <Card.Description>API authentication and tenant scope</Card.Description>
           </Card.Header>
           <Card.Content className="space-y-4">
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 flex items-start gap-2">
+              <AlertTriangle size={16} className="text-warning flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-warning">Changing these values will affect all API requests. Make sure you have the correct credentials.</p>
+            </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">API Token</label>
               <input type="password" value={token} onChange={(e) => setToken(e.target.value)}
                 placeholder="Leave empty for dev bypass"
+                autoComplete="off"
                 className="w-full px-4 py-2.5 rounded-lg border border-divider bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-default-400" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Tenant ID</label>
               <input type="text" value={tenantId} onChange={(e) => setTenantIdLocal(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-divider bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                className="w-full px-4 py-2.5 rounded-lg border border-divider bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono" />
             </div>
           </Card.Content>
           <Card.Footer>

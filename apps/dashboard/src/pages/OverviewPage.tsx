@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { Card, Chip, Spinner, ProgressBar } from '@heroui/react';
 import { apiFetch, getTenantId } from '../lib/api';
-import { GitBranch, DollarSign, ShieldCheck, Activity } from 'lucide-react';
+import {
+  GitBranch, DollarSign, ShieldCheck, Activity, ArrowRight,
+  Webhook, Key, FileCode, Terminal, Rocket, BookOpen, ExternalLink
+} from 'lucide-react';
 
 export function OverviewPage() {
   const tenantId = getTenantId();
@@ -24,6 +28,7 @@ export function OverviewPage() {
 
   const usagePercent = costs && costs.limitUsd > 0 ? (costs.totalCostUsd / costs.limitUsd) * 100 : 0;
   const runningCount = workflows?.data?.filter(w => w.status === 'running').length ?? 0;
+  const hasWorkflows = (workflows?.total ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -39,30 +44,88 @@ export function OverviewPage() {
         <StatCard icon={Activity} label="AI Cost" value={`$${(costs?.aiCostUsd ?? 0).toFixed(2)}`} color="accent" sub="this month" />
       </div>
 
+      {!wfLoading && !hasWorkflows && (
+        <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
+          <Card.Content className="py-8">
+            <div className="flex items-start gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Rocket size={28} className="text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold text-foreground">Welcome to AI SDLC Orchestrator</h2>
+                <p className="text-sm text-default-500 mt-1">Get started by completing these steps to run your first AI-powered workflow.</p>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <SetupStep
+                    step={1}
+                    icon={Key}
+                    title="Create an API Key"
+                    description="Generate credentials for API access"
+                    to="/app/api-keys"
+                  />
+                  <SetupStep
+                    step={2}
+                    icon={Webhook}
+                    title="Configure Webhooks"
+                    description="Connect your Git provider"
+                    to="/app/webhooks"
+                  />
+                  <SetupStep
+                    step={3}
+                    icon={FileCode}
+                    title="Define a Workflow DSL"
+                    description="Create your pipeline definition"
+                    to="/app/dsl"
+                  />
+                </div>
+              </div>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card>
             <Card.Header>
-              <Card.Title>Recent Workflows</Card.Title>
+              <div className="flex items-center justify-between w-full">
+                <Card.Title>Recent Workflows</Card.Title>
+                {hasWorkflows && (
+                  <Link to="/app/workflows" className="text-xs text-primary hover:underline flex items-center gap-1">
+                    View all <ArrowRight size={12} />
+                  </Link>
+                )}
+              </div>
             </Card.Header>
             {wfLoading ? (
               <Card.Content><div className="flex justify-center py-8"><Spinner /></div></Card.Content>
             ) : (
               <div className="divide-y divide-divider">
                 {(workflows?.data ?? []).map((wf) => (
-                  <div key={wf.id} className="px-5 py-3.5 flex items-center justify-between">
+                  <Link
+                    key={wf.id}
+                    to="/app/workflows/$workflowId"
+                    params={{ workflowId: wf.id }}
+                    className="px-5 py-3.5 flex items-center justify-between hover:bg-default-50 transition-colors group"
+                  >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">{wf.taskTitle}</p>
+                      <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">{wf.taskTitle}</p>
                       <p className="text-xs text-default-400 mt-0.5">{new Date(wf.startedAt).toLocaleString()}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <StatusChip status={wf.status} />
                       <span className="text-xs font-medium text-default-600 tabular-nums">${(wf.totalCostUsd ?? 0).toFixed(2)}</span>
+                      <ExternalLink size={14} className="text-default-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                  </div>
+                  </Link>
                 ))}
                 {(workflows?.data ?? []).length === 0 && (
-                  <div className="px-5 py-12 text-center text-sm text-default-400">No workflows yet. Create one via webhook or API.</div>
+                  <div className="px-5 py-12 text-center">
+                    <Terminal size={32} className="mx-auto text-default-200 mb-3" />
+                    <p className="text-sm text-default-400">No workflows yet. Create one via webhook or API.</p>
+                    <Link to="/app/webhooks" className="inline-flex items-center gap-1 mt-3 text-xs text-primary hover:underline">
+                      Set up webhooks <ArrowRight size={12} />
+                    </Link>
+                  </div>
                 )}
               </div>
             )}
@@ -108,11 +171,44 @@ export function OverviewPage() {
                 <span className="text-sm text-default-500">Avg cost/workflow</span>
                 <span className="text-sm font-medium">${costs && costs.workflowCount > 0 ? (costs.totalCostUsd / costs.workflowCount).toFixed(2) : '0.00'}</span>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-default-500">Remaining budget</span>
+                <span className="text-sm font-medium">${((costs?.limitUsd ?? 0) - (costs?.totalCostUsd ?? 0)).toFixed(2)}</span>
+              </div>
             </Card.Content>
           </Card>
+
+          {(gates?.data?.length ?? 0) > 0 && (
+            <Card className="border-l-4 border-warning">
+              <Card.Content className="py-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck size={20} className="text-warning flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{gates?.data?.length} gate{(gates?.data?.length ?? 0) !== 1 ? 's' : ''} awaiting approval</p>
+                    <Link to="/app/gates" className="text-xs text-primary hover:underline">Review now</Link>
+                  </div>
+                </div>
+              </Card.Content>
+            </Card>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function SetupStep({ step, icon: Icon, title, description, to }: { step: number; icon: React.ElementType; title: string; description: string; to: string }) {
+  return (
+    <Link to={to} className="flex items-start gap-3 p-4 rounded-xl bg-background border border-divider hover:border-primary/50 hover:shadow-sm transition-all group">
+      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <Icon size={16} className="text-primary" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-default-400 font-medium">Step {step}</p>
+        <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{title}</p>
+        <p className="text-xs text-default-500 mt-0.5">{description}</p>
+      </div>
+    </Link>
   );
 }
 

@@ -6,7 +6,7 @@ import { apiFetch, mutationOptions } from '../lib/api';
 import { RelativeTime } from '../components/RelativeTime';
 import {
   ArrowLeft, GitBranch, Clock, DollarSign, Cpu, Monitor,
-  ShieldCheck, XCircle, CheckCircle2, Coins, RefreshCw
+  ShieldCheck, XCircle, CheckCircle2, Coins, RefreshCw, RotateCcw, ExternalLink
 } from 'lucide-react';
 
 interface WorkflowDetail {
@@ -103,6 +103,17 @@ export function WorkflowDetailPage() {
     },
   });
 
+  const retryMutation = useMutation({
+    mutationFn: () => apiFetch(`/workflows/${workflowId}/retry`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }),
+    ...mutationOptions('Workflow retry initiated'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+    },
+  });
+
   if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
   if (!wf) return <div className="text-center py-16 text-default-500">Workflow not found</div>;
 
@@ -124,6 +135,11 @@ export function WorkflowDetailPage() {
         {(wf.status === 'running' || wf.status === 'awaiting_gate') && (
           <Button variant="outline" size="sm" onPress={() => cancelMutation.mutate()} isDisabled={cancelMutation.isPending}>
             <XCircle size={14} className="mr-1" /> Cancel
+          </Button>
+        )}
+        {(wf.status === 'failed' || wf.status === 'cancelled') && (
+          <Button variant="primary" size="sm" onPress={() => retryMutation.mutate()} isDisabled={retryMutation.isPending}>
+            <RotateCcw size={14} className="mr-1" /> Retry
           </Button>
         )}
       </div>
@@ -159,8 +175,8 @@ export function WorkflowDetailPage() {
             {wf.pullRequestUrl && (
               <div>
                 <span className="text-default-400 block text-xs">Pull Request</span>
-                <a href={wf.pullRequestUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                  View PR
+                <a href={wf.pullRequestUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                  View PR <ExternalLink size={12} />
                 </a>
               </div>
             )}

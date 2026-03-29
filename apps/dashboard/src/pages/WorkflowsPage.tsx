@@ -5,7 +5,7 @@ import { Card, Chip, Spinner, EmptyState } from '@heroui/react';
 import { apiFetch } from '../lib/api';
 import { Pagination } from '../components/Pagination';
 import { RelativeTime } from '../components/RelativeTime';
-import { GitBranch, Search, ExternalLink } from 'lucide-react';
+import { GitBranch, Search, ExternalLink, Plus } from 'lucide-react';
 
 interface Workflow {
   id: string;
@@ -51,6 +51,15 @@ export function WorkflowsPage() {
           <h1 className="text-2xl font-bold text-foreground">Workflows</h1>
           <p className="text-sm text-default-500 mt-1">{data?.total ?? 0} total workflows</p>
         </div>
+        <a
+          href={`${import.meta.env.VITE_API_URL || '/api/v1'}/docs`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-default-600 border border-divider hover:bg-default-100 transition-colors"
+        >
+          <Plus size={14} />
+          Create via API
+        </a>
       </div>
 
       <div className="flex items-center gap-3">
@@ -86,11 +95,21 @@ export function WorkflowsPage() {
           <Card.Content className="py-16">
             <EmptyState>
               <div className="text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
-                  <GitBranch size={24} className="text-default-400" />
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-default-100">
+                  <GitBranch size={28} className="text-default-400" />
                 </div>
-                <h3 className="text-base font-medium text-foreground">No workflows found</h3>
-                <p className="mt-1 text-sm text-default-500">Workflows appear when triggered by webhooks or the API.</p>
+                <h3 className="text-lg font-medium text-foreground">No workflows found</h3>
+                <p className="mt-1 text-sm text-default-500 max-w-sm mx-auto">
+                  Workflows are created when triggered by webhooks or the API. Set up a webhook integration to get started.
+                </p>
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  <Link to="/app/webhooks" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors">
+                    Configure Webhooks
+                  </Link>
+                  <Link to="/app/dsl" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-divider text-sm font-medium text-foreground hover:bg-default-100 transition-colors">
+                    Create DSL
+                  </Link>
+                </div>
               </div>
             </EmptyState>
           </Card.Content>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Outlet, Link, useRouterState } from '@tanstack/react-router';
 import { clearAuth, getAuth } from '../lib/auth';
 import {
@@ -20,9 +20,9 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/app', icon: LayoutDashboard, label: 'Overview', exact: true },
   { to: '/app/workflows', icon: GitBranch, label: 'Workflows' },
-  { to: '/app/costs', icon: DollarSign, label: 'Costs' },
-  { to: '/app/gates', icon: ShieldCheck, label: 'Gates' },
   { to: '/app/sessions', icon: Monitor, label: 'Sessions' },
+  { to: '/app/gates', icon: ShieldCheck, label: 'Gates' },
+  { to: '/app/costs', icon: DollarSign, label: 'Costs' },
   { to: '/app/dsl', icon: FileCode, label: 'DSL Editor' },
   { to: '/app/webhooks', icon: Webhook, label: 'Webhooks' },
   { to: '/app/api-keys', icon: Key, label: 'API Keys' },
@@ -37,9 +37,15 @@ export function DashboardLayout() {
   const auth = getAuth();
   const { toggleTheme, theme } = useTheme();
 
+  const currentPage = useMemo(() => {
+    if (currentPath.startsWith('/app/workflows/')) return { label: 'Workflow Detail', parent: { label: 'Workflows', to: '/app/workflows' } };
+    const item = NAV_ITEMS.find(i => i.exact ? (currentPath === '/app' || currentPath === '/app/') : (currentPath.startsWith(i.to) && i.to !== '/app'));
+    return item ? { label: item.label, parent: null } : { label: 'Overview', parent: null };
+  }, [currentPath]);
+
   const handleLogout = () => {
     clearAuth();
-    window.location.hash = '#/login';
+    window.location.href = '/login';
   };
 
   const sidebar = (
@@ -122,13 +128,25 @@ export function DashboardLayout() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 border-b border-divider bg-background px-4 md:px-6 flex items-center justify-between flex-shrink-0">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-lg hover:bg-default-100 lg:hidden"
-          >
-            <Menu size={20} className="text-default-600" />
-          </button>
-          <div className="hidden lg:block" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-2 rounded-lg hover:bg-default-100 lg:hidden"
+            >
+              <Menu size={20} className="text-default-600" />
+            </button>
+            <nav className="hidden lg:flex items-center gap-1.5 text-sm">
+              <Link to="/app" className="text-default-400 hover:text-foreground transition-colors">Dashboard</Link>
+              {currentPage.parent && (
+                <>
+                  <span className="text-default-300">/</span>
+                  <Link to={currentPage.parent.to} className="text-default-400 hover:text-foreground transition-colors">{currentPage.parent.label}</Link>
+                </>
+              )}
+              <span className="text-default-300">/</span>
+              <span className="text-foreground font-medium">{currentPage.label}</span>
+            </nav>
+          </div>
           <div className="flex items-center gap-3">
             <div className="h-2 w-2 rounded-full bg-success" />
             <span className="text-xs text-default-500">{auth?.email || 'dev@local'}</span>
