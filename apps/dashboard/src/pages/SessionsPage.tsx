@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Chip, Spinner } from '@heroui/react';
 import { apiFetch } from '../lib/api';
-import { Monitor, Cpu, Coins, Clock } from 'lucide-react';
+import { Monitor, Cpu, Coins, Clock, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Workflow {
   id: string;
@@ -31,12 +31,21 @@ interface AgentSession {
   completedAt: string | null;
 }
 
+type SortField = 'startedAt' | 'totalCostUsd' | 'tokens' | 'status';
+type SortDir = 'asc' | 'desc';
+
 const STATUS_COLOR: Record<string, 'default' | 'accent' | 'success' | 'danger'> = {
   running: 'accent', completed: 'success', failed: 'danger', cancelled: 'default',
 };
 
+const PAGE_SIZE = 10;
+
 export function SessionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sortField, setSortField] = useState<SortField>('startedAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [page, setPage] = useState(0);
 
   const { data: workflows, isLoading } = useQuery({
     queryKey: ['session-workflows'],
@@ -50,10 +59,57 @@ export function SessionsPage() {
     enabled: !!selectedId,
   });
 
+  const filtered = useMemo(() => {
+    const list = sessions ?? [];
+    if (!search.trim()) return list;
+    const q = search.toLowerCase();
+    return list.filter(
+      (s) =>
+        s.agentSummary?.toLowerCase().includes(q) ||
+        s.stepId.toLowerCase().includes(q) ||
+        s.status.toLowerCase().includes(q),
+    );
+  }, [sessions, search]);
+
+  const sorted = useMemo(() => {
+    const copy = [...filtered];
+    copy.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case 'startedAt':
+          cmp = new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime();
+          break;
+        case 'totalCostUsd':
+          cmp = a.totalCostUsd - b.totalCostUsd;
+          break;
+        case 'tokens':
+          cmp = (a.inputTokens + a.outputTokens) - (b.inputTokens + b.outputTokens);
+          break;
+        case 'status':
+          cmp = a.status.localeCompare(b.status);
+          break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return copy;
+  }, [filtered, sortField, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+    setPage(0);
+  };
+
   if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
 
   const wfList = workflows?.data ?? [];
-  const sessList = sessions ?? [];
 
   return (
     <div className="space-y-6">
@@ -73,7 +129,7 @@ export function SessionsPage() {
                 {wfList.map((wf) => (
                   <button
                     key={wf.id}
-                    onClick={() => setSelectedId(wf.id)}
+                    onClick={() => { setSelectedId(wf.id); setPage(0); setSearch(''); }}
                     className={`w-full text-left px-4 py-3 transition-colors hover:bg-default-100 ${
                       selectedId === wf.id ? 'bg-primary/5 border-l-3 border-primary' : ''
                     }`}
@@ -92,11 +148,37 @@ export function SessionsPage() {
 
         <Card className="w-2/3 overflow-hidden flex flex-col">
           {selectedId ? (
-            sessList.length > 0 ? (
-              <>
-                <Card.Header><Card.Title className="text-sm">Sessions ({sessList.length})</Card.Title></Card.Header>
-                <div className="overflow-y-auto flex-1 divide-y divide-divider">
-                  {sessList.map((s) => (
+            <>
+              <Card.Header>
+                <div className="flex items-center justify-between w-full">
+                  <Card.Title className="text-sm">Sessions ({filtered.length})</Card.Title>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400" />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                      placeholder="Search sessions..."
+                      className="pl-9 pr-3 py-1.5 rounded-lg border border-divider bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary w-56 placeholder:text-default-400"
+                    />
+                  </div>
+                </div>
+              </Card.Header>
+
+              <div className="border-b border-divider px-5 py-2 flex items-center gap-1 text-xs">
+                <SortButton label="Date" field="startedAt" current={sortField} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Cost" field="totalCostUsd" current={sortField} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Tokens" field="tokens" current={sortField} dir={sortDir} onClick={toggleSort} />
+                <SortButton label="Status" field="status" current={sortField} dir={sortDir} onClick={toggleSort} />
+              </div>
+
+              <div className="overflow-y-auto flex-1 divide-y divide-divider">
+                {paginated.length === 0 ? (
+                  <div className="flex items-center justify-center h-32 text-default-400 text-sm">
+                    {search ? 'No matching sessions' : 'No sessions for this workflow'}
+                  </div>
+                ) : (
+                  paginated.map((s) => (
                     <div key={s.id} className="px-5 py-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
@@ -113,12 +195,35 @@ export function SessionsPage() {
                       </div>
                       {s.errorCode && <p className="text-xs text-danger">Error: {s.errorCode}</p>}
                     </div>
-                  ))}
+                  ))
+                )}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="border-t border-divider px-5 py-2 flex items-center justify-between">
+                  <span className="text-xs text-default-400">
+                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      disabled={page === 0}
+                      className="p-1 rounded hover:bg-default-100 disabled:opacity-30 disabled:cursor-not-allowed text-default-500"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-xs text-default-500 px-2">{page + 1} / {totalPages}</span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                      disabled={page >= totalPages - 1}
+                      className="p-1 rounded hover:bg-default-100 disabled:opacity-30 disabled:cursor-not-allowed text-default-500"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full text-default-400 text-sm">No sessions for this workflow</div>
-            )
+              )}
+            </>
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -130,6 +235,27 @@ export function SessionsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function SortButton({ label, field, current, dir, onClick }: {
+  label: string;
+  field: SortField;
+  current: SortField;
+  dir: SortDir;
+  onClick: (f: SortField) => void;
+}) {
+  const active = current === field;
+  return (
+    <button
+      onClick={() => onClick(field)}
+      className={`flex items-center gap-0.5 px-2 py-1 rounded hover:bg-default-100 transition-colors ${
+        active ? 'text-primary font-medium' : 'text-default-500'
+      }`}
+    >
+      {label}
+      {active && (dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+    </button>
   );
 }
 

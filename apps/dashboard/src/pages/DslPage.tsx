@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, Button, Chip } from '@heroui/react';
 import { apiFetch, getTenantId } from '../lib/api';
+import { useTheme } from '../lib/theme';
 import { Save, CheckCircle2, XCircle } from 'lucide-react';
+import Editor from '@monaco-editor/react';
 
 interface DslRecord {
   id: string;
@@ -37,6 +39,14 @@ export function DslPage() {
   const [yaml, setYaml] = useState(DEFAULT_DSL);
   const [dslName, setDslName] = useState('my-workflow');
   const tenantId = getTenantId();
+  const { theme } = useTheme();
+
+  const isDark = useMemo(() => {
+    if (theme === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return theme === 'dark';
+  }, [theme]);
 
   const { data: dslList, refetch } = useQuery({
     queryKey: ['dsl-list', tenantId],
@@ -93,12 +103,24 @@ export function DslPage() {
               </div>
             </Card.Header>
             <Card.Content>
-              <textarea
-                value={yaml}
-                onChange={(e) => setYaml(e.target.value)}
-                className="w-full h-[450px] font-mono text-sm p-4 bg-[#0d1117] text-[#c9d1d9] rounded-xl border border-divider resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                spellCheck={false}
-              />
+              <div className="rounded-xl overflow-hidden border border-divider">
+                <Editor
+                  height="450px"
+                  language="yaml"
+                  theme={isDark ? 'vs-dark' : 'light'}
+                  value={yaml}
+                  onChange={(v) => setYaml(v ?? '')}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    tabSize: 2,
+                    padding: { top: 12, bottom: 12 },
+                  }}
+                />
+              </div>
             </Card.Content>
           </Card>
 
