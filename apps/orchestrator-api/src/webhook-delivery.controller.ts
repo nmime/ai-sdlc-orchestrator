@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
-import { WebhookDelivery, DeliveryStatus, WebhookPlatform } from '@app/db';
+import { WebhookDelivery } from '@app/db';
+import { WebhookDeliveryListQueryDto, PaginatedResponseDto } from '@app/common';
 
 @ApiTags('webhook-deliveries')
 @Controller('tenants/:tenantId/webhook-deliveries')
@@ -16,35 +17,26 @@ export class WebhookDeliveryController {
   @ApiOperation({ summary: 'List webhook deliveries for tenant' })
   async list(
     @Param('tenantId') tenantId: string,
-    @Query('limit') limit: string | undefined,
-    @Query('offset') offset: string | undefined,
-    @Query('status') status: string | undefined,
-    @Query('platform') platform: string | undefined,
+    @Query() query: WebhookDeliveryListQueryDto,
     @TenantId() authTenantId: string,
-  ): Promise<{ data: WebhookDelivery[]; total: number; limit: number; offset: number }> {
+  ): Promise<PaginatedResponseDto<WebhookDelivery>> {
     if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
-    if (status && !Object.values(DeliveryStatus).includes(status as DeliveryStatus)) {
-      throw new BadRequestException('Invalid status');
-    }
-    if (platform && !Object.values(WebhookPlatform).includes(platform as WebhookPlatform)) {
-      throw new BadRequestException('Invalid platform');
-    }
 
     const where: Record<string, unknown> = { tenant: tenantId };
-    if (status) where['status'] = status;
-    if (platform) where['platform'] = platform;
+    if (query.status) where['status'] = query.status;
+    if (query.platform) where['platform'] = query.platform;
 
     const [deliveries, total] = await this.em.findAndCount(
       WebhookDelivery,
       where,
       {
         orderBy: { createdAt: 'DESC' },
-        limit: Math.min(parseInt(limit || '50', 10), 200),
-        offset: Math.max(parseInt(offset || '0', 10), 0),
+        limit: query.limit,
+        offset: query.offset,
       },
     );
 
-    return { data: deliveries, total, limit: Math.min(parseInt(limit || '50', 10), 200), offset: Math.max(parseInt(offset || '0', 10), 0) };
+    return PaginatedResponseDto.of(deliveries, total, query.limit, query.offset);
   }
 
   @Get(':id')
