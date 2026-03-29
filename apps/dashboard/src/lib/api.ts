@@ -18,8 +18,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (auth?.token) {
     headers['Authorization'] = `Bearer ${auth.token}`;
-  } else {
-    headers['Authorization'] = 'Bearer dev-dashboard';
   }
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
@@ -31,6 +29,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     const msg = (parsed && typeof parsed === 'object' && 'message' in parsed)
       ? String((parsed as { message: string }).message)
       : `API ${res.status}: ${text}`;
+    if (res.status === 401) {
+      const { clearAuth } = await import('./auth');
+      clearAuth();
+      window.location.href = '/login';
+    }
     throw new ApiError(res.status, msg, parsed);
   }
   return res.json();

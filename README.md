@@ -36,6 +36,8 @@ The orchestrator handles everything an agent can't: webhook ingestion, durable w
 | **Multi-tenant** | Full tenant isolation, per-repo config, RBAC. |
 | **DSL-driven** | Define workflows in typed YAML — compiled to Temporal. |
 | **MCP-native** | Platform integrations (Jira, GitLab, GitHub, Linear) via MCP. |
+| **Dark mode** | System-aware theme toggle with semantic color tokens. |
+| **Monaco editor** | Built-in DSL editor with YAML syntax highlighting. |
 
 ---
 
@@ -148,13 +150,27 @@ curl http://localhost:3000/api/v1/health/live
 
 ---
 
+## Dashboard
+
+The dashboard (`apps/dashboard/`) provides a full-featured management UI built with React 19, HeroUI v3, and TanStack Router.
+
+**Key features:**
+- **Dark mode** — system-aware toggle (light/dark/system) with semantic color tokens
+- **Monaco editor** — built-in YAML editor for DSL workflows with syntax highlighting
+- **Sessions page** — paginated, searchable, and sortable agent session table
+- **Cost tracking** — real-time cost visualization with per-tenant and per-workflow breakdowns
+- **Auth hardening** — no dev fallback tokens; requires real authentication
+- **Responsive** — collapsible sidebar, mobile-friendly layout
+
+---
+
 ## Tech Stack
 
 <table>
 <tr><td><b>Runtime</b></td><td>Node.js 24 · TypeScript 5.9 (strict) · pnpm 10</td></tr>
 <tr><td><b>Monorepo</b></td><td>Nx 22 — 5 apps, 15 libraries, incremental builds</td></tr>
 <tr><td><b>Backend</b></td><td>NestJS 11 + Fastify · Temporal (self-hosted) · MikroORM</td></tr>
-<tr><td><b>Frontend</b></td><td>React 19 · HeroUI v3 · TanStack Router + Query · Tailwind CSS 4 · Recharts</td></tr>
+<tr><td><b>Frontend</b></td><td>React 19 · HeroUI v3 · TanStack Router + Query · Tailwind CSS 4 · Recharts · Monaco Editor</td></tr>
 <tr><td><b>Database</b></td><td>PostgreSQL 17 + PgBouncer · Redis 7 · Elasticsearch 8</td></tr>
 <tr><td><b>Sandbox</b></td><td>E2B (Firecracker) / K8s Agent Sandbox + Kata Containers</td></tr>
 <tr><td><b>AI Agent</b></td><td>Provider-agnostic (<code>AiAgentPort</code>) — config-driven adapter loading</td></tr>
@@ -360,6 +376,17 @@ MY_PROVIDER_API_KEY=sk-xxx
 ```
 
 ---
+
+## CI/CD
+
+- **GitHub Actions** with Nx-optimized pipelines
+- **Nx cache** via `actions/cache@v4` for faster builds
+- **Affected commands** — only lint/typecheck/test/build changed projects
+- **Docker build matrix** — parallel builds for all 5 services (api, worker, agent, dashboard, credential-proxy)
+- **Release pipeline** — semantic versioning with Helm chart packaging
+
+---
+
 
 ## Testing
 

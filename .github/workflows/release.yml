@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [api, worker, credential-proxy, dashboard]
+        service: [api, worker, agent, credential-proxy, dashboard]
     steps:
       - uses: actions/checkout@v4
 
