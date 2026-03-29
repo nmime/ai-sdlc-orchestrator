@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   RouterProvider, createRouter, createRootRoute, createRoute,
-  Outlet, redirect, createHashHistory
+  Outlet, redirect
 } from '@tanstack/react-router';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppToaster } from './components/Toast';
@@ -80,8 +80,7 @@ const routeTree = rootRoute.addChildren([
   ]),
 ]);
 
-const hashHistory = createHashHistory();
-const router = createRouter({ routeTree, history: hashHistory });
+const router = createRouter({ routeTree });
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
