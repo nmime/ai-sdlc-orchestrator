@@ -48,6 +48,7 @@ export function DashboardLayout() {
 
   const handleLogout = () => {
     clearAuth();
+    fetch('/auth/logout', { method: 'POST' }).catch(() => {});
     window.location.href = '/login';
   };
 
@@ -151,8 +152,12 @@ export function DashboardLayout() {
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-success" />
-            <span className="text-xs text-default-500">{auth?.email || 'dev@local'}</span>
+            {auth?.picture ? (
+              <img src={auth.picture} alt="" className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="h-2 w-2 rounded-full bg-success" />
+            )}
+            <span className="text-xs text-default-500">{auth?.name || auth?.email || 'dev@local'}</span>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6">

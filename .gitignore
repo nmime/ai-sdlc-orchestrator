@@ -18,7 +18,9 @@ tmp/
 
 # Environment
 .env
-.env.*
+.env.local
+.env.*.local
+.keys.json
 !.env.example
 
 # Test & coverage

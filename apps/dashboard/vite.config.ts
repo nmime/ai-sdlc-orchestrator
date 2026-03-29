@@ -23,6 +23,15 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      '/auth': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        bypass(req) {
+          if (req.url?.startsWith('/auth/callback') && req.headers.accept?.includes('text/html')) {
+            return req.url;
+          }
+        },
+      },
     },
   },
 });

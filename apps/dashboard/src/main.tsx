@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppToaster } from './components/Toast';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { OverviewPage } from './pages/OverviewPage';
@@ -44,6 +45,7 @@ const rootRoute = createRootRoute({
 
 const landingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: LandingPage });
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: '/login', component: LoginPage });
+const authCallbackRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auth/callback', component: AuthCallbackPage });
 
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -70,6 +72,7 @@ const billingRoute = createRoute({ getParentRoute: () => dashboardRoute, path: '
 const routeTree = rootRoute.addChildren([
   landingRoute,
   loginRoute,
+  authCallbackRoute,
   dashboardRoute.addChildren([
     overviewRoute,
     workflowsRoute,
