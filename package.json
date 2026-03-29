@@ -106,7 +106,7 @@
     "@nx/react": "^21.2.0",
     "@nx/vite": "^21.2.0",
     "@nx/web": "^21.2.0",
-    "@nx/workspace": "^21.2.0",
+    "@nx/workspace": "^22.6.3",
     "@swc-node/register": "^1.10.10",
     "@swc/core": "^1.11.0",
     "@swc/helpers": "^0.5.19",
