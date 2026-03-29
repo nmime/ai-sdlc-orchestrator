@@ -1,4 +1,5 @@
 import { WorkflowsController } from '../workflows.controller';
+import { WorkflowListQueryDto } from '../../../../libs/common/src/dto';
 
 const mockEm = {
   find: vi.fn(),
@@ -17,7 +18,7 @@ describe('WorkflowsController (integration)', () => {
   describe('GET /', () => {
     it('returns paginated list', async () => {
       mockEm.findAndCount.mockResolvedValue([[{ id: 'wf-1' }], 1]);
-      const result = await controller.list('t-1');
+      const result = await controller.list('t-1', Object.assign(new WorkflowListQueryDto(), {}));
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
       expect(result.limit).toBe(50);
@@ -26,7 +27,7 @@ describe('WorkflowsController (integration)', () => {
 
     it('applies filters', async () => {
       mockEm.findAndCount.mockResolvedValue([[], 0]);
-      await controller.list('t-1', 'implementing', 'repo-1', '10', '5');
+      await controller.list('t-1', Object.assign(new WorkflowListQueryDto(), { status: 'implementing', repoId: 'repo-1', limit: 10, offset: 5 }));
       expect(mockEm.findAndCount).toHaveBeenCalledWith(
         expect.anything(),
         { tenant: 't-1', state: 'implementing', repoId: 'repo-1' },

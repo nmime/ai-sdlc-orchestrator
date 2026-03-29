@@ -1,8 +1,9 @@
-import { Controller, Get, Query, Param, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
-import { WorkflowMirror, WorkflowEvent, AgentSession, WorkflowArtifact, WorkflowStatus } from '@app/db';
+import { WorkflowMirror, WorkflowEvent, AgentSession, WorkflowArtifact } from '@app/db';
+import { WorkflowListQueryDto, PaginatedResponseDto } from '@app/common';
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -16,27 +17,19 @@ export class WorkflowsController {
   @ApiOperation({ summary: 'List workflows with pagination and filters' })
   async list(
     @TenantId() tenantId: string,
-    @Query('status') status?: string,
-    @Query('repoId') repoId?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ): Promise<{ data: WorkflowMirror[]; total: number; limit: number; offset: number }> {
-    if (status && !Object.values(WorkflowStatus).includes(status as WorkflowStatus)) {
-      throw new BadRequestException('Invalid status');
-    }
-    const parsedLimit = Math.min(parseInt(limit || '50', 10), 200);
-    const parsedOffset = Math.max(parseInt(offset || '0', 10), 0);
+    @Query() query: WorkflowListQueryDto,
+  ): Promise<PaginatedResponseDto<WorkflowMirror>> {
     const where: Record<string, unknown> = { tenant: tenantId };
-    if (status) where['state'] = status;
-    if (repoId) where['repoId'] = repoId;
+    if (query.status) where['state'] = query.status;
+    if (query.repoId) where['repoId'] = query.repoId;
 
     const [workflows, total] = await this.em.findAndCount(WorkflowMirror, where, {
       orderBy: { createdAt: 'DESC' },
-      limit: parsedLimit,
-      offset: parsedOffset,
+      limit: query.limit,
+      offset: query.offset,
     });
 
-    return { data: workflows, total, limit: parsedLimit, offset: parsedOffset };
+    return PaginatedResponseDto.of(workflows, total, query.limit, query.offset);
   }
 
   @Get(':id')

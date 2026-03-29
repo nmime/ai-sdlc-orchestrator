@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { WebhookDeliveryController } from '../webhook-delivery.controller';
+import { WebhookDeliveryListQueryDto } from '../../../../libs/common/src/dto';
 
 const mockEm = {
   find: vi.fn(),
@@ -18,14 +19,14 @@ describe('WebhookDeliveryController (integration)', () => {
   describe('GET /', () => {
     it('returns paginated deliveries', async () => {
       mockEm.findAndCount.mockResolvedValue([[{ id: 'd-1' }], 1]);
-      const result = await controller.list('t-1', undefined, undefined, undefined, undefined, 't-1');
+      const result = await controller.list('t-1', Object.assign(new WebhookDeliveryListQueryDto(), {}), 't-1');
       expect(result.data).toHaveLength(1);
       expect(result.total).toBe(1);
     });
 
     it('applies status and platform filters', async () => {
       mockEm.findAndCount.mockResolvedValue([[], 0]);
-      await controller.list('t-1', '10', '0', 'processed', 'github', 't-1');
+      await controller.list('t-1', Object.assign(new WebhookDeliveryListQueryDto(), { status: 'processed', platform: 'github', limit: 10, offset: 0 }), 't-1');
       expect(mockEm.findAndCount).toHaveBeenCalledWith(
         expect.anything(),
         { tenant: 't-1', status: 'processed', platform: 'github' },
@@ -34,7 +35,7 @@ describe('WebhookDeliveryController (integration)', () => {
     });
 
     it('rejects tenant mismatch', async () => {
-      await expect(controller.list('t-1', undefined, undefined, undefined, undefined, 't-2')).rejects.toThrow(ForbiddenException);
+      await expect(controller.list('t-1', Object.assign(new WebhookDeliveryListQueryDto(), {}), 't-2')).rejects.toThrow(ForbiddenException);
     });
   });
 
