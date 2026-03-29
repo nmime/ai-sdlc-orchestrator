@@ -1,6 +1,6 @@
 apiVersion: v2
-name: ai-sdlc-orchestrator
-description: AI SDLC Orchestrator Helm Chart
+name: opwerf
+description: Opwerf Helm Chart
 type: application
 version: 0.2.0
 appVersion: "0.1.0"

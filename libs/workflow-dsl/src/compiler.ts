@@ -1,8 +1,8 @@
 import { parse as parseYaml } from 'yaml';
-import { Result } from 'neverthrow';
+import type { Result } from 'neverthrow';
 import { workflowDslSchema, type WorkflowDslConfig, type DslStep, type StepType, type Transition } from './schema';
-import type { AppError } from '@ai-sdlc/common';
-import { ResultUtils } from '@ai-sdlc/common';
+import type { AppError } from '@app/common';
+import { ResultUtils } from '@app/common';
 
 export interface CompiledStep {
   id: string;
@@ -105,7 +105,7 @@ export class DslCompiler {
       steps,
       stepMap,
       defaults: {
-        agentProvider: config.defaults?.agentProvider ?? 'claude',
+        agentProvider: config.defaults?.agentProvider ?? 'auto',
         sandboxProvider: config.defaults?.sandboxProvider ?? 'e2b',
         maxRetries: config.defaults?.maxRetries ?? 3,
         maxCostPerTaskUsd: config.defaults?.maxCostPerTaskUsd ?? 50,

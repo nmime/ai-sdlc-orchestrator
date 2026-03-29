@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-api
+  name: {{ include "opwerf.fullname" . }}-api
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "ai-sdlc.fullname" . }}-api
+    name: {{ include "opwerf.fullname" . }}-api
   minReplicas: {{ .Values.api.replicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas | default 10 }}
   metrics:
@@ -23,14 +23,14 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-worker
+  name: {{ include "opwerf.fullname" . }}-worker
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "ai-sdlc.fullname" . }}-worker
+    name: {{ include "opwerf.fullname" . }}-worker
   minReplicas: {{ .Values.worker.replicas }}
   maxReplicas: {{ .Values.autoscaling.workerMaxReplicas | default 8 }}
   metrics:
@@ -44,14 +44,14 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-credential-proxy
+  name: {{ include "opwerf.fullname" . }}-credential-proxy
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "ai-sdlc.fullname" . }}-credential-proxy
+    name: {{ include "opwerf.fullname" . }}-credential-proxy
   minReplicas: {{ .Values.credentialProxy.replicas }}
   maxReplicas: {{ .Values.autoscaling.credentialProxyMaxReplicas | default 4 }}
   metrics:
@@ -65,14 +65,14 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-dashboard
+  name: {{ include "opwerf.fullname" . }}-dashboard
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "ai-sdlc.fullname" . }}-dashboard
+    name: {{ include "opwerf.fullname" . }}-dashboard
   minReplicas: {{ .Values.dashboard.replicas }}
   maxReplicas: {{ .Values.autoscaling.dashboardMaxReplicas | default 4 }}
   metrics:

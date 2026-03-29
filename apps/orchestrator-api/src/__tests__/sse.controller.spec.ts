@@ -1,0 +1,29 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SseController } from '../sse.controller';
+
+function createMockEm() {
+  const em = {
+    find: vi.fn().mockResolvedValue([]),
+    findOne: vi.fn().mockResolvedValue(null),
+    fork: vi.fn(),
+    clear: vi.fn(),
+  } as any;
+  em.fork.mockReturnValue(em);
+  return em;
+}
+
+describe('SseController', () => {
+  let controller: SseController;
+  const mockConfig = { get: () => '100' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    controller = new SseController(createMockEm(), mockConfig as any);
+  });
+
+  it('returns an Observable', () => {
+    const obs = controller.events('t-1');
+    expect(obs).toBeDefined();
+    expect(typeof obs.subscribe).toBe('function');
+  });
+});

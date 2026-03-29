@@ -1,8 +1,8 @@
-# AI SDLC Orchestrator — Production Runbook
+# Opwerf — Production Runbook
 
 ## Infrastructure
 
-All infrastructure is managed by [ansible-k8s-full-setup](https://github.com/nmime/ansible-k8s-full-setup).
+All infrastructure is managed by [ansible-k8s-full-setup](https://github.com/opwerf/ansible-k8s-full-setup).
 
 ### Prerequisites
 
@@ -13,7 +13,7 @@ All infrastructure is managed by [ansible-k8s-full-setup](https://github.com/nmi
 ### Platform Deployment
 
 ```bash
-git clone https://github.com/nmime/ansible-k8s-full-setup.git
+git clone https://github.com/opwerf/ansible-k8s-full-setup.git
 cd ansible-k8s-full-setup
 
 # Configure
@@ -42,8 +42,8 @@ The platform provides:
 
 ```bash
 # From this repo
-helm upgrade --install ai-sdlc .helm/ \
-  --namespace ai-sdlc \
+helm upgrade --install opwerf .helm/ \
+  --namespace opwerf \
   --create-namespace \
   --set postgresql.host=<percona-pg-pgbouncer>.databases.svc \
   --set postgresql.password=<from-vault> \
@@ -64,12 +64,12 @@ Create an ArgoCD Application pointing to this repo's `.helm/` directory:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ai-sdlc-orchestrator
+  name: opwerf-orchestrator
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: https://github.com/nmime/ai-sdlc-orchestrator.git
+    repoURL: https://github.com/opwerf/opwerf-orchestrator.git
     targetRevision: main
     path: .helm
     helm:
@@ -77,7 +77,7 @@ spec:
         - values-production.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: ai-sdlc
+    namespace: opwerf
   syncPolicy:
     automated:
       prune: true
@@ -122,10 +122,10 @@ The platform uses **Vault + External Secrets Operator**. Store secrets in Vault:
 ./platform-orchestrator/platform.sh credentials
 
 # Or directly in Vault
-vault kv put secret/ai-sdlc/database password=<pw>
-vault kv put secret/ai-sdlc/e2b api-key=<key>
-vault kv put secret/ai-sdlc/anthropic api-key=<key>
-vault kv put secret/ai-sdlc/credential-proxy signing-key=<key>
+vault kv put secret/opwerf/database password=<pw>
+vault kv put secret/opwerf/e2b api-key=<key>
+vault kv put secret/opwerf/anthropic api-key=<key>
+vault kv put secret/opwerf/credential-proxy signing-key=<key>
 ```
 
 Create ExternalSecret resources:
@@ -134,23 +134,23 @@ Create ExternalSecret resources:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: ai-sdlc-secrets
-  namespace: ai-sdlc
+  name: opwerf-secrets
+  namespace: opwerf
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: vault-backend
     kind: ClusterSecretStore
   target:
-    name: ai-sdlc-secrets
+    name: opwerf-secrets
   data:
     - secretKey: DATABASE_PASSWORD
       remoteRef:
-        key: secret/ai-sdlc/database
+        key: secret/opwerf/database
         property: password
     - secretKey: E2B_API_KEY
       remoteRef:
-        key: secret/ai-sdlc/e2b
+        key: secret/opwerf/e2b
         property: api-key
 ```
 
@@ -159,8 +159,8 @@ spec:
 ### Grafana Dashboards
 
 Import from `monitoring/grafana/dashboards/`:
-- **ai-sdlc-overview.json** — Workflow states, throughput, error rates
-- **ai-sdlc-cost.json** — Cost tracking per tenant, AI vs sandbox spend
+- **opwerf-overview.json** — Workflow states, throughput, error rates
+- **opwerf-cost.json** — Cost tracking per tenant, AI vs sandbox spend
 
 Grafana is deployed by `ansible-k8s-full-setup` at `grafana.<domain>` (VPN-only via Headscale).
 
@@ -178,11 +178,11 @@ Key metrics:
 Scrape config (auto-discovered via ServiceMonitor in the Helm chart):
 
 ```yaml
-- job_name: ai-sdlc
+- job_name: opwerf
   kubernetes_sd_configs:
     - role: service
       namespaces:
-        names: [ai-sdlc]
+        names: [opwerf]
   relabel_configs:
     - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
       action: keep
@@ -194,8 +194,8 @@ Scrape config (auto-discovered via ServiceMonitor in the Helm chart):
 Loki collects logs from all pods. Query in Grafana:
 
 ```logql
-{namespace="ai-sdlc", app="orchestrator-api"} |= "error"
-{namespace="ai-sdlc", app="temporal-worker"} | json | level="error"
+{namespace="opwerf", app="orchestrator-api"} |= "error"
+{namespace="opwerf", app="temporal-worker"} | json | level="error"
 ```
 
 ### Alerts
@@ -204,7 +204,7 @@ Configure in VictoriaMetrics alerting rules:
 
 ```yaml
 groups:
-  - name: ai-sdlc
+  - name: opwerf
     rules:
       - alert: HighWorkflowFailureRate
         expr: rate(sdlc_workflows_total{state="blocked_terminal"}[5m]) > 0.1
@@ -254,10 +254,10 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: temporal-worker-scaler
-  namespace: ai-sdlc
+  namespace: opwerf
 spec:
   scaleTargetRef:
-    name: ai-sdlc-worker
+    name: opwerf-worker
   minReplicaCount: 1
   maxReplicaCount: 30
   triggers:
@@ -285,8 +285,8 @@ ansible-playbook playbooks/deploy_platform.yml --tags infra,cluster
 
 | Symptom | Diagnosis | Fix |
 |---------|-----------|-----|
-| API 503 | `kubectl get pods -n ai-sdlc` | Check pod logs, DB connectivity |
-| Workflows stuck in `queued` | Temporal worker down | `kubectl rollout restart deploy ai-sdlc-worker` |
+| API 503 | `kubectl get pods -n opwerf` | Check pod logs, DB connectivity |
+| Workflows stuck in `queued` | Temporal worker down | `kubectl rollout restart deploy opwerf-worker` |
 | High AI cost | Check `CostDashboard` or `/api/v1/cost/summary` | Lower `costLimitUsd` on repo config |
 | Webhook not processed | Check `/api/v1/webhook-deliveries?status=failed` | Verify webhook secret, check logs |
 | DB connection errors | PgBouncer pool exhausted | Scale PgBouncer or increase `pool_size` |
@@ -296,13 +296,13 @@ ansible-playbook playbooks/deploy_platform.yml --tags infra,cluster
 
 ```bash
 # Pod status
-kubectl get pods -n ai-sdlc -o wide
+kubectl get pods -n opwerf -o wide
 
 # API logs
-kubectl logs -n ai-sdlc -l app=orchestrator-api --tail=100 -f
+kubectl logs -n opwerf -l app=orchestrator-api --tail=100 -f
 
 # Worker logs
-kubectl logs -n ai-sdlc -l app=temporal-worker --tail=100 -f
+kubectl logs -n opwerf -l app=temporal-worker --tail=100 -f
 
 # DB shell (via Percona PG)
 kubectl exec -it -n databases pg-cluster-pgbouncer-0 -- psql -U orchestrator -d orchestrator
@@ -312,11 +312,11 @@ kubectl exec -it -n temporal deploy/temporal-admintools -- tctl namespace list
 kubectl exec -it -n temporal deploy/temporal-admintools -- tctl workflow list -n default
 
 # Force restart
-kubectl rollout restart deploy -n ai-sdlc -l app.kubernetes.io/instance=ai-sdlc
+kubectl rollout restart deploy -n opwerf -l app.kubernetes.io/instance=opwerf
 
 # Check Helm release
-helm status ai-sdlc -n ai-sdlc
-helm history ai-sdlc -n ai-sdlc
+helm status opwerf -n opwerf
+helm history opwerf -n opwerf
 ```
 
 ### Disaster Recovery

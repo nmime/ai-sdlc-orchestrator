@@ -1,5 +1,5 @@
-import { Result } from 'neverthrow';
-import type { AppError } from '@ai-sdlc/common';
+import type { Result } from 'neverthrow';
+import type { AppError } from '@app/common';
 
 export interface SandboxFileContent {
   path: string;

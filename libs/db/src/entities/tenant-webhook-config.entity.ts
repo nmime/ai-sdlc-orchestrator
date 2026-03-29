@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index, Unique } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -15,6 +15,8 @@ export enum WebhookConfigStatus {
 }
 
 @Entity({ tableName: 'tenant_webhook_config' })
+@Index({ properties: ['tenant'] })
+@Unique({ properties: ['tenant', 'platform'] })
 export class TenantWebhookConfig {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();

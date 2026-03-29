@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Result } from 'neverthrow';
-import type { AppError } from '@ai-sdlc/common';
-import { ResultUtils } from '@ai-sdlc/common';
-import type { WebhookEvent } from '@ai-sdlc/shared-type';
+import type { Result } from 'neverthrow';
+import type { AppError } from '@app/common';
+import { ResultUtils } from '@app/common';
+import type { WebhookEvent } from '@app/shared-type';
 
 export interface CiSignal {
   type: 'pipeline_succeeded' | 'pipeline_failed';
@@ -32,7 +32,7 @@ export class GitLabHandler {
     if (eventType === 'Issue Hook' || eventType === 'issue') {
       const attrs = body['object_attributes'] as Record<string, unknown> || {};
       const labels = ((attrs['labels'] || body['labels']) as { title: string }[] || []).map(l => l.title);
-      if (!labels.includes('ai-sdlc')) return ResultUtils.ok(null);
+      if (!labels.includes('opwerf')) return ResultUtils.ok(null);
 
       const project = body['project'] as Record<string, unknown> || {};
       const repoUrl = project['git_http_url'] as string || project['web_url'] as string || '';

@@ -8,7 +8,7 @@
       "command": "npx vitest run --config vitest.config.ts libs/workflow-dsl"
     },
     "typecheck": {
-      "command": "tsc --noEmit -p libs/workflow-dsl/tsconfig.json"
+      "command": "tsc --noEmit -p libs/workflow-dsl/tsconfig.typecheck.json"
     },
     "lint": {
       "command": "eslint libs/workflow-dsl/src"

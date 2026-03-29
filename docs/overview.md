@@ -1,4 +1,4 @@
-# AI SDLC Orchestrator — Overview
+# Opwerf — Overview
 
 > **Version 2.0** · March 2026
 > **Author:** Nikita Mejenkov
@@ -36,7 +36,7 @@ A **platform-agnostic SaaS** that automates the cycle from task ticket to review
 
 ## Why It Exists — Problems We Solve
 
-| Pain point | Without us | With AI SDLC Orchestrator |
+| Pain point | Without us | With Opwerf |
 |---|---|---|
 | Agent runs with full credentials | Agent has repo token, CI token, tracker token — any prompt-injection or leak exposes everything | **Zero-credential sandbox** — agent runs in a Firecracker microVM with no secrets; credential proxy injects credentials transparently |
 | CI fails, agent gives up | Single-shot agent creates MR, CI fails, human has to take over | **Automated fix loops** — orchestrator feeds CI failures back to the agent, which retries within configurable limits |
@@ -74,7 +74,7 @@ A simplified end-to-end flow for a single task:
 
 ### Self-hosted
 
-1. **Install** via Helm: `helm install ai-sdlc-orchestrator oci://registry/ai-sdlc-orchestrator`
+1. **Install** via Helm: `helm install opwerf oci://registry/opwerf`
 2. **Configure** `values.yaml` — Postgres connection, Temporal (self-hosted or Cloud), sandbox backend (E2B Cloud or self-hosted), VCS/tracker credentials
 3. **Register a webhook** on your task tracker pointing at the orchestrator's ingress
 4. **Label a task** and watch the first MR appear

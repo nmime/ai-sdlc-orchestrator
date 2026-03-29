@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService } from '@ai-sdlc/common';
-import { TenantMcpServer, McpServerRegistry, McpServerPolicy } from '@ai-sdlc/db';
-import type { McpServerConfig } from '@ai-sdlc/shared-type';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { PinoLoggerService } from '@app/common';
+import { TenantMcpServer, McpServerRegistry, McpServerPolicy } from '@app/db';
+import type { McpServerConfig } from '@app/shared-type';
 
 @Injectable()
 export class McpPolicyService {
@@ -20,13 +20,13 @@ export class McpPolicyService {
     const servers = await this.em.find(TenantMcpServer, {
       tenant: tenantId,
       isEnabled: true,
-    });
+    }, { limit: 200 });
 
     if (policy === McpServerPolicy.OPEN) {
       return servers.map(s => this.toConfig(s));
     }
 
-    const verifiedNames = await this.em.find(McpServerRegistry, { isVerified: true });
+    const verifiedNames = await this.em.find(McpServerRegistry, { isVerified: true }, { limit: 200 });
     const verifiedSet = new Set(verifiedNames.map(r => r.name));
 
     const filtered: McpServerConfig[] = [];

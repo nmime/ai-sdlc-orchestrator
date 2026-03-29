@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index, Unique } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -9,6 +9,8 @@ export enum VcsProvider {
 }
 
 @Entity({ tableName: 'tenant_vcs_credential' })
+@Index({ properties: ['tenant'] })
+@Unique({ properties: ['tenant', 'provider', 'host'] })
 export class TenantVcsCredential {
   @PrimaryKey({ type: 'uuid' })
   id: string = v4();

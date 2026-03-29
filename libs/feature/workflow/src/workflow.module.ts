@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { LoggerModule } from '@ai-sdlc/common';
+import { LoggerModule } from '@app/common';
 import { AlertService } from './alert.service';
 
 @Module({

@@ -3,11 +3,11 @@ import {
   defineSignal,
   setHandler,
   condition,
-  ApplicationFailure,
+
   workflowInfo,
 } from '@temporalio/workflow';
-import type { WorkflowInput, WorkflowResult, StepResult, PublishedArtifact, SessionContext } from '@ai-sdlc/shared-type';
-import type { GateDecision } from '@ai-sdlc/shared-type';
+import type { WorkflowInput, WorkflowResult, StepResult, PublishedArtifact, SessionContext } from '@app/shared-type';
+import type { GateDecision } from '@app/shared-type';
 import type * as activitiesType from '../activities';
 
 const {
@@ -21,7 +21,7 @@ const {
   resumeSandbox,
   verifyAgentOutput,
   collectArtifacts,
-  cleanupAndEscalate,
+
   checkConcurrency,
   checkAdmission,
 } = proxyActivities<typeof activitiesType>({
@@ -42,21 +42,14 @@ export const mrMergedSignal = defineSignal<[{ mrUrl: string }]>('mrMerged');
 export const taskUpdatedSignal = defineSignal<[{ payload: Record<string, unknown> }]>('taskUpdated');
 export const workflowUnblockSignal = defineSignal<[{ reason: string }]>('workflowUnblock');
 
-interface LoopState {
-  iteration: number;
-  noProgressCount: number;
-  errorsBefore?: number;
-  errorsAfter?: number;
-  lastSessionContext?: SessionContext;
-}
 
 export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
   const wfInfo = workflowInfo();
   const steps: StepResult[] = [];
   let totalAiCostUsd = 0;
   let totalSandboxCostUsd = 0;
-  let mrUrl: string | undefined; // eslint-disable-line prefer-const
-  let branchName: string | undefined; // eslint-disable-line prefer-const
+  let mrUrl: string | undefined = undefined;
+  let branchName: string | undefined = undefined;
   const artifacts: PublishedArtifact[] = [];
   let sandboxId: string | undefined;
   let currentStepId = 'implement';
@@ -64,21 +57,21 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   let gateDecision: GateDecision | null = null;
   let pipelineSucceeded = false;
   let pipelineFailed = false;
-  let pipelineDetails = '';
+  let _pipelineDetails = '';
   let changesRequested = false;
-  let changesReviewer = '';
-  let changesComment = '';
-  let unblockRequested = false;
-  let unblockReason = '';
+  let _changesReviewer = '';
+  let _changesComment = '';
+  let _unblockRequested = false;
+  let _unblockReason = '';
 
   setHandler(gateDecisionSignal, (d) => { gateDecision = d; });
-  setHandler(pipelineSucceededSignal, (d) => { pipelineSucceeded = true; pipelineDetails = d.details; });
-  setHandler(pipelineFailedSignal, (d) => { pipelineFailed = true; pipelineDetails = d.details; });
-  setHandler(changesRequestedSignal, (d) => { changesRequested = true; changesReviewer = d.reviewer; changesComment = d.comment ?? ''; });
+  setHandler(pipelineSucceededSignal, (d) => { pipelineSucceeded = true; _pipelineDetails = d.details; });
+  setHandler(pipelineFailedSignal, (d) => { pipelineFailed = true; _pipelineDetails = d.details; });
+  setHandler(changesRequestedSignal, (d) => { changesRequested = true; _changesReviewer = d.reviewer; _changesComment = d.comment ?? ''; });
   setHandler(taskUpdatedSignal, () => {});
-  setHandler(workflowUnblockSignal, (d) => { unblockRequested = true; unblockReason = d.reason; });
+  setHandler(workflowUnblockSignal, (d) => { _unblockRequested = true; _unblockReason = d.reason; });
 
-  const totalCostUsd = () => totalAiCostUsd + totalSandboxCostUsd;
+  const _totalCostUsd = () => totalAiCostUsd + totalSandboxCostUsd;
   const mirrorUpdate = (state: string, extra?: Record<string, unknown>) =>
     updateWorkflowMirror({ tenantId: input.tenantId, temporalWorkflowId: wfInfo.workflowId, state, currentStepId, ...extra });
 
@@ -126,11 +119,13 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
     return buildResult(false, steps, 0, 0, artifacts, mrUrl, branchName, (error as Error).message);
   }
 
+  const activeSandboxId = sandboxId as string;
+
   currentStepId = 'implement';
   const implementResult = await runAgentStep({
     stepId: 'implement',
     mode: 'implement',
-    sandboxId: sandboxId!,
+    sandboxId: activeSandboxId,
     input,
     steps,
     temporalWorkflowId: wfInfo.workflowId,
@@ -168,7 +163,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
       mode: 'ci_fix',
       maxIterations: 5,
       noProgressLimit: 2,
-      sandboxId: sandboxId!,
+      sandboxId: activeSandboxId,
       input,
       steps,
       previousContext: implementResult.sessionContext,
@@ -186,7 +181,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
   currentStepId = 'verify_output';
   const startVerify = Date.now();
   try {
-    await verifyAgentOutput({ sandboxId: sandboxId!, repoUrl: input.repoUrl, branchName });
+    await verifyAgentOutput({ sandboxId: activeSandboxId, repoUrl: input.repoUrl, branchName });
     steps.push({ stepName: 'verify_output', status: 'completed', durationMs: Date.now() - startVerify, costUsd: 0 });
   } catch (error) {
     steps.push({ stepName: 'verify_output', status: 'failed', durationMs: Date.now() - startVerify, costUsd: 0, errorMessage: (error as Error).message });
@@ -217,7 +212,7 @@ export async function orchestrateTaskWorkflow(input: WorkflowInput): Promise<Wor
       mode: 'review_fix',
       maxIterations: 5,
       noProgressLimit: 2,
-      sandboxId: sandboxId!,
+      sandboxId: activeSandboxId,
       input,
       steps,
       previousContext: implementResult.sessionContext,

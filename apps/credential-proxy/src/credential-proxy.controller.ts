@@ -2,11 +2,65 @@ import {
   Controller, Post, Get, Param, Body, Headers, Req, Res,
   HttpCode, HttpStatus, UnauthorizedException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
-import { CredentialProxyService } from './credential-proxy.service';
-import { SessionService } from './session.service';
-import { RateLimiterService } from './rate-limiter.service';
-import { AuditService } from './audit.service';
+import { IsString, IsOptional, IsNumber, IsArray, IsObject, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
+import { timingSafeEqual } from 'crypto';
+import type { CredentialProxyService } from './credential-proxy.service';
+import type { SessionService } from './session.service';
+import type { RateLimiterService } from './rate-limiter.service';
+import type { AuditService } from './audit.service';
 import type { FastifyRequest, FastifyReply } from 'fastify';
+
+export class CreateSessionDto {
+  @IsString()
+  @MaxLength(255)
+  tenantId!: string;
+
+  @IsString()
+  @MaxLength(255)
+  workflowId!: string;
+
+  @IsString()
+  @MaxLength(255)
+  sessionId!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(86400)
+  ttlSeconds?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  scopes?: string[];
+
+  @IsOptional()
+  @IsObject()
+  providerApiKeys?: Record<string, string>;
+}
+
+export class ResolveHostDto {
+  @IsString()
+  @MaxLength(500)
+  host!: string;
+}
+
+export class ReportUsageDto {
+  @IsNumber()
+  inputTokens!: number;
+
+  @IsNumber()
+  outputTokens!: number;
+
+  @IsString()
+  @MaxLength(100)
+  provider!: string;
+
+  @IsString()
+  @MaxLength(100)
+  model!: string;
+}
 
 @Controller()
 export class CredentialProxyController {
@@ -18,21 +72,29 @@ export class CredentialProxyController {
   ) {}
 
   @Post('sessions')
-  createSession(@Body() body: { tenantId: string; workflowId: string; sessionId: string; ttlSeconds?: number; scopes?: string[] }) {
+  createSession(
+    @Headers('x-internal-token') internalToken: string,
+    @Body() body: CreateSessionDto,
+  ) {
+    this.requireInternalToken(internalToken);
     if (!body.tenantId || !body.sessionId) throw new BadRequestException('tenantId and sessionId required');
-    return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds, body.scopes);
+    return this.sessionService.create(body.tenantId, body.workflowId, body.sessionId, body.ttlSeconds, body.scopes, body.providerApiKeys);
   }
 
   @Post('sessions/:sessionId/revoke')
   @HttpCode(HttpStatus.NO_CONTENT)
-  revokeSession(@Param('sessionId') sessionId: string) {
+  revokeSession(
+    @Headers('x-internal-token') internalToken: string,
+    @Param('sessionId') sessionId: string,
+  ) {
+    this.requireInternalToken(internalToken);
     this.sessionService.revoke(sessionId);
   }
 
   @Post('git-credential')
   async getGitCredential(
     @Headers('authorization') auth: string,
-    @Body() body: { host: string },
+    @Body() body: ResolveHostDto,
   ) {
     const session = this.requireSession(auth, 'git');
     this.requireRateLimit(session.sessionId);
@@ -79,13 +141,13 @@ export class CredentialProxyController {
     const session = this.requireSession(auth, 'ai-api');
     this.requireRateLimit(session.sessionId);
 
-    const url = (request as any).url as string;
+    const url = request.url;
     const pathAfterProvider = url.replace(`/ai-api/${provider}`, '');
-    const body = (request as any).body;
+    const body = request.body;
     const headers = request.headers as Record<string, string>;
 
     try {
-      const upstream = await this.credentialService.proxyAiRequest(provider, pathAfterProvider, body, headers);
+      const upstream = await this.credentialService.proxyAiRequest(provider, pathAfterProvider, body, headers, session.providerApiKeys);
 
       const contentType = upstream.headers.get('content-type') || 'application/json';
 
@@ -149,27 +211,58 @@ export class CredentialProxyController {
 
   @Get('readyz')
   readyz() {
-    return { status: 'ready', activeSessions: this.sessionService.getActiveCount() };
+    return { status: 'ready' };
   }
 
   @Get('health/business')
   healthBusiness() {
-    return {
-      status: 'ok',
-      activeSessions: this.sessionService.getActiveCount(),
-      recentAuditEntries: this.audit.getRecent(10).length,
-    };
+    return { status: 'ok' };
   }
 
   @Post('internal/sessions/:sessionId/cost')
   recordSessionCost(
+    @Headers('x-internal-token') internalToken: string,
     @Param('sessionId') sessionId: string,
-    @Body() body: { inputTokens: number; outputTokens: number; provider: string; model: string },
+    @Body() body: ReportUsageDto,
   ) {
-    return { recorded: true, sessionId };
+    this.requireInternalToken(internalToken);
+    this.audit.log({
+      timestamp: new Date().toISOString(),
+      sessionId,
+      tenantId: 'system',
+      action: 'record-cost',
+      resource: body.provider,
+      status: 'success',
+      metadata: {
+        inputTokens: body.inputTokens,
+        outputTokens: body.outputTokens,
+        provider: body.provider,
+        model: body.model,
+      },
+    });
+    return {
+      recorded: true,
+      sessionId,
+      inputTokens: body.inputTokens,
+      outputTokens: body.outputTokens,
+      provider: body.provider,
+      model: body.model,
+    };
   }
 
-  private requireSession(auth: string, scope: string): { tenantId: string; workflowId: string; sessionId: string } {
+  private requireInternalToken(internalToken: string): void {
+    const expected = process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
+    if (!expected || !internalToken) {
+      throw new UnauthorizedException('Invalid or missing internal token');
+    }
+    const bufExpected = Buffer.from(expected);
+    const bufActual = Buffer.from(internalToken);
+    if (bufExpected.length !== bufActual.length || !timingSafeEqual(bufExpected, bufActual)) {
+      throw new UnauthorizedException('Invalid or missing internal token');
+    }
+  }
+
+  private requireSession(auth: string, scope: string): { tenantId: string; workflowId: string; sessionId: string; providerApiKeys?: Record<string, string> } {
     if (!auth?.startsWith('Bearer ')) throw new UnauthorizedException('Missing session token');
     const token = auth.slice(7);
     const session = this.sessionService.validate(token);

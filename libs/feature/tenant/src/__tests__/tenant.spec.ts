@@ -23,7 +23,7 @@ describe('TenantService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new TenantService(mockEm as any, mockLogger as any);
+    service = new TenantService(mockEm, mockLogger);
   });
 
   it('should create a tenant', async () => {
@@ -130,7 +130,7 @@ describe('ApiKeyService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new ApiKeyService(mockEm as any, mockLogger as any);
+    service = new ApiKeyService(mockEm, mockLogger);
   });
 
   it('should generate an API key', async () => {

@@ -14,7 +14,7 @@ describe('PollingService', () => {
     mockEm.fork.mockReturnValue(mockFork);
     mockLogger = createMockLogger();
     mockTemporal = createMockTemporalClient();
-    service = new PollingService(mockEm as any, mockLogger as any, mockTemporal as any);
+    service = new PollingService(mockEm, mockLogger, mockTemporal);
   });
 
   afterEach(() => {
@@ -42,7 +42,7 @@ describe('PollingService', () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: true,
         json: async () => [{ number: 42, title: 'test issue' }],
-      } as any);
+      } as unknown as Response);
       mockFork.find.mockResolvedValueOnce([{
         id: 's-1', tenant: { id: 't-1' }, repoConfig: {},
         platform: 'github', enabled: true, pollIntervalSeconds: 60,
@@ -58,7 +58,7 @@ describe('PollingService', () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: true,
         json: async () => [{ number: 99, title: 'new issue' }],
-      } as any);
+      } as unknown as Response);
       mockFork.find.mockResolvedValueOnce([{
         id: 's-1', tenant: { id: 't-1' }, repoConfig: {},
         platform: 'github', enabled: true, pollIntervalSeconds: 60,
@@ -88,7 +88,7 @@ describe('PollingService', () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
         ok: true,
         json: async () => ({ issues: [{ key: 'PROJ-1', fields: { summary: 'task' } }] }),
-      } as any);
+      } as unknown as Response);
       mockFork.find.mockResolvedValueOnce([{
         id: 's-1', tenant: { id: 't-1' }, repoConfig: {},
         platform: 'jira', enabled: true, pollIntervalSeconds: 60,

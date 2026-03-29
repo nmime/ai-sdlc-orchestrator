@@ -1,21 +1,21 @@
-AI SDLC Orchestrator has been deployed!
+Opwerf has been deployed!
 
 Components:
-  - API Server: {{ include "ai-sdlc.fullname" . }}-api (port 3000)
-  - Worker: {{ include "ai-sdlc.fullname" . }}-worker
-  - Credential Proxy: {{ include "ai-sdlc.fullname" . }}-credential-proxy (port 4000)
-  - Dashboard: {{ include "ai-sdlc.fullname" . }}-dashboard (port 80)
+  - API Server: {{ include "opwerf.fullname" . }}-api (port 3000)
+  - Worker: {{ include "opwerf.fullname" . }}-worker
+  - Credential Proxy: {{ include "opwerf.fullname" . }}-credential-proxy (port 4000)
+  - Dashboard: {{ include "opwerf.fullname" . }}-dashboard (port 80)
 
 {{- if .Values.ingress.enabled }}
 Access the application at:
   https://{{ .Values.ingress.host }}
 {{- else }}
 To access the dashboard, run:
-  kubectl port-forward svc/{{ include "ai-sdlc.fullname" . }}-dashboard 8080:80
+  kubectl port-forward svc/{{ include "opwerf.fullname" . }}-dashboard 8080:80
   Then open http://localhost:8080
 
 To access the API, run:
-  kubectl port-forward svc/{{ include "ai-sdlc.fullname" . }}-api 3000:3000
+  kubectl port-forward svc/{{ include "opwerf.fullname" . }}-api 3000:3000
 {{- end }}
 
 Ensure the following external services are configured:

@@ -1,6 +1,8 @@
 import { CredentialProxyController } from '../credential-proxy.controller';
 import { UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
 
+const INTERNAL_TOKEN = 'test-internal-token-123';
+
 const mockCredService = {
   getGitCredential: vi.fn().mockResolvedValue({ username: 'x-access-token', password: 'ghp_test' }),
   getMcpToken: vi.fn().mockResolvedValue({ token: 'mcp-tok' }),
@@ -27,32 +29,45 @@ const mockAudit = {
 describe('CredentialProxyController (integration)', () => {
   let controller: CredentialProxyController;
 
+  beforeAll(() => {
+    process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'] = INTERNAL_TOKEN;
+  });
+
+  afterAll(() => {
+    delete process.env['CREDENTIAL_PROXY_INTERNAL_TOKEN'];
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockRateLimiter.check.mockReturnValue({ allowed: true, remaining: 99 });
     controller = new CredentialProxyController(
-      mockCredService as any,
-      mockSessionService as any,
-      mockRateLimiter as any,
-      mockAudit as any,
+      mockCredService,
+      mockSessionService,
+      mockRateLimiter,
+      mockAudit,
     );
   });
 
   describe('POST /sessions', () => {
     it('creates session', () => {
-      const result = controller.createSession({ tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' });
+      const result = controller.createSession(INTERNAL_TOKEN, { tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' });
       expect(result.token).toBe('tok-1');
     });
 
     it('throws BadRequest when missing tenantId', () => {
-      expect(() => controller.createSession({ tenantId: '', workflowId: 'wf-1', sessionId: 's-1' }))
+      expect(() => controller.createSession(INTERNAL_TOKEN, { tenantId: '', workflowId: 'wf-1', sessionId: 's-1' }))
         .toThrow(BadRequestException);
+    });
+
+    it('throws Unauthorized with wrong internal token', () => {
+      expect(() => controller.createSession('wrong-token', { tenantId: 't-1', workflowId: 'wf-1', sessionId: 's-1' }))
+        .toThrow(UnauthorizedException);
     });
   });
 
   describe('POST /sessions/:id/revoke', () => {
     it('revokes session', () => {
-      controller.revokeSession('s-1');
+      controller.revokeSession(INTERNAL_TOKEN, 's-1');
       expect(mockSessionService.revoke).toHaveBeenCalledWith('s-1');
     });
   });
@@ -110,25 +125,23 @@ describe('CredentialProxyController (integration)', () => {
       expect(controller.healthz()).toEqual({ status: 'ok' });
     });
 
-    it('GET /readyz returns active sessions', () => {
+    it('GET /readyz returns ready', () => {
       const result = controller.readyz();
       expect(result.status).toBe('ready');
-      expect(result.activeSessions).toBe(5);
     });
 
-    it('GET /health/business returns composite', () => {
+    it('GET /health/business returns ok', () => {
       const result = controller.healthBusiness();
       expect(result.status).toBe('ok');
-      expect(result.activeSessions).toBe(5);
     });
   });
 
   describe('POST /internal/sessions/:id/cost', () => {
     it('records cost', () => {
-      const result = controller.recordSessionCost('s-1', {
+      const result = controller.recordSessionCost(INTERNAL_TOKEN, 's-1', {
         inputTokens: 1000, outputTokens: 500, provider: 'anthropic', model: 'claude-sonnet-4-20250514',
       });
-      expect(result).toEqual({ recorded: true, sessionId: 's-1' });
+      expect(result).toMatchObject({ recorded: true, sessionId: 's-1' });
     });
   });
 });

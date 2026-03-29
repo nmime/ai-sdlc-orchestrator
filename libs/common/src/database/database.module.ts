@@ -3,6 +3,7 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '../config/app-config.module';
+import { DynamicConfigService } from '../config/dynamic-config.service';
 
 @Global()
 @Module({
@@ -27,5 +28,7 @@ import type { AppConfig } from '../config/app-config.module';
       }),
     }),
   ],
+  providers: [DynamicConfigService],
+  exports: [DynamicConfigService],
 })
 export class DatabaseModule {}

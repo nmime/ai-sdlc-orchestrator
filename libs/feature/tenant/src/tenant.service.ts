@@ -1,31 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { Tenant, TenantStatus, TenantUser, TenantRole } from '@ai-sdlc/db';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { type Result, err } from 'neverthrow';
+import { ResultUtils, type PinoLoggerService, sanitizeRecord } from '@app/common';
+import type { AppError } from '@app/common';
+import { Tenant, TenantStatus, TenantUser, type TenantRole, type McpServerPolicy } from '@app/db';
+import type { CreateTenantDto, UpdateTenantDto } from './dto';
+export { CreateTenantDto, UpdateTenantDto } from './dto';
 
-export interface CreateTenantDto {
-  slug: string;
-  name: string;
-  monthlyCostLimitUsd?: number;
-  defaultAgentProvider?: string;
-  defaultAgentModel?: string;
-  meta?: Record<string, unknown>;
-}
-
-export interface UpdateTenantDto {
-  name?: string;
-  monthlyCostLimitUsd?: number;
-  monthlyAiCostLimitUsd?: number;
-  monthlySandboxCostLimitUsd?: number;
-  defaultAgentProvider?: string;
-  defaultAgentModel?: string;
-  maxConcurrentWorkflows?: number;
-  maxConcurrentSandboxes?: number;
-  meta?: Record<string, unknown>;
-  status?: TenantStatus;
-}
+const TENANT_SCALAR_FIELDS: (keyof Tenant)[] = [
+  'name', 'monthlyCostLimitUsd', 'monthlyAiCostLimitUsd', 'monthlySandboxCostLimitUsd',
+  'defaultAgentProvider', 'defaultAgentModel', 'maxConcurrentWorkflows', 'maxConcurrentSandboxes',
+  'costAlertThresholds', 'sandboxHourlyRateUsd', 'agentProviderApiKeyRefs',
+  'agentMaxTurns', 'agentMaxDurationMs', 'sandboxTimeoutMs',
+  'aiInputCostPer1m', 'aiOutputCostPer1m', 'budgetReservationUsd',
+  'sanitizerMode', 'rateLimitMax', 'rateLimitWindow', 'webhookMaxRetries',
+  'aiProviderConfigs', 'status',
+];
 
 @Injectable()
 export class TenantService {
@@ -48,7 +38,7 @@ export class TenantService {
     if (dto.monthlyCostLimitUsd !== undefined) tenant.monthlyCostLimitUsd = dto.monthlyCostLimitUsd;
     if (dto.defaultAgentProvider) tenant.defaultAgentProvider = dto.defaultAgentProvider;
     if (dto.defaultAgentModel) tenant.defaultAgentModel = dto.defaultAgentModel;
-    if (dto.meta) tenant.meta = dto.meta;
+    if (dto.meta) tenant.meta = sanitizeRecord(dto.meta);
 
     await this.em.persistAndFlush(tenant);
     this.logger.log(`Tenant created: ${tenant.slug}`);
@@ -77,16 +67,17 @@ export class TenantService {
     if (findResult.isErr()) return findResult;
 
     const tenant = findResult.value;
-    if (dto.name !== undefined) tenant.name = dto.name;
-    if (dto.monthlyCostLimitUsd !== undefined) tenant.monthlyCostLimitUsd = dto.monthlyCostLimitUsd;
-    if (dto.monthlyAiCostLimitUsd !== undefined) tenant.monthlyAiCostLimitUsd = dto.monthlyAiCostLimitUsd;
-    if (dto.monthlySandboxCostLimitUsd !== undefined) tenant.monthlySandboxCostLimitUsd = dto.monthlySandboxCostLimitUsd;
-    if (dto.defaultAgentProvider !== undefined) tenant.defaultAgentProvider = dto.defaultAgentProvider;
-    if (dto.defaultAgentModel !== undefined) tenant.defaultAgentModel = dto.defaultAgentModel;
-    if (dto.maxConcurrentWorkflows !== undefined) tenant.maxConcurrentWorkflows = dto.maxConcurrentWorkflows;
-    if (dto.maxConcurrentSandboxes !== undefined) tenant.maxConcurrentSandboxes = dto.maxConcurrentSandboxes;
-    if (dto.meta !== undefined) tenant.meta = dto.meta;
-    if (dto.status !== undefined) tenant.status = dto.status;
+    const dtoRecord = dto as Record<string, unknown>;
+    const tenantRecord = tenant as unknown as Record<string, unknown>;
+
+    for (const field of TENANT_SCALAR_FIELDS) {
+      if (dtoRecord[field] !== undefined) {
+        tenantRecord[field] = dtoRecord[field];
+      }
+    }
+
+    if (dto.mcpServerPolicy !== undefined) tenant.mcpServerPolicy = dto.mcpServerPolicy as McpServerPolicy;
+    if (dto.meta !== undefined) tenant.meta = sanitizeRecord(dto.meta);
 
     await this.em.flush();
     return ResultUtils.ok(tenant);
@@ -94,7 +85,7 @@ export class TenantService {
 
   async delete(id: string): Promise<Result<void, AppError>> {
     const findResult = await this.findById(id);
-    if (findResult.isErr()) return findResult as unknown as Result<void, AppError>;
+    if (findResult.isErr()) return err(findResult.error);
 
     findResult.value.status = TenantStatus.DELETED;
     await this.em.flush();
@@ -114,7 +105,7 @@ export class TenantService {
   }
 
   async getUsers(tenantId: string): Promise<Result<TenantUser[], AppError>> {
-    const users = await this.em.find(TenantUser, { tenant: tenantId });
+    const users = await this.em.find(TenantUser, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(users);
   }
 

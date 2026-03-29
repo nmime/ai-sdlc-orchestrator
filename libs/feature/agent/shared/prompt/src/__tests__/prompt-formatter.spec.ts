@@ -1,7 +1,31 @@
 import { PromptFormatter } from '../prompt-formatter';
+import type { AgentPromptData } from '@app/shared-type';
 
 describe('PromptFormatter', () => {
   const formatter = new PromptFormatter();
+
+  formatter.registerStrategy({
+    name: 'openhands',
+    format(data: AgentPromptData): string {
+      return [
+        `Task: ${data.taskSeed}`,
+        `Repository: ${data.repoInfo.url}`,
+        `Branch: ${data.repoInfo.branch}`,
+        data.previousContext ? `Previous: ${data.previousContext.summary}` : '',
+      ].filter(Boolean).join('\n');
+    },
+  });
+
+  formatter.registerStrategy({
+    name: 'aider',
+    format(data: AgentPromptData): string {
+      return [
+        data.taskSeed,
+        `Repo: ${data.repoInfo.url} @ ${data.repoInfo.branch}`,
+        data.previousContext ? `Context: ${data.previousContext.summary}` : '',
+      ].filter(Boolean).join('\n');
+    },
+  });
 
   const baseData = {
     taskSeed: 'Fix the login bug on mobile devices',
@@ -27,7 +51,7 @@ describe('PromptFormatter', () => {
     },
   };
 
-  it('should format a Claude prompt with all fields', () => {
+  it('should format a default prompt with all fields', () => {
     const result = formatter.format('claude', baseData);
 
     expect(result).toContain('# Task');
@@ -55,7 +79,7 @@ describe('PromptFormatter', () => {
     expect(result).not.toContain('Previous Attempt');
   });
 
-  it('should format openhands prompt', () => {
+  it('should format openhands prompt via registered strategy', () => {
     const result = formatter.format('openhands', baseData);
 
     expect(result).toContain('Task:');
@@ -63,14 +87,14 @@ describe('PromptFormatter', () => {
     expect(result).toContain('Tests still failing');
   });
 
-  it('should format aider prompt', () => {
+  it('should format aider prompt via registered strategy', () => {
     const result = formatter.format('aider', baseData);
 
     expect(result).toContain('Fix the login bug on mobile devices');
     expect(result).toContain('Repo:');
   });
 
-  it('should default to claude format for unknown providers', () => {
+  it('should fall back to default format for unknown providers', () => {
     const result = formatter.format('unknown_provider', {
       taskSeed: 'Test task',
       repoInfo: { url: 'https://github.com/org/repo.git', branch: 'main', defaultBranch: 'main' },
@@ -80,5 +104,19 @@ describe('PromptFormatter', () => {
 
     expect(result).toContain('# Task');
     expect(result).toContain('Security Rules');
+  });
+
+  it('lists registered strategies', () => {
+    expect(formatter.listStrategies()).toContain('openhands');
+    expect(formatter.listStrategies()).toContain('aider');
+  });
+
+  it('any provider can be registered dynamically', () => {
+    formatter.registerStrategy({
+      name: 'custom-agent-v3',
+      format: (data) => `CUSTOM: ${data.taskSeed}`,
+    });
+    const result = formatter.format('custom-agent-v3', baseData);
+    expect(result).toBe('CUSTOM: Fix the login bug on mobile devices');
   });
 });

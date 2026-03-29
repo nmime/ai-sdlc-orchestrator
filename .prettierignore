@@ -1,4 +1,12 @@
-dist
-node_modules
-coverage
-.nx
+dist/
+node_modules/
+coverage/
+.nx/
+.turbo/
+.cache/
+*.tsbuildinfo
+pnpm-lock.yaml
+*.min.js
+*.min.css
+*.generated.ts
+migrations/

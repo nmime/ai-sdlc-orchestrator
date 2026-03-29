@@ -1,23 +1,28 @@
+import type { Reflector } from '@nestjs/core';
+import type { ExecutionContext } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import { RbacGuard } from '../guards/rbac.guard';
 import { ForbiddenException } from '@nestjs/common';
 
-const ROLES_KEY = 'roles';
+const mockConfigService = {
+  get: vi.fn().mockReturnValue('development'),
+};
 
 function createGuard(requiredRoles: string[] | undefined) {
   const reflector = {
     getAllAndOverride: vi.fn().mockReturnValue(requiredRoles),
   };
-  return new RbacGuard(reflector as any);
+  return new RbacGuard(reflector as unknown as Reflector, mockConfigService as unknown as ConfigService);
 }
 
-function mockContext(user: { role?: string; tenantId?: string } | undefined, params: Record<string, string> = {}): any {
+function mockContext(user: { role?: string; tenantId?: string } | undefined, params: Record<string, string> = {}) {
   return {
     getHandler: () => ({}),
     getClass: () => ({}),
     switchToHttp: () => ({
       getRequest: () => ({ user, params }),
     }),
-  };
+  } as unknown as ExecutionContext;
 }
 
 describe('RbacGuard', () => {
@@ -56,12 +61,26 @@ describe('RbacGuard', () => {
   it('allows dev-tenant to access any tenant', () => {
     const guard = createGuard(['admin']);
     expect(guard.canActivate(
-      mockContext({ role: 'admin', tenantId: 'dev-tenant' }, { tenantId: 'tenant-b' }),
+      mockContext({ role: 'admin', tenantId: '00000000-0000-0000-0000-000000000001' }, { tenantId: 'tenant-b' }),
     )).toBe(true);
   });
 
   it('allows when request has no tenantId param', () => {
     const guard = createGuard(['admin']);
     expect(guard.canActivate(mockContext({ role: 'admin', tenantId: 'tenant-a' }))).toBe(true);
+  });
+
+  it('denies when user has no tenantId but route has tenantId param', () => {
+    const guard = createGuard(['admin']);
+    expect(() => guard.canActivate(
+      mockContext({ role: 'admin' }, { tenantId: 'tenant-a' }),
+    )).toThrow('Tenant context required');
+  });
+
+  it('allows same-tenant access', () => {
+    const guard = createGuard(['admin']);
+    expect(guard.canActivate(
+      mockContext({ role: 'admin', tenantId: 'tenant-a' }, { tenantId: 'tenant-a' }),
+    )).toBe(true);
   });
 });

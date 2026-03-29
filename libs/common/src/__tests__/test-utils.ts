@@ -1,7 +1,11 @@
 import { vi } from 'vitest';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { PinoLoggerService, TemporalClientService } from '@app/common';
+import type { SandboxPort } from '@app/feature-agent-registry';
+
 
 export function createMockEm(overrides: Record<string, unknown> = {}) {
-  return {
+  const em = {
     find: vi.fn().mockResolvedValue([]),
     findOne: vi.fn().mockResolvedValue(null),
     findOneOrFail: vi.fn(),
@@ -15,7 +19,9 @@ export function createMockEm(overrides: Record<string, unknown> = {}) {
     getReference: vi.fn((_, id) => ({ id })),
     fork: vi.fn(),
     ...overrides,
-  };
+  } as unknown as EntityManager & { [key: string]: ReturnType<typeof vi.fn> };
+  em.fork.mockReturnValue(em);
+  return em;
 }
 
 export function createMockLogger() {
@@ -26,7 +32,7 @@ export function createMockLogger() {
     error: vi.fn(),
     debug: vi.fn(),
     verbose: vi.fn(),
-  };
+  } as unknown as PinoLoggerService & { [key: string]: ReturnType<typeof vi.fn> };
 }
 
 export function createMockTemporalClient() {
@@ -35,15 +41,17 @@ export function createMockTemporalClient() {
     describe: vi.fn().mockResolvedValue({ status: { name: 'RUNNING' }, runId: 'run-1' }),
     cancel: vi.fn().mockResolvedValue(undefined),
   };
-  return {
-    getClient: vi.fn().mockResolvedValue({
-      workflow: {
-        getHandle: vi.fn().mockReturnValue(mockHandle),
-        start: vi.fn().mockResolvedValue({ workflowId: 'wf-1', firstExecutionRunId: 'run-1' }),
-      },
-    }),
-    _mockHandle: mockHandle,
-  };
+  return Object.assign(
+    {
+      getClient: vi.fn().mockResolvedValue({
+        workflow: {
+          getHandle: vi.fn().mockReturnValue(mockHandle),
+          start: vi.fn().mockResolvedValue({ workflowId: 'wf-1', firstExecutionRunId: 'run-1' }),
+        },
+      }),
+    } as unknown as TemporalClientService & { [key: string]: ReturnType<typeof vi.fn> },
+    { _mockHandle: mockHandle },
+  );
 }
 
 export function createMockSandboxAdapter() {
@@ -53,7 +61,7 @@ export function createMockSandboxAdapter() {
     pause: vi.fn().mockResolvedValue(undefined),
     resume: vi.fn().mockResolvedValue({ isErr: () => false, isOk: () => true, value: { sandboxId: 'sb-1' } }),
     destroy: vi.fn().mockResolvedValue(undefined),
-  };
+  } as unknown as SandboxPort & { [key: string]: ReturnType<typeof vi.fn> };
 }
 
 export function createMockAgentRegistry() {

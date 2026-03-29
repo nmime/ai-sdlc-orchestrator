@@ -1,14 +1,61 @@
-.idea
-node_modules
-dist
-tmp
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+tmp/
+*.tsbuildinfo
+*.tgz
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
 .env
 .env.*
 !.env.example
-coverage
+
+# Test & coverage
+coverage/
+
+# Nx
+.nx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Turbo
+.turbo/
+.cache/
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+
+# Source maps (generated)
 *.js.map
+
+# Type declarations (generated)
 *.d.ts
 !jest.preset.js
 !jest.config.ts
 !mikro-orm.config.ts
-.nx
+!eslint.config.mjs
+!vite.config.ts
+!vitest.config.ts
+!prettier.config.*

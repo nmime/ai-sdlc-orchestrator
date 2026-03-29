@@ -1,0 +1,231 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-orchestrator}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME:-orchestrator}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DATABASE_USER:-orchestrator}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: always
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: ${DATABASE_USER:-orchestrator}
+      POSTGRESQL_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRESQL_DATABASE: ${DATABASE_NAME:-orchestrator}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 500
+      PGBOUNCER_DEFAULT_POOL_SIZE: 30
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    restart: always
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${DATABASE_USER:-orchestrator}
+      POSTGRES_PWD: ${DATABASE_PASSWORD}
+      POSTGRES_SEEDS: postgres
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/dynamic-config.yml
+      ENABLE_ES: 'true'
+      ES_SEEDS: elasticsearch
+      ES_VERSION: v8
+    volumes:
+      - ./temporal-dynamic-config.yml:/etc/temporal/dynamic-config.yml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - internal
+
+  elasticsearch:
+    image: elasticsearch:8.16.1
+    restart: always
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9200/_cluster/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-changeme}', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  minio:
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_HOST: pgbouncer
+      DATABASE_PORT: 6432
+      DATABASE_NAME: ${DATABASE_NAME:-orchestrator}
+      DATABASE_USER: ${DATABASE_USER:-orchestrator}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: artifacts
+      MINIO_USE_SSL: 'false'
+      API_PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CREDENTIAL_PROXY_URL: http://credential-proxy:4000
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN}
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
+      ENABLE_SWAGGER: 'true'
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-200}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-1 minute}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    ports:
+      - '3000:3000'
+    networks:
+      - internal
+      - web
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_HOST: pgbouncer
+      DATABASE_PORT: 6432
+      DATABASE_NAME: ${DATABASE_NAME:-orchestrator}
+      DATABASE_USER: ${DATABASE_USER:-orchestrator}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      CREDENTIAL_PROXY_URL: http://credential-proxy:4000
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
+      E2B_API_KEY: ${E2B_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    networks:
+      - internal
+
+  credential-proxy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.credential-proxy
+    restart: always
+    environment:
+      NODE_ENV: production
+      CREDENTIAL_PROXY_PORT: 4000
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN}
+      DATABASE_HOST: pgbouncer
+      DATABASE_PORT: 6432
+      DATABASE_NAME: ${DATABASE_NAME:-orchestrator}
+      DATABASE_USER: ${DATABASE_USER:-orchestrator}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    restart: always
+    ports:
+      - '80:80'
+      - '443:443'
+    depends_on:
+      - api
+    networks:
+      - internal
+      - web
+
+volumes:
+  postgres_data:
+  es_data:
+  redis_data:
+  minio_data:
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    driver: bridge

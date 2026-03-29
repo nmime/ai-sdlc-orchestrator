@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-api
+  name: {{ include "opwerf.fullname" . }}-api
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   type: ClusterIP
@@ -13,15 +13,15 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "ai-sdlc.selectorLabels" . | nindent 4 }}
+    {{- include "opwerf.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: api
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-dashboard
+  name: {{ include "opwerf.fullname" . }}-dashboard
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
   type: ClusterIP
@@ -31,15 +31,15 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "ai-sdlc.selectorLabels" . | nindent 4 }}
+    {{- include "opwerf.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-credential-proxy
+  name: {{ include "opwerf.fullname" . }}-credential-proxy
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: credential-proxy
 spec:
   type: ClusterIP
@@ -49,5 +49,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "ai-sdlc.selectorLabels" . | nindent 4 }}
+    {{- include "opwerf.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: credential-proxy

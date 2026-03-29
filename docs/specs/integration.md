@@ -1,6 +1,6 @@
 # Integration Model
 
-> Part of [AI SDLC Orchestrator](../overview.md) specification
+> Part of [Opwerf](../overview.md) specification
 
 ---
 

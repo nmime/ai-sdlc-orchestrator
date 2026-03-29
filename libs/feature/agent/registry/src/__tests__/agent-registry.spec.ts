@@ -2,6 +2,14 @@ import { AgentProviderRegistry } from '../agent-provider-registry';
 import type { AiAgentPort } from '../ai-agent.port';
 import { ok, err } from 'neverthrow';
 
+const mockConfig = {
+  get: (key: string) => {
+    if (key === 'DEFAULT_AGENT_PROVIDER') return 'test_provider';
+    if (key === 'DEFAULT_AGENT_MODEL') return 'test-model-v1';
+    return undefined;
+  },
+} as any;
+
 const mockProvider: AiAgentPort = {
   name: 'test_provider',
   invoke: vi.fn().mockResolvedValue(ok({
@@ -35,7 +43,14 @@ describe('AgentProviderRegistry', () => {
   let registry: AgentProviderRegistry;
 
   beforeEach(() => {
-    registry = new AgentProviderRegistry();
+    registry = new AgentProviderRegistry(mockConfig);
+  });
+
+  it('reads system defaults from config', () => {
+    registry.register(mockProvider);
+    const resolved = registry.resolveProvider({});
+    expect(resolved.providerName).toBe('test_provider');
+    expect(resolved.model).toBe('test-model-v1');
   });
 
   it('should register and retrieve a provider', () => {
@@ -55,6 +70,34 @@ describe('AgentProviderRegistry', () => {
     registry.register(mockProvider);
     registry.register(secondProvider);
     expect(registry.list()).toEqual(['test_provider', 'second_provider']);
+  });
+
+  it('resolves repo-level override over tenant and system defaults', () => {
+    registry.register(mockProvider);
+    registry.register(secondProvider);
+    const resolved = registry.resolveProvider({
+      repoAgentProvider: 'second_provider',
+      tenantDefaultProvider: 'test_provider',
+    });
+    expect(resolved.providerName).toBe('second_provider');
+  });
+
+  it('resolves tenant default when no repo override', () => {
+    registry.register(mockProvider);
+    registry.register(secondProvider);
+    const resolved = registry.resolveProvider({
+      tenantDefaultProvider: 'second_provider',
+    });
+    expect(resolved.providerName).toBe('second_provider');
+  });
+
+  it('resolves model via task label routing', () => {
+    registry.register(mockProvider);
+    const resolved = registry.resolveProvider({
+      repoModelRouting: { 'ci-fix': 'fast-model-v1' },
+      taskLabel: 'ci-fix',
+    });
+    expect(resolved.model).toBe('fast-model-v1');
   });
 
   it('should invoke agent through registry', async () => {

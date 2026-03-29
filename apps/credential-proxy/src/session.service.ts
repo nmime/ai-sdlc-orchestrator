@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { Injectable, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import { randomBytes, createHmac } from 'crypto';
 
-interface SessionData {
+export interface SessionData {
   tenantId: string;
   workflowId: string;
   sessionId: string;
@@ -9,17 +10,28 @@ interface SessionData {
   expiresAt: number;
   requestCount: number;
   createdAt: number;
+  providerApiKeys?: Record<string, string>;
 }
 
+const MAX_SESSIONS = 10_000;
+
 @Injectable()
-export class SessionService implements OnModuleInit {
+export class SessionService implements OnModuleInit, OnModuleDestroy {
   private sessions = new Map<string, SessionData>();
   private signingKey!: Buffer;
   private cleanupInterval?: ReturnType<typeof setInterval>;
 
+  constructor(private readonly configService: ConfigService) {}
+
   onModuleInit() {
-    const keyHex = process.env['SESSION_SIGNING_KEY'] || randomBytes(32).toString('hex');
-    this.signingKey = Buffer.from(keyHex, 'hex');
+    const keyHex = this.configService.get<string>('SESSION_SIGNING_KEY');
+    if (!keyHex) {
+      const nodeEnv = this.configService.get<string>('NODE_ENV');
+      if (nodeEnv !== 'development' && nodeEnv !== 'test') {
+        throw new Error('SESSION_SIGNING_KEY is required in production');
+      }
+    }
+    this.signingKey = Buffer.from(keyHex || randomBytes(32).toString('hex'), 'hex');
     this.cleanupInterval = setInterval(() => this.cleanupExpired(), 60_000);
   }
 
@@ -29,7 +41,17 @@ export class SessionService implements OnModuleInit {
     sessionId: string,
     ttlSeconds = 3600,
     scopes: string[] = ['git', 'mcp', 'ai-api'],
+    providerApiKeys?: Record<string, string>,
   ): { token: string; expiresAt: string } {
+    if (this.sessions.size >= MAX_SESSIONS) {
+      throw new Error('Global session limit reached');
+    }
+
+    const tenantSessions = Array.from(this.sessions.values()).filter(s => s.tenantId === tenantId).length;
+    if (tenantSessions >= 100) {
+      throw new Error(`Session limit exceeded for tenant ${tenantId}`);
+    }
+
     const nonce = randomBytes(16).toString('hex');
     const payload = `${sessionId}:${nonce}:${Date.now()}`;
     const hmac = createHmac('sha256', this.signingKey).update(payload).digest('hex');
@@ -44,6 +66,7 @@ export class SessionService implements OnModuleInit {
       expiresAt,
       requestCount: 0,
       createdAt: Date.now(),
+      providerApiKeys,
     });
 
     return { token, expiresAt: new Date(expiresAt).toISOString() };
@@ -83,5 +106,9 @@ export class SessionService implements OnModuleInit {
     for (const [token, data] of this.sessions) {
       if (now > data.expiresAt) this.sessions.delete(token);
     }
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) clearInterval(this.cleanupInterval);
   }
 }

@@ -10,7 +10,7 @@ These products span different categories. A direct feature-for-feature compariso
 
 ## Comparison Matrix
 
-| Dimension | AI SDLC Orchestrator | Devin (Cognition) | Factory | Paperclip | Sweep / CodeRabbit |
+| Dimension | Opwerf | Devin (Cognition) | Factory | Paperclip | Sweep / CodeRabbit |
 |---|---|---|---|---|---|
 | **Primary scope** | Task → artifact orchestration (MRs, design, docs, any deliverable) | Autonomous AI developer | AI-powered code factory | General-purpose agent orchestrator | AI code review / auto-fix |
 | **Core model** | Orchestrator invokes pluggable agents; agent decides output type at runtime | Monolithic agent + IDE | Proprietary agents | Workflow engine for any agent | Review bot / single-shot fix |
@@ -32,17 +32,17 @@ These products span different categories. A direct feature-for-feature compariso
 ## Key Differentiators
 
 ### vs. Devin / Factory (AI developer products)
-These are **complete AI developer products** — they bundle the agent, the IDE, and the execution environment. AI SDLC Orchestrator is the **orchestration layer only**: it manages the lifecycle (task → sandbox → artifacts → CI loop → review) and lets you plug in any agent. Our agent-driven artifact model means the output isn't limited to code — the same workflow can produce MRs, design updates, documentation, or test reports, depending on what the task requires. Choose these if you want an opinionated, turnkey AI developer. Choose us if you want control over which agent runs, where it runs, what it produces, and how it integrates with your existing stack.
+These are **complete AI developer products** — they bundle the agent, the IDE, and the execution environment. Opwerf is the **orchestration layer only**: it manages the lifecycle (task → sandbox → artifacts → CI loop → review) and lets you plug in any agent. Our agent-driven artifact model means the output isn't limited to code — the same workflow can produce MRs, design updates, documentation, or test reports, depending on what the task requires. Choose these if you want an opinionated, turnkey AI developer. Choose us if you want control over which agent runs, where it runs, what it produces, and how it integrates with your existing stack.
 
 ### vs. Paperclip (general-purpose agent orchestrator)
-Paperclip is a **general-purpose agent orchestration platform** — it can run any kind of agent workflow (customer support, data pipelines, design, etc.). AI SDLC Orchestrator is **purpose-built for the software development lifecycle**: webhook ingestion from task trackers, VCS-aware branching, CI feedback loops, artifact-aware review gates, and cost tracking are first-class features, not user-assembled workflows. Both use Temporal under the hood.
+Paperclip is a **general-purpose agent orchestration platform** — it can run any kind of agent workflow (customer support, data pipelines, design, etc.). Opwerf is **purpose-built for the software development lifecycle**: webhook ingestion from task trackers, VCS-aware branching, CI feedback loops, artifact-aware review gates, and cost tracking are first-class features, not user-assembled workflows. Both use Temporal under the hood.
 
 Where they diverge on output flexibility: Paperclip's ticket-based model treats outputs as opaque — you define what "done" means per workflow. Our artifact model is **structured but extensible** — agents publish typed artifacts (MRs, Figma updates, test reports) with URIs and preview URLs, and gates can require specific artifact kinds before approval. This means SDLC-specific review flows (code review for MRs, visual review for design artifacts) work out of the box.
 
 Choose Paperclip if you need a general agent platform for non-SDLC workflows. Choose us if you want SDLC automation with built-in artifact tracking, CI loops, and review gates.
 
 ### vs. Sweep / CodeRabbit (AI code review)
-These focus on **code review and single-shot fixes** — they comment on PRs or suggest changes. AI SDLC Orchestrator handles the **full task lifecycle**: from reading a task ticket, through implementation, to artifact publishing and CI-driven fix loops. They are complementary — you could use CodeRabbit for review alongside the orchestrator for implementation.
+These focus on **code review and single-shot fixes** — they comment on PRs or suggest changes. Opwerf handles the **full task lifecycle**: from reading a task ticket, through implementation, to artifact publishing and CI-driven fix loops. They are complementary — you could use CodeRabbit for review alongside the orchestrator for implementation.
 
 ---
 
@@ -50,7 +50,7 @@ These focus on **code review and single-shot fixes** — they comment on PRs or 
 
 A deeper look at how each product handles agent outputs — this is where architectural differences matter most for teams considering design tasks, documentation generation, or mixed workflows.
 
-| Aspect | AI SDLC Orchestrator | Devin | Factory | Paperclip | Sweep / CodeRabbit |
+| Aspect | Opwerf | Devin | Factory | Paperclip | Sweep / CodeRabbit |
 |---|---|---|---|---|---|
 | **Output abstraction** | `WORKFLOW_ARTIFACT` — typed, tracked, with URI + preview URL + metadata. Sandbox-local files auto-uploaded to MinIO (S3-compatible) before cleanup | Git commits + chat | Git commits | Ticket completion (opaque) | PR comments |
 | **Type system** | Free-form `kind` string — no enum, no schema changes for new types | Fixed (code) | Fixed (code) | None (implicit) | Fixed (PR suggestions) |
@@ -67,7 +67,7 @@ How each product handles "implement the dashboard redesign from this Figma file"
 
 | Product | Approach | Output |
 |---|---|---|
-| **AI SDLC Orchestrator** | Agent reads Figma via MCP, generates code + design tokens, publishes `kind: merge_request` + `kind: design_token` + `kind: figma_update` artifacts. Gate shows MR + Figma preview for review | Tracked artifacts with preview URLs |
+| **Opwerf** | Agent reads Figma via MCP, generates code + design tokens, publishes `kind: merge_request` + `kind: design_token` + `kind: figma_update` artifacts. Gate shows MR + Figma preview for review | Tracked artifacts with preview URLs |
 | **Devin** | Agent opens Figma in browser (via computer use), writes code. Output is always a git commit | Git commit only |
 | **Factory** | Not designed for design tasks | N/A |
 | **Paperclip** | User builds custom workflow: Figma agent → code agent → review. Output is opaque ticket completion | Ticket marked done |

@@ -2,13 +2,13 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-api
+  name: {{ include "opwerf.fullname" . }}-api
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   policyTypes:
     - Ingress
@@ -32,13 +32,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-worker
+  name: {{ include "opwerf.fullname" . }}-worker
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: worker
   policyTypes:
     - Ingress
@@ -50,13 +50,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-credential-proxy
+  name: {{ include "opwerf.fullname" . }}-credential-proxy
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: credential-proxy
   policyTypes:
     - Ingress
@@ -78,13 +78,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-dashboard
+  name: {{ include "opwerf.fullname" . }}-dashboard
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: dashboard
   policyTypes:
     - Ingress

@@ -6,7 +6,7 @@ import { LinearHandler } from '../handlers/linear.handler';
 describe('JiraHandler', () => {
   const handler = new JiraHandler();
 
-  it('should parse a valid Jira webhook with ai-sdlc label', () => {
+  it('should parse a valid Jira webhook with opwerf label', () => {
     const result = handler.parse(
       { 'x-atlassian-webhook-identifier': 'delivery-123' },
       {
@@ -16,7 +16,7 @@ describe('JiraHandler', () => {
           fields: {
             summary: 'Fix the login bug',
             description: 'Login fails on mobile',
-            labels: ['ai-sdlc', 'bug'],
+            labels: ['opwerf', 'bug'],
             customfield_10100: 'https://github.com/org/repo.git',
             assignee: { displayName: 'John' },
             priority: { name: 'High' },
@@ -37,7 +37,7 @@ describe('JiraHandler', () => {
     }
   });
 
-  it('should return null for issues without ai-sdlc label', () => {
+  it('should return null for issues without opwerf label', () => {
     const result = handler.parse(
       {},
       {
@@ -61,7 +61,7 @@ describe('JiraHandler', () => {
 describe('GitHubHandler', () => {
   const handler = new GitHubHandler();
 
-  it('should parse a GitHub issue with ai-sdlc label', () => {
+  it('should parse a GitHub issue with opwerf label', () => {
     const result = handler.parse(
       { 'x-github-event': 'issues', 'x-github-delivery': 'gh-del-1' },
       {
@@ -71,7 +71,7 @@ describe('GitHubHandler', () => {
           number: 42,
           title: 'Add dark mode',
           body: 'We need dark mode support',
-          labels: [{ name: 'ai-sdlc' }, { name: 'feature' }],
+          labels: [{ name: 'opwerf' }, { name: 'feature' }],
         },
         repository: { clone_url: 'https://github.com/org/repo.git' },
       },
@@ -86,7 +86,7 @@ describe('GitHubHandler', () => {
     }
   });
 
-  it('should ignore GitHub issues without ai-sdlc label', () => {
+  it('should ignore GitHub issues without opwerf label', () => {
     const result = handler.parse(
       { 'x-github-event': 'issues' },
       {
@@ -127,7 +127,7 @@ describe('GitHubHandler', () => {
 describe('GitLabHandler', () => {
   const handler = new GitLabHandler();
 
-  it('should parse a GitLab issue with ai-sdlc label', () => {
+  it('should parse a GitLab issue with opwerf label', () => {
     const result = handler.parse(
       { 'x-gitlab-event': 'Issue Hook', 'x-gitlab-event-uuid': 'gl-uuid-1' },
       {
@@ -137,7 +137,7 @@ describe('GitLabHandler', () => {
           description: 'Need to refactor',
           updated_at: '2024-01-01T00:00:00Z',
         },
-        labels: [{ title: 'ai-sdlc' }],
+        labels: [{ title: 'opwerf' }],
         project: { git_http_url: 'https://gitlab.com/org/repo.git' },
       },
       'tenant-3',
@@ -150,7 +150,7 @@ describe('GitLabHandler', () => {
     }
   });
 
-  it('should ignore GitLab issues without ai-sdlc label', () => {
+  it('should ignore GitLab issues without opwerf label', () => {
     const result = handler.parse(
       { 'x-gitlab-event': 'Issue Hook' },
       {
@@ -169,7 +169,7 @@ describe('GitLabHandler', () => {
 describe('LinearHandler', () => {
   const handler = new LinearHandler();
 
-  it('should parse a Linear issue with ai-sdlc label', () => {
+  it('should parse a Linear issue with opwerf label', () => {
     const result = handler.parse(
       { 'linear-delivery': 'lin-del-1' },
       {
@@ -180,7 +180,7 @@ describe('LinearHandler', () => {
           identifier: 'ENG-42',
           title: 'Implement SSO',
           description: 'Need SSO support',
-          labels: [{ name: 'ai-sdlc' }],
+          labels: [{ name: 'opwerf' }],
           team: { key: 'ENG' },
         },
         updatedFrom: { labelIds: [] },

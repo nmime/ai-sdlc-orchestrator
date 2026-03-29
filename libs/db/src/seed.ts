@@ -1,4 +1,4 @@
-import { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { Tenant } from './entities/tenant.entity';
 import { WorkflowDsl } from './entities/workflow-dsl.entity';
 

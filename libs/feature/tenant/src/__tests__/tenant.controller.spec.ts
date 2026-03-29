@@ -1,7 +1,8 @@
+import type { TenantService, CreateTenantDto, UpdateTenantDto } from '../tenant.service';
 import { TenantController } from '../tenant.controller';
 import { ok, err } from 'neverthrow';
 
-const mockTenantService = {
+const mockTenantService: Record<string, ReturnType<typeof vi.fn>> = {
   create: vi.fn(),
   list: vi.fn(),
   findById: vi.fn(),
@@ -14,46 +15,53 @@ describe('TenantController (integration)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new TenantController(mockTenantService as any);
+    controller = new TenantController(mockTenantService as unknown as TenantService);
   });
 
   it('creates tenant', async () => {
     const tenant = { id: 't-1', slug: 'test', name: 'Test' };
     mockTenantService.create.mockResolvedValue(ok(tenant));
-    const result = await controller.create({ slug: 'test', name: 'Test' } as any);
+    const dto: CreateTenantDto = { slug: 'test', name: 'Test' };
+    const result = await controller.create(dto);
     expect(result).toEqual(tenant);
   });
 
   it('lists tenants', async () => {
-    mockTenantService.list.mockResolvedValue(ok([{ id: 't-1' }]));
-    const result = await controller.list();
+    mockTenantService.findById.mockResolvedValue(ok({ id: 't-1' }));
+    const result = await controller.list('t-1');
     expect(result).toHaveLength(1);
   });
 
   it('finds by id', async () => {
     mockTenantService.findById.mockResolvedValue(ok({ id: 't-1', slug: 'test' }));
-    const result = await controller.findById('t-1');
+    const result = await controller.findById('t-1', 't-1');
     expect(result.slug).toBe('test');
   });
 
   it('throws on not found', async () => {
     mockTenantService.findById.mockResolvedValue(err({ code: 'NOT_FOUND', message: 'not found' }));
-    await expect(controller.findById('missing')).rejects.toThrow('not found');
+    await expect(controller.findById('t-1', 't-1')).rejects.toThrow('not found');
+  });
+
+  it('throws on tenant mismatch for findById', async () => {
+    await expect(controller.findById('t-1', 't-2')).rejects.toThrow('Access denied');
   });
 
   it('updates tenant', async () => {
     mockTenantService.update.mockResolvedValue(ok({ id: 't-1', name: 'Updated' }));
-    const result = await controller.update('t-1', { name: 'Updated' } as any);
+    const dto: UpdateTenantDto = { name: 'Updated' };
+    const result = await controller.update('t-1', 't-1', dto);
     expect(result.name).toBe('Updated');
   });
 
   it('deletes tenant', async () => {
     mockTenantService.delete.mockResolvedValue(ok(undefined));
-    await expect(controller.delete('t-1')).resolves.toBeUndefined();
+    await expect(controller.delete('t-1', 't-1')).resolves.toBeUndefined();
   });
 
   it('throws on create error', async () => {
     mockTenantService.create.mockResolvedValue(err({ code: 'CONFLICT', message: 'slug exists' }));
-    await expect(controller.create({ slug: 'dup', name: 'Dup' } as any)).rejects.toThrow('slug exists');
+    const dto: CreateTenantDto = { slug: 'dup', name: 'Dup' };
+    await expect(controller.create(dto)).rejects.toThrow('slug exists');
   });
 });

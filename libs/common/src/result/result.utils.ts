@@ -1,4 +1,4 @@
-import { Result, ok, err, ResultAsync } from 'neverthrow';
+import { type Result, ok, err, ResultAsync } from 'neverthrow';
 import type { AppError, ErrorCode } from './app-error';
 
 export class ResultUtils {
@@ -17,7 +17,7 @@ export class ResultUtils {
     }));
   }
 
-  static async unwrapOrThrow<T>(result: Result<T, AppError>): Promise<T> {
+  static unwrapOrThrow<T>(result: Result<T, AppError>): T {
     if (result.isOk()) return result.value;
     throw new Error(`[${result.error.code}] ${result.error.message}`);
   }
