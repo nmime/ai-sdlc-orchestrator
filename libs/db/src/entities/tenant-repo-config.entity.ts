@@ -2,12 +2,6 @@ import { Entity, PrimaryKey, Property, ManyToOne, Enum, Unique } from '@mikro-or
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
-export enum AgentProvider {
-  CLAUDE_CODE = 'claude_code',
-  OPENHANDS = 'openhands',
-  AIDER = 'aider',
-}
-
 export enum CloneStrategy {
   FULL = 'full',
   SPARSE = 'sparse',
@@ -53,8 +47,8 @@ export class TenantRepoConfig {
   @Property({ type: 'int', default: 1 })
   maxConcurrentWorkflows: number = 1;
 
-  @Enum({ items: () => AgentProvider, nullable: true })
-  agentProvider?: AgentProvider;
+  @Property({ nullable: true })
+  agentProvider?: string;
 
   @Property({ nullable: true })
   agentModel?: string;

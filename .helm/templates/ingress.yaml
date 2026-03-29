@@ -2,9 +2,9 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}
+  name: {{ include "opwerf.fullname" . }}
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -31,14 +31,14 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "ai-sdlc.fullname" . }}-api
+                name: {{ include "opwerf.fullname" . }}-api
                 port:
                   number: 3000
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "ai-sdlc.fullname" . }}-dashboard
+                name: {{ include "opwerf.fullname" . }}-dashboard
                 port:
                   number: 80
 {{- end }}

@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-api
+  name: {{ include "opwerf.fullname" . }}-api
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicas }}
   selector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
       labels:
-        {{- include "ai-sdlc.selectorLabels" . | nindent 8 }}
+        {{- include "opwerf.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
-      serviceAccountName: {{ include "ai-sdlc.fullname" . }}
+      serviceAccountName: {{ include "opwerf.fullname" . }}
       containers:
         - name: api
           image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
@@ -26,9 +26,9 @@ spec:
               name: http
           envFrom:
             - configMapRef:
-                name: {{ include "ai-sdlc.fullname" . }}-config
+                name: {{ include "opwerf.fullname" . }}-config
             - secretRef:
-                name: {{ include "ai-sdlc.fullname" . }}-secrets
+                name: {{ include "opwerf.fullname" . }}-secrets
           livenessProbe:
             httpGet:
               path: /api/v1/health/live
@@ -47,54 +47,54 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-worker
+  name: {{ include "opwerf.fullname" . }}-worker
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: worker
 spec:
   replicas: {{ .Values.worker.replicas }}
   selector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: worker
   template:
     metadata:
       labels:
-        {{- include "ai-sdlc.selectorLabels" . | nindent 8 }}
+        {{- include "opwerf.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: worker
     spec:
-      serviceAccountName: {{ include "ai-sdlc.fullname" . }}
+      serviceAccountName: {{ include "opwerf.fullname" . }}
       containers:
         - name: worker
           image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
           envFrom:
             - configMapRef:
-                name: {{ include "ai-sdlc.fullname" . }}-config
+                name: {{ include "opwerf.fullname" . }}-config
             - secretRef:
-                name: {{ include "ai-sdlc.fullname" . }}-secrets
+                name: {{ include "opwerf.fullname" . }}-secrets
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-credential-proxy
+  name: {{ include "opwerf.fullname" . }}-credential-proxy
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: credential-proxy
 spec:
   replicas: {{ .Values.credentialProxy.replicas }}
   selector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: credential-proxy
   template:
     metadata:
       labels:
-        {{- include "ai-sdlc.selectorLabels" . | nindent 8 }}
+        {{- include "opwerf.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: credential-proxy
     spec:
-      serviceAccountName: {{ include "ai-sdlc.fullname" . }}
+      serviceAccountName: {{ include "opwerf.fullname" . }}
       containers:
         - name: credential-proxy
           image: "{{ .Values.credentialProxy.image.repository }}:{{ .Values.credentialProxy.image.tag }}"
@@ -103,9 +103,9 @@ spec:
               name: http
           envFrom:
             - configMapRef:
-                name: {{ include "ai-sdlc.fullname" . }}-config
+                name: {{ include "opwerf.fullname" . }}-config
             - secretRef:
-                name: {{ include "ai-sdlc.fullname" . }}-secrets
+                name: {{ include "opwerf.fullname" . }}-secrets
           livenessProbe:
             httpGet:
               path: /health
@@ -124,23 +124,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-dashboard
+  name: {{ include "opwerf.fullname" . }}-dashboard
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
   replicas: {{ .Values.dashboard.replicas }}
   selector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: dashboard
   template:
     metadata:
       labels:
-        {{- include "ai-sdlc.selectorLabels" . | nindent 8 }}
+        {{- include "opwerf.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: dashboard
     spec:
-      serviceAccountName: {{ include "ai-sdlc.fullname" . }}
+      serviceAccountName: {{ include "opwerf.fullname" . }}
       containers:
         - name: dashboard
           image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"

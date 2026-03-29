@@ -26,7 +26,7 @@ describe('GateService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new GateService(mockTemporalClient as any, mockLogger as any);
+    service = new GateService(mockTemporalClient, mockLogger);
   });
 
   it('should submit an approve decision', async () => {

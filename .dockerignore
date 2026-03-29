@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs (rebuilt in Docker)
+dist/
+tmp/
+*.tsbuildinfo
+
+# Version control
+.git/
+.github/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment (secrets must not leak into image)
+.env
+.env.*
+!.env.example
+
+# Test & coverage
+coverage/
+**/__tests__/
+**/*.spec.ts
+**/*.spec.tsx
+**/*.test.ts
+**/*.test.tsx
+
+# Nx cache
+.nx/
+.turbo/
+.cache/
+
+# Documentation (not needed in runtime image)
+docs/
+*.md
+!README.md
+!LICENSE
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker (prevent recursive inclusion)
+docker/
+Dockerfile*
+docker-compose*
+
+# Infra / Helm
+.helm/
+infra/
+
+# CI configs
+.github/
+.gitlab-ci.yml

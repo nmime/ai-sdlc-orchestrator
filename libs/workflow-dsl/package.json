@@ -1,5 +1,5 @@
 {
-  "name": "@ai-sdlc/workflow-dsl",
+  "name": "@app/workflow-dsl",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts"

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: AI SDLC Orchestrator API
-  description: |
-    REST API for the AI SDLC Orchestrator — manages tenants, workflows,
+  title: Opwerf API
+  description: >
+    REST API for Opwerf — manages tenants, workflows,
     agent sessions, gate approvals, cost monitoring, and webhook integrations.
 
     Auto-generated docs are available at `/api/docs` when the API is running.

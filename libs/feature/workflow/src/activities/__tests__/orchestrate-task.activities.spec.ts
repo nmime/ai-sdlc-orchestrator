@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockEm, createMockSandboxAdapter, createMockAgentRegistry, createMockPromptFormatter, createMockCredentialProxy, createMockMcpPolicyService, createMockPromptSanitizer } from '@ai-sdlc/common/__tests__/test-utils';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createMockEm, createMockSandboxAdapter, createMockAgentRegistry, createMockPromptFormatter, createMockCredentialProxy, createMockMcpPolicyService, createMockPromptSanitizer } from '@app/common/__tests__/test-utils';
 import {
   initActivities,
   updateWorkflowMirror,
@@ -35,13 +35,13 @@ beforeEach(() => {
   mockSanitizer = createMockPromptSanitizer();
 
   initActivities({
-    em: mockEm as any,
-    sandboxAdapter: mockSandbox as any,
-    agentRegistry: mockRegistry as any,
-    promptFormatter: mockFormatter as any,
-    credentialProxy: mockCredProxy as any,
-    mcpPolicyService: mockMcpPolicy as any,
-    promptSanitizer: mockSanitizer as any,
+    em: mockEm,
+    sandboxAdapter: mockSandbox,
+    agentRegistry: mockRegistry,
+    promptFormatter: mockFormatter,
+    credentialProxy: mockCredProxy,
+    mcpPolicyService: mockMcpPolicy,
+    promptSanitizer: mockSanitizer,
   });
 });
 
@@ -238,7 +238,8 @@ describe('createSandbox', () => {
     });
     const execArgs = mockSandbox.exec.mock.calls[0];
     expect(execArgs[1]).toContain('--sparse');
-    expect(execArgs[1]).toContain('src/ tests/');
+    expect(execArgs[1]).toContain("'src/'");
+    expect(execArgs[1]).toContain("'tests/'");
   });
 
   it('destroys sandbox on clone failure', async () => {

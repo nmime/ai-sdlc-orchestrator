@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { AuthGuard, RbacGuard, Roles } from '@ai-sdlc/feature-tenant';
-import { WebhookDelivery } from '@ai-sdlc/db';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
+import { WebhookDelivery } from '@app/db';
+import { type WebhookDeliveryListQueryDto, PaginatedResponseDto } from '@app/common';
 
 @ApiTags('webhook-deliveries')
 @Controller('tenants/:tenantId/webhook-deliveries')
@@ -16,32 +17,33 @@ export class WebhookDeliveryController {
   @ApiOperation({ summary: 'List webhook deliveries for tenant' })
   async list(
     @Param('tenantId') tenantId: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('status') status?: string,
-    @Query('platform') platform?: string,
-  ): Promise<{ data: WebhookDelivery[]; total: number; limit: number; offset: number }> {
+    @Query() query: WebhookDeliveryListQueryDto,
+    @TenantId() authTenantId: string,
+  ): Promise<PaginatedResponseDto<WebhookDelivery>> {
+    if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
+
     const where: Record<string, unknown> = { tenant: tenantId };
-    if (status) where['status'] = status;
-    if (platform) where['platform'] = platform;
+    if (query.status) where['status'] = query.status;
+    if (query.platform) where['platform'] = query.platform;
 
     const [deliveries, total] = await this.em.findAndCount(
       WebhookDelivery,
       where,
       {
         orderBy: { createdAt: 'DESC' },
-        limit: parseInt(limit || '50', 10),
-        offset: parseInt(offset || '0', 10),
+        limit: query.limit,
+        offset: query.offset,
       },
     );
 
-    return { data: deliveries, total, limit: parseInt(limit || '50', 10), offset: parseInt(offset || '0', 10) };
+    return PaginatedResponseDto.of(deliveries, total, query.limit, query.offset);
   }
 
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get webhook delivery by ID' })
-  async findById(@Param('tenantId') tenantId: string, @Param('id') id: string): Promise<WebhookDelivery> {
+  async findById(@Param('tenantId') tenantId: string, @Param('id') id: string, @TenantId() authTenantId: string): Promise<WebhookDelivery> {
+    if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
     return this.em.findOneOrFail(WebhookDelivery, { id, tenant: tenantId });
   }
 }

@@ -1,0 +1,5 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "../../../../dist/libs/feature/agent/unified" },
+  "include": ["src/**/*.ts"]
+}

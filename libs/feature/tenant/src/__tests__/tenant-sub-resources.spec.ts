@@ -1,3 +1,6 @@
+import { McpTransport } from '../../../../db/src/entities/tenant-mcp-server.entity';
+import { VcsProvider } from '../../../../db/src/entities/tenant-vcs-credential.entity';
+import { WebhookPlatform } from '../../../../db/src/entities/tenant-webhook-config.entity';
 import { createMockEm, createMockLogger } from '../../../../common/src/__tests__/test-utils';
 import { TenantMcpServerService } from '../tenant-mcp-server.service';
 import { TenantVcsCredentialService } from '../tenant-vcs-credential.service';
@@ -10,19 +13,19 @@ describe('TenantMcpServerService', () => {
 
   beforeEach(() => {
     mockEm = createMockEm();
-    service = new TenantMcpServerService(mockEm as any, createMockLogger() as any);
+    service = new TenantMcpServerService(mockEm, createMockLogger());
   });
 
   it('creates MCP server', async () => {
     mockEm.findOne.mockResolvedValue(null);
-    const result = await service.create('t-1', { name: 'test-mcp', transport: 'stdio' as any });
+    const result = await service.create('t-1', { name: 'test-mcp', transport: McpTransport.STDIO });
     expect(result.isOk()).toBe(true);
     expect(mockEm.persistAndFlush).toHaveBeenCalled();
   });
 
   it('rejects duplicate name', async () => {
     mockEm.findOne.mockResolvedValue({ name: 'test-mcp' });
-    const result = await service.create('t-1', { name: 'test-mcp', transport: 'stdio' as any });
+    const result = await service.create('t-1', { name: 'test-mcp', transport: McpTransport.STDIO });
     expect(result.isErr()).toBe(true);
     if (result.isErr()) expect(result.error.code).toBe('CONFLICT');
   });
@@ -67,11 +70,11 @@ describe('TenantVcsCredentialService', () => {
 
   beforeEach(() => {
     mockEm = createMockEm();
-    service = new TenantVcsCredentialService(mockEm as any, createMockLogger() as any);
+    service = new TenantVcsCredentialService(mockEm, createMockLogger());
   });
 
   it('creates credential', async () => {
-    const result = await service.create('t-1', { provider: 'github' as any, host: 'github.com', secretRef: 'ref-1' });
+    const result = await service.create('t-1', { provider: VcsProvider.GITHUB, host: 'github.com', secretRef: 'ref-1' });
     expect(result.isOk()).toBe(true);
     expect(mockEm.persistAndFlush).toHaveBeenCalled();
   });
@@ -108,7 +111,7 @@ describe('TenantRepoConfigService', () => {
 
   beforeEach(() => {
     mockEm = createMockEm();
-    service = new TenantRepoConfigService(mockEm as any, createMockLogger() as any);
+    service = new TenantRepoConfigService(mockEm, createMockLogger());
   });
 
   it('creates repo config', async () => {
@@ -150,11 +153,11 @@ describe('TenantWebhookConfigService', () => {
 
   beforeEach(() => {
     mockEm = createMockEm();
-    service = new TenantWebhookConfigService(mockEm as any, createMockLogger() as any);
+    service = new TenantWebhookConfigService(mockEm, createMockLogger());
   });
 
   it('creates webhook config', async () => {
-    const result = await service.create('t-1', { platform: 'github' as any });
+    const result = await service.create('t-1', { platform: WebhookPlatform.GITHUB });
     expect(result.isOk()).toBe(true);
     expect(mockEm.persistAndFlush).toHaveBeenCalled();
   });

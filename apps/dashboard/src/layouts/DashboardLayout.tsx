@@ -1,0 +1,168 @@
+import { useState, useMemo } from 'react';
+import { Outlet, Link, useRouterState } from '@tanstack/react-router';
+import { clearAuth, getAuth } from '../lib/auth';
+import {
+  LayoutDashboard, GitBranch, DollarSign, ShieldCheck,
+  Monitor, FileCode, Settings, Key, Webhook, LogOut,
+  ChevronLeft, ChevronRight, Layers, Menu, Sun, Moon,
+  Users, CreditCard
+} from 'lucide-react';
+import { cn } from '../lib/cn';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useTheme } from '../lib/theme';
+
+interface NavItem {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  exact?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/app', icon: LayoutDashboard, label: 'Overview', exact: true },
+  { to: '/app/workflows', icon: GitBranch, label: 'Workflows' },
+  { to: '/app/sessions', icon: Monitor, label: 'Sessions' },
+  { to: '/app/gates', icon: ShieldCheck, label: 'Gates' },
+  { to: '/app/costs', icon: DollarSign, label: 'Costs' },
+  { to: '/app/dsl', icon: FileCode, label: 'DSL Editor' },
+  { to: '/app/webhooks', icon: Webhook, label: 'Webhooks' },
+  { to: '/app/api-keys', icon: Key, label: 'API Keys' },
+  { to: '/app/users', icon: Users, label: 'Users' },
+  { to: '/app/billing', icon: CreditCard, label: 'Billing' },
+  { to: '/app/settings', icon: Settings, label: 'Settings' },
+];
+
+export function DashboardLayout() {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const router = useRouterState();
+  const currentPath = router.location.pathname;
+  const auth = getAuth();
+  const { toggleTheme, theme } = useTheme();
+
+  const currentPage = useMemo(() => {
+    if (currentPath.startsWith('/app/workflows/')) return { label: 'Workflow Detail', parent: { label: 'Workflows', to: '/app/workflows' } };
+    const item = NAV_ITEMS.find(i => i.exact ? (currentPath === '/app' || currentPath === '/app/') : (currentPath.startsWith(i.to) && i.to !== '/app'));
+    return item ? { label: item.label, parent: null } : { label: 'Overview', parent: null };
+  }, [currentPath]);
+
+  const handleLogout = () => {
+    clearAuth();
+    window.location.href = '/login';
+  };
+
+  const sidebar = (
+    <>
+      <div className="flex items-center gap-3 px-4 h-16 border-b border-divider flex-shrink-0">
+        <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-white flex-shrink-0">
+          <Layers size={18} />
+        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-foreground truncate">Opwerf</h1>
+            <p className="text-[10px] text-default-400 truncate">Orchestrator</p>
+          </div>
+        )}
+      </div>
+
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+        {NAV_ITEMS.map((item) => {
+          const isActive = item.exact
+            ? currentPath === '/app' || currentPath === '/app/'
+            : currentPath.startsWith(item.to) && item.to !== '/app';
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-default-600 hover:bg-default-100 hover:text-foreground'
+              )}
+            >
+              <item.icon size={18} className="flex-shrink-0" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-divider p-2 space-y-1">
+        <button
+          onClick={toggleTheme}
+          className="hidden lg:flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-default-500 hover:bg-default-100 w-full"
+        >
+          {theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? <Sun size={18} /> : <Moon size={18} />}
+          {!collapsed && <span>{theme === 'system' ? 'System theme' : theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
+        </button>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden lg:flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-default-500 hover:bg-default-100 w-full"
+        >
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          {!collapsed && <span>Collapse</span>}
+        </button>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-danger hover:bg-danger/10 w-full"
+        >
+          <LogOut size={18} />
+          {!collapsed && <span>Sign out</span>}
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="h-full flex bg-default-50">
+      {mobileOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
+      )}
+
+      <aside className={cn(
+        'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-divider bg-background transition-all duration-200 lg:relative lg:translate-x-0',
+        collapsed ? 'w-[68px]' : 'w-[260px]',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      )}>
+        {sidebar}
+      </aside>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-14 border-b border-divider bg-background px-4 md:px-6 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-2 rounded-lg hover:bg-default-100 lg:hidden"
+            >
+              <Menu size={20} className="text-default-600" />
+            </button>
+            <nav className="hidden lg:flex items-center gap-1.5 text-sm">
+              <Link to="/app" className="text-default-400 hover:text-foreground transition-colors">Dashboard</Link>
+              {currentPage.parent && (
+                <>
+                  <span className="text-default-300">/</span>
+                  <Link to={currentPage.parent.to} className="text-default-400 hover:text-foreground transition-colors">{currentPage.parent.label}</Link>
+                </>
+              )}
+              <span className="text-default-300">/</span>
+              <span className="text-foreground font-medium">{currentPage.label}</span>
+            </nav>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="h-2 w-2 rounded-full bg-success" />
+            <span className="text-xs text-default-500">{auth?.email || 'dev@local'}</span>
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="max-w-[1400px] mx-auto animate-fade-in">
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

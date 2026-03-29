@@ -2,13 +2,13 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}
+  name: {{ include "opwerf.fullname" . }}
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "ai-sdlc.selectorLabels" . | nindent 6 }}
+      {{- include "opwerf.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: http
       path: /metrics

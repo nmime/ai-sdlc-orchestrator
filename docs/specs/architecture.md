@@ -1,6 +1,6 @@
 # System Architecture
 
-> Part of [AI SDLC Orchestrator](../overview.md) specification
+> Part of [Opwerf](../overview.md) specification
 
 ---
 
@@ -141,7 +141,7 @@ All providers share the same sandbox infrastructure (E2B), credential proxy, MCP
 ## Project Structure & Monorepo
 
 ```
-ai-sdlc-orchestrator/
+opwerf/
 ├── apps/
 │   ├── orchestrator-api/              # HTTP API (NestJS + Fastify)
 │   │                                  # Webhook ingestion, REST API, Temporal client

@@ -96,7 +96,7 @@ describe('Orchestrator API (e2e)', () => {
       expect(result.statusCode).toBe(200);
       const spec = result.json();
       expect(spec.openapi).toMatch(/^3\./);
-      expect(spec.info.title).toBe('AI SDLC Orchestrator API');
+      expect(spec.info.title).toBe('Opwerf API');
     });
   });
 });

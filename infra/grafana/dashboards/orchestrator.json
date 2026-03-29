@@ -212,7 +212,7 @@
   ],
   "schemaVersion": 39,
   "tags": [
-    "ai-sdlc",
+    "opwerf",
     "orchestrator"
   ],
   "templating": {
@@ -224,7 +224,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "AI SDLC Orchestrator",
-  "uid": "ai-sdlc-orchestrator",
+  "title": "Opwerf",
+  "uid": "opwerf",
   "version": 1
 }

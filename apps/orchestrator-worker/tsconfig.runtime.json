@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@app/common": ["libs/common/src/index.js"],
+      "@app/common/*": ["libs/common/src/*"],
+      "@app/db": ["libs/db/src/index.js"],
+      "@app/db/*": ["libs/db/src/*"],
+      "@app/shared-type": ["libs/shared-type/src/index.js"],
+      "@app/shared-type/*": ["libs/shared-type/src/*"],
+      "@app/feature-workflow": ["libs/feature/workflow/src/index.js"],
+      "@app/feature-agent-registry": ["libs/feature/agent/registry/src/index.js"],
+      "@app/feature-agent-claude-code": ["libs/feature/agent/claude-code/src/index.js"],
+      "@app/feature-agent-sandbox": ["libs/feature/agent/sandbox/src/index.js"],
+      "@app/feature-agent-credential-proxy": ["libs/feature/agent/credential-proxy/src/index.js"],
+      "@app/feature-agent-prompt": ["libs/feature/agent/shared/prompt/src/index.js"],
+      "@app/feature-agent-mcp-policy": ["libs/feature/agent/shared/mcp-policy/src/index.js"],
+      "@app/feature-agent-security": ["libs/feature/agent/shared/security/src/index.js"]
+    }
+  }
+}

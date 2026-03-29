@@ -1,11 +1,11 @@
-import { DslValidator, DslCompiler, type CompiledWorkflow, type CompiledStep } from '@ai-sdlc/workflow-dsl';
+import { DslValidator, DslCompiler, type CompiledWorkflow, type CompiledStep } from '@app/workflow-dsl';
 import { readFile } from './file-reader';
 
 function printUsage(): void {
   console.log(`Usage:
-  ai-sdlc validate <file>           Validate a DSL YAML file
-  ai-sdlc diff <file1> <file2>      Compare two compiled DSL files
-  ai-sdlc drain-status              Show current drain status`);
+  opwerf validate <file>           Validate a DSL YAML file
+  opwerf diff <file1> <file2>      Compare two compiled DSL files
+  opwerf drain-status              Show current drain status`);
 }
 
 function cmdValidate(file: string): void {
@@ -96,6 +96,7 @@ function cmdDiff(file1: string, file2: string): void {
     if (stepIds2.has(id)) {
       const s1 = w1.stepMap[id];
       const s2 = w2.stepMap[id];
+      if (!s1 || !s2) continue;
       const summary1 = stepSummary(s1);
       const summary2 = stepSummary(s2);
       const stepDiff = diffObjects(`step[${id}]`, summary1, summary2);
@@ -113,11 +114,50 @@ function cmdDiff(file1: string, file2: string): void {
   }
 }
 
-function cmdDrainStatus(): void {
-  console.log('Drain status: ACTIVE');
-  console.log('Active workflows: 0');
-  console.log('Queued workflows: 0');
-  console.log('System is accepting new workflows.');
+async function cmdDrainStatus(): Promise<void> {
+  const temporalAddress = process.env['TEMPORAL_ADDRESS'] || 'localhost:7233';
+  const namespace = process.env['TEMPORAL_NAMESPACE'] || 'default';
+  const taskQueue = 'orchestrator-queue';
+
+  console.log(`Temporal: ${temporalAddress} (namespace: ${namespace})`);
+  console.log(`Task Queue: ${taskQueue}`);
+
+  try {
+    const { Connection, Client } = await import('@temporalio/client');
+    const connection = await Connection.connect({ address: temporalAddress });
+    const client = new Client({ connection, namespace });
+
+    const activeWorkflows: string[] = [];
+    const handle = client.workflow.list({
+      query: `TaskQueue = '${taskQueue}' AND ExecutionStatus = 'Running'`,
+    });
+    for await (const wf of handle) {
+      activeWorkflows.push(wf.workflowId);
+      if (activeWorkflows.length >= 100) break;
+    }
+
+    console.log(`Active workflows: ${activeWorkflows.length}`);
+    if (activeWorkflows.length > 0) {
+      console.log('Running workflow IDs:');
+      for (const id of activeWorkflows.slice(0, 20)) {
+        console.log(`  - ${id}`);
+      }
+      if (activeWorkflows.length > 20) {
+        console.log(`  ... and ${activeWorkflows.length - 20} more`);
+      }
+    }
+
+    console.log(activeWorkflows.length > 0
+      ? 'System has active workflows. Drain not complete.'
+      : 'System is drained. No active workflows.');
+
+    connection.close();
+  } catch (error) {
+    console.error(`Failed to connect to Temporal: ${(error as Error).message}`);
+    console.log('Falling back to static status...');
+    console.log('Drain status: UNKNOWN (cannot reach Temporal)');
+    process.exit(1);
+  }
 }
 
 export function run(args: string[]): void {

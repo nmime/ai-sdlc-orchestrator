@@ -1,6 +1,6 @@
 # Workflow Engine
 
-> Part of [AI SDLC Orchestrator](../overview.md) specification
+> Part of [Opwerf](../overview.md) specification
 
 ---
 

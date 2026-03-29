@@ -1,6 +1,6 @@
 # Implementation Roadmap
 
-> Part of [AI SDLC Orchestrator](../overview.md) specification
+> Part of [Opwerf](../overview.md) specification
 
 ---
 
@@ -171,7 +171,7 @@ graph LR
 
 - React Flow-based editor for workflow YAML DSL
 - Drag-and-drop steps, gate condition editor, loop strategy config, parallel step builder
-- Real-time Zod validation via `@ai-sdlc/workflow-dsl-schema`
+- Real-time Zod validation via `@opwerf/workflow-dsl-schema`
 - Per-tenant versioning and rollback
 
 ## Phase 7 — Cross-Platform Expansion (future)

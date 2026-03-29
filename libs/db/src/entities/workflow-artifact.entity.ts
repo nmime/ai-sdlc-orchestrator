@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { WorkflowMirror } from './workflow-mirror.entity';
 import { AgentSession } from './agent-session.entity';
@@ -26,12 +26,14 @@ export class WorkflowArtifact {
   id: string = v4();
 
   @ManyToOne(() => WorkflowMirror)
+  @Index()
   workflow!: WorkflowMirror;
 
   @ManyToOne(() => AgentSession, { nullable: true })
   session?: AgentSession;
 
   @ManyToOne(() => Tenant)
+  @Index()
   tenant!: Tenant;
 
   @Property({ nullable: true })

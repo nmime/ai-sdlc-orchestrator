@@ -51,6 +51,7 @@ export interface PublishedArtifact {
   kind: string;
   title: string;
   uri: string;
+  filePath?: string;
   status: ArtifactPubStatus;
   mimeType?: string;
   metadata?: Record<string, unknown>;

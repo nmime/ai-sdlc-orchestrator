@@ -1,7 +1,7 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { PinoLoggerService, TemporalClientService } from '@ai-sdlc/common';
-import { PollingSchedule, WorkflowMirror } from '@ai-sdlc/db';
+import { Injectable, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { type PinoLoggerService, type TemporalClientService, isInternalUrl, sanitizeLog } from '@app/common';
+import { PollingSchedule, WorkflowMirror } from '@app/db';
 
 export interface PollResult {
   taskId: string;
@@ -34,7 +34,7 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
     const fork = this.em.fork();
     const schedules = await fork.find(PollingSchedule, {
       enabled: true,
-    }, { populate: ['tenant', 'repoConfig'] });
+    }, { populate: ['tenant', 'repoConfig'], limit: 500 });
 
     const now = new Date();
     for (const schedule of schedules) {
@@ -64,12 +64,12 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
               webhookDeliveryId: `poll-${Date.now()}`,
             }],
           });
-          this.logger.log(`Started workflow for polled task ${task.taskId}`);
+          this.logger.log(`Started workflow for polled task ${sanitizeLog(task.taskId)}`);
         }
 
         schedule.lastPollAt = now;
       } catch (error) {
-        this.logger.error(`Polling failed for schedule ${schedule.id}: ${(error as Error).message}`);
+        this.logger.error(`Polling failed for schedule ${sanitizeLog(schedule.id)}: ${sanitizeLog((error as Error).message)}`);
       }
     }
     await fork.flush();
@@ -93,14 +93,23 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private assertNotInternal(url: string): void {
+    if (isInternalUrl(url)) {
+      throw new Error('SSRF blocked: internal URL detected');
+    }
+  }
+
   private async fetchJiraTasks(filter: Record<string, unknown>): Promise<PollResult[]> {
     const baseUrl = filter['baseUrl'] as string;
     const jql = filter['jql'] as string;
     const token = filter['token'] as string;
     if (!baseUrl || !jql) return [];
 
+    const fetchUrl = `${baseUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=10`;
+    this.assertNotInternal(fetchUrl);
+
     try {
-      const response = await fetch(`${baseUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&maxResults=10`, {
+      const response = await fetch(fetchUrl, {
         headers: {
           'Authorization': `Basic ${token}`,
           'Accept': 'application/json',
@@ -114,7 +123,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: filter['repoId'] as string || '',
         repoUrl: filter['repoUrl'] as string || '',
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`Jira polling failed: ${sanitizeLog((e as Error).message)}`);
       return [];
     }
   }
@@ -125,8 +135,10 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
     const token = filter['token'] as string;
     if (!repo) return [];
 
+    const url = `https://api.github.com/repos/${encodeURIComponent(repo.split('/')[0] || '')}/${encodeURIComponent(repo.split('/')[1] || '')}/issues?state=open&labels=${encodeURIComponent(labels || 'opwerf')}&per_page=10`;
+    this.assertNotInternal(url);
+
     try {
-      const url = `https://api.github.com/repos/${repo}/issues?state=open&labels=${labels || 'ai-sdlc'}&per_page=10`;
       const response = await fetch(url, {
         headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github.v3+json' },
       });
@@ -138,7 +150,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: repo,
         repoUrl: `https://github.com/${repo}.git`,
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`GitHub polling failed: ${sanitizeLog((e as Error).message)}`);
       return [];
     }
   }
@@ -149,8 +162,10 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
     const token = filter['token'] as string;
     if (!projectId) return [];
 
+    const url = `${baseUrl}/api/v4/projects/${encodeURIComponent(projectId)}/issues?state=opened&labels=${encodeURIComponent((filter['labels'] as string) || 'opwerf')}&per_page=10`;
+    this.assertNotInternal(url);
+
     try {
-      const url = `${baseUrl}/api/v4/projects/${projectId}/issues?state=opened&labels=${filter['labels'] || 'ai-sdlc'}&per_page=10`;
       const response = await fetch(url, {
         headers: { 'PRIVATE-TOKEN': token },
       });
@@ -162,7 +177,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: projectId,
         repoUrl: filter['repoUrl'] as string || '',
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`GitLab polling failed: ${sanitizeLog((e as Error).message)}`);
       return [];
     }
   }
@@ -177,7 +193,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         method: 'POST',
         headers: { Authorization: token, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: `{ team(id: "${teamId}") { issues(filter: { state: { name: { in: ["Todo", "In Progress"] } }, labels: { name: { in: ["ai-sdlc"] } } }, first: 10) { nodes { id identifier title } } } }`,
+          query: `query($teamId: String!) { team(id: $teamId) { issues(filter: { state: { name: { in: ["Todo", "In Progress"] } }, labels: { name: { in: ["opwerf"] } } }, first: 10) { nodes { id identifier title } } } }`,
+          variables: { teamId },
         }),
       });
       if (!response.ok) return [];
@@ -188,7 +205,8 @@ export class PollingService implements OnModuleInit, OnModuleDestroy {
         repoId: filter['repoId'] as string || '',
         repoUrl: filter['repoUrl'] as string || '',
       }));
-    } catch {
+    } catch (e) {
+      this.logger.warn(`Linear polling failed: ${sanitizeLog((e as Error).message)}`);
       return [];
     }
   }

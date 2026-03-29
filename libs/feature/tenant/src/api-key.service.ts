@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantApiKey, Tenant, ApiKeyRole } from '@ai-sdlc/db';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { Result } from 'neverthrow';
+import { ResultUtils, type PinoLoggerService } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantApiKey, Tenant, ApiKeyRole } from '@app/db';
 import { randomBytes, createHash } from 'crypto';
 
 @Injectable()
@@ -45,9 +45,13 @@ export class ApiKeyService {
     return ResultUtils.ok(apiKey);
   }
 
-  async revoke(keyId: string): Promise<Result<void, AppError>> {
-    const deleted = await this.em.nativeDelete(TenantApiKey, { id: keyId });
+  async revoke(tenantId: string, keyId: string): Promise<Result<void, AppError>> {
+    const deleted = await this.em.nativeDelete(TenantApiKey, { id: keyId, tenant: tenantId });
     if (deleted === 0) return ResultUtils.err('NOT_FOUND', 'API key not found');
     return ResultUtils.ok(undefined);
+  }
+
+  async touchLastUsed(keyId: string): Promise<void> {
+    await this.em.nativeUpdate(TenantApiKey, { id: keyId }, { lastUsedAt: new Date() });
   }
 }

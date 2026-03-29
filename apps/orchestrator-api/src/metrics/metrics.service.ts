@@ -41,7 +41,8 @@ export class MetricsService {
   setGauge(name: string, value: number, labels: Record<string, string> = {}): void {
     const key = this.labelKey(labels);
     if (!this.gauges.has(name)) this.gauges.set(name, new Map());
-    this.gauges.get(name)!.set(key, value);
+    const gauge = this.gauges.get(name);
+    if (gauge) gauge.set(key, value);
   }
 
   serialize(): string {
@@ -77,17 +78,21 @@ export class MetricsService {
       }
     }
 
-    return lines.join('\n') + '\n';
+    return `${lines.join('\n')  }\n`;
   }
 
   private labelKey(labels: Record<string, string>): string {
     const entries = Object.entries(labels).sort((a, b) => a[0].localeCompare(b[0]));
     if (entries.length === 0) return '';
-    return '{' + entries.map(([k, v]) => `${k}="${v}"`).join(',') + '}';
+    return `{${  entries.map(([k, v]) => `${k}="${this.escapeLabelValue(v)}"`).join(',')  }}`;
   }
 
   private labelStr(labels: Record<string, string>): string {
     const entries = Object.entries(labels).sort((a, b) => a[0].localeCompare(b[0]));
-    return entries.map(([k, v]) => `${k}="${v}"`).join(',');
+    return entries.map(([k, v]) => `${k}="${this.escapeLabelValue(v)}"`).join(',');
+  }
+
+  private escapeLabelValue(v: string): string {
+    return v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
   }
 }

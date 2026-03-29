@@ -49,7 +49,7 @@ describe('CLI', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => { throw new Error('EXIT'); }) as any);
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((_code?: number): never => { throw new Error('EXIT'); });
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     readFileMock.mockReset();
@@ -115,7 +115,7 @@ describe('CLI', () => {
   describe('drain-status', () => {
     it('should print drain status', () => {
       try { run(['drain-status']); } catch { /* exit */ }
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Drain status'));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Temporal'));
     });
   });
 

@@ -1,37 +1,252 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager } from '@mikro-orm/postgresql';
-import { Result } from 'neverthrow';
-import { ResultUtils, PinoLoggerService } from '@ai-sdlc/common';
-import type { AppError } from '@ai-sdlc/common';
-import { TenantRepoConfig, Tenant, AgentProvider, CloneStrategy } from '@ai-sdlc/db';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { type Result, err } from 'neverthrow';
+import { ResultUtils, type PinoLoggerService, sanitizeRecord, sanitizeLog } from '@app/common';
+import type { AppError } from '@app/common';
+import { TenantRepoConfig, Tenant, CloneStrategy } from "@app/db";
+import { IsString, IsOptional, IsEnum, IsNumber, IsArray, IsObject, IsInt, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 
-export interface CreateRepoConfigDto {
-  repoId: string;
-  repoUrl: string;
+export class CreateRepoConfigDto {
+  @IsString()
+  @MaxLength(255)
+  repoId!: string;
+
+  @IsString()
+  @MaxLength(2048)
+  repoUrl!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   branchPrefix?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   setupCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   testCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   lintCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   typecheckCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   buildCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   agentTemplateId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1000)
   maxConcurrentWorkflows?: number;
-  agentProvider?: AgentProvider;
+
+  @IsOptional()
+  @IsString()
+  agentProvider?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   agentModel?: string;
+
+  @IsOptional()
+  @IsObject()
   modelRouting?: Record<string, string>;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1_000_000)
   costLimitUsd?: number;
+
+  @IsOptional()
+  @IsObject()
   costTiers?: Record<string, number>;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
   maxDiffLines?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
   allowedPaths?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   commitMessagePattern?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
   mrDescriptionTemplate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   qualityGateCommands?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   staticAnalysisCommand?: string;
+
+  @IsOptional()
+  @IsEnum(CloneStrategy)
   cloneStrategy?: CloneStrategy;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
   sparseCheckoutPaths?: string[];
 }
 
-export interface UpdateRepoConfigDto extends Partial<CreateRepoConfigDto> {}
+export class UpdateRepoConfigDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  repoId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  repoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  branchPrefix?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  setupCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  testCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  lintCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  typecheckCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  buildCommand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  agentTemplateId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  maxConcurrentWorkflows?: number;
+
+  @IsOptional()
+  @IsString()
+  agentProvider?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  agentModel?: string;
+
+  @IsOptional()
+  @IsObject()
+  modelRouting?: Record<string, string>;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1_000_000)
+  costLimitUsd?: number;
+
+  @IsOptional()
+  @IsObject()
+  costTiers?: Record<string, number>;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100_000)
+  maxDiffLines?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  allowedPaths?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  commitMessagePattern?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  mrDescriptionTemplate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(1000, { each: true })
+  qualityGateCommands?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  staticAnalysisCommand?: string;
+
+  @IsOptional()
+  @IsEnum(CloneStrategy)
+  cloneStrategy?: CloneStrategy;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  sparseCheckoutPaths?: string[];
+}
 
 @Injectable()
 export class TenantRepoConfigService {
@@ -51,12 +266,12 @@ export class TenantRepoConfigService {
     this.applyDto(config, dto);
 
     await this.em.persistAndFlush(config);
-    this.logger.log(`Repo config created: ${dto.repoId} for tenant ${tenantId}`);
+    this.logger.log(`Repo config created: ${sanitizeLog(dto.repoId)} for tenant ${sanitizeLog(tenantId)}`);
     return ResultUtils.ok(config);
   }
 
   async list(tenantId: string): Promise<Result<TenantRepoConfig[], AppError>> {
-    const configs = await this.em.find(TenantRepoConfig, { tenant: tenantId });
+    const configs = await this.em.find(TenantRepoConfig, { tenant: tenantId }, { limit: 200 });
     return ResultUtils.ok(configs);
   }
 
@@ -83,12 +298,12 @@ export class TenantRepoConfigService {
 
   async delete(tenantId: string, id: string): Promise<Result<void, AppError>> {
     const findResult = await this.findById(tenantId, id);
-    if (findResult.isErr()) return findResult as unknown as Result<void, AppError>;
+    if (findResult.isErr()) return err(findResult.error);
     await this.em.removeAndFlush(findResult.value);
     return ResultUtils.ok(undefined);
   }
 
-  private applyDto(config: TenantRepoConfig, dto: Partial<CreateRepoConfigDto>): void {
+  private applyDto(config: TenantRepoConfig, dto: UpdateRepoConfigDto): void {
     if (dto.repoId !== undefined) config.repoId = dto.repoId;
     if (dto.repoUrl !== undefined) config.repoUrl = dto.repoUrl;
     if (dto.branchPrefix !== undefined) config.branchPrefix = dto.branchPrefix;
@@ -101,9 +316,9 @@ export class TenantRepoConfigService {
     if (dto.maxConcurrentWorkflows !== undefined) config.maxConcurrentWorkflows = dto.maxConcurrentWorkflows;
     if (dto.agentProvider !== undefined) config.agentProvider = dto.agentProvider;
     if (dto.agentModel !== undefined) config.agentModel = dto.agentModel;
-    if (dto.modelRouting !== undefined) config.modelRouting = dto.modelRouting;
+    if (dto.modelRouting !== undefined) config.modelRouting = sanitizeRecord(dto.modelRouting) as Record<string, string>;
     if (dto.costLimitUsd !== undefined) config.costLimitUsd = dto.costLimitUsd;
-    if (dto.costTiers !== undefined) config.costTiers = dto.costTiers;
+    if (dto.costTiers !== undefined) config.costTiers = sanitizeRecord(dto.costTiers) as Record<string, number>;
     if (dto.maxDiffLines !== undefined) config.maxDiffLines = dto.maxDiffLines;
     if (dto.allowedPaths !== undefined) config.allowedPaths = dto.allowedPaths;
     if (dto.commitMessagePattern !== undefined) config.commitMessagePattern = dto.commitMessagePattern;

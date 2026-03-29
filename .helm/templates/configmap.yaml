@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ai-sdlc.fullname" . }}-config
+  name: {{ include "opwerf.fullname" . }}-config
   labels:
-    {{- include "ai-sdlc.labels" . | nindent 4 }}
+    {{- include "opwerf.labels" . | nindent 4 }}
 data:
   DATABASE_HOST: {{ .Values.postgresql.host | quote }}
   DATABASE_PORT: {{ .Values.postgresql.port | quote }}

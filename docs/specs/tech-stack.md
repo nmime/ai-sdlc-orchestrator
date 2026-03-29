@@ -1,6 +1,6 @@
 # Tech Stack
 
-> Part of [AI SDLC Orchestrator](../overview.md) specification
+> Part of [Opwerf](../overview.md) specification
 
 ---
 
@@ -30,7 +30,7 @@
 | Tenant Data Isolation | **PostgreSQL RLS** (Row-Level Security) | Per-tenant data isolation at database level. All queries scoped by `tenant_id` via RLS policies. Defense-in-depth alongside application-level tenant filtering |
 | Object Storage | **[MinIO](https://min.io)** (S3-compatible API) | Artifact file uploads (sandbox-local images, test reports, build outputs). Runs as a K8s Deployment. Application code uses AWS S3 SDK (`@aws-sdk/client-s3`). Also used for PG WAL archiving, Loki log chunks, and ES snapshots — single storage backend for all blob data |
 | Temporal Visibility | **Elasticsearch 8** (or OpenSearch) | Advanced Workflow queries in Temporal UI (by tenant, status, date range, custom search attributes). Default DB-based visibility doesn't support complex queries |
-| Workflow DSL Validation | **Zod schema** (published as `@ai-sdlc/workflow-dsl-schema` npm package) | Used by CLI validator (`dsl validate`), dashboard DSL editor, and runtime DSL compiler. Single source of truth for DSL shape |
+| Workflow DSL Validation | **Zod schema** (published as `@opwerf/workflow-dsl-schema` npm package) | Used by CLI validator (`dsl validate`), dashboard DSL editor, and runtime DSL compiler. Single source of truth for DSL shape |
 | Testing | **Jest 30** + **Testcontainers** + **@temporalio/testing** | Unit + component + Temporal workflow tests |
 
 > ¹ v1 ships with `ClaudeAgentAdapter` using `@anthropic-ai/claude-agent-sdk` (or `@anthropic-ai/sdk` fallback). The `AiAgentPort` + `PromptFormatter` abstraction is in place from v1, so adding OpenHands or Aider requires no changes to the orchestrator core — only a new adapter implementation. See [Architecture — Agent Provider Abstraction](architecture.md).

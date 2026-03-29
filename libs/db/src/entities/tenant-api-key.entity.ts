@@ -1,4 +1,4 @@
-import { Entity, PrimaryKey, Property, ManyToOne, Enum } from '@mikro-orm/core';
+import { Entity, PrimaryKey, Property, ManyToOne, Enum, Index } from '@mikro-orm/core';
 import { v4 } from 'uuid';
 import { Tenant } from './tenant.entity';
 
@@ -14,9 +14,11 @@ export class TenantApiKey {
   id: string = v4();
 
   @ManyToOne(() => Tenant)
+  @Index()
   tenant!: Tenant;
 
   @Property()
+  @Index()
   keyHash!: string;
 
   @Property()
@@ -27,6 +29,9 @@ export class TenantApiKey {
 
   @Property({ nullable: true })
   expiresAt?: Date;
+
+  @Property({ nullable: true })
+  lastUsedAt?: Date;
 
   @Property()
   createdAt: Date = new Date();

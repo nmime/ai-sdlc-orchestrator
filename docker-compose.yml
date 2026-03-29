@@ -17,14 +17,16 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer:latest
     environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_USERNAME: ${POSTGRES_USER:-orchestrator}
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRESQL_DATABASE: ${POSTGRES_DB:-orchestrator}
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 200
-      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_USER: ${POSTGRES_USER:-orchestrator}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      DB_NAME: ${POSTGRES_DB:-orchestrator}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: '200'
+      DEFAULT_POOL_SIZE: '20'
+      AUTH_TYPE: scram-sha-256
+      LISTEN_PORT: '6432'
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,6 +46,8 @@ services:
       ES_VERSION: v8
     volumes:
       - ./docker/temporal-dynamic-config.yml:/etc/temporal/dynamic-config.yml
+      - ./docker/temporal-es-cluster-settings-v8.json:/etc/temporal/schema/elasticsearch/visibility/cluster_settings_v8.json
+      - ./docker/temporal-es-index-template-v8.json:/etc/temporal/schema/elasticsearch/visibility/index_template_v8.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,12 +110,21 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_BUCKET: ${MINIO_BUCKET:-ai-sdlc-artifacts}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_BUCKET: ${MINIO_BUCKET:-artifacts}
+      MINIO_USE_SSL: 'false'
       E2B_API_KEY: ${E2B_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       API_PORT: 3000
-      NODE_ENV: production
+      NODE_ENV: development
+      ALLOW_DEV_AUTH_BYPASS: 'true'
+      CREDENTIAL_PROXY_URL: http://credential-proxy:4000
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN:-dev-internal-token}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT:-0123456789abcdef}
     ports:
       - '${API_PORT:-3000}:3000'
     depends_on:
@@ -138,13 +151,22 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
       REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_BUCKET: ${MINIO_BUCKET:-ai-sdlc-artifacts}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_BUCKET: ${MINIO_BUCKET:-artifacts}
+      MINIO_USE_SSL: 'false'
       E2B_API_KEY: ${E2B_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CREDENTIAL_PROXY_URL: http://credential-proxy:4000
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN:-dev-internal-token}
       WORKER_LOG_LEVEL: ${WORKER_LOG_LEVEL:-info}
-      NODE_ENV: production
+      NODE_ENV: development
+      ALLOW_DEV_AUTH_BYPASS: 'true'
+      APP_ROOT: /app
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT:-0123456789abcdef}
     depends_on:
       pgbouncer:
         condition: service_started
@@ -166,8 +188,12 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
       CREDENTIAL_PROXY_PORT: 4000
-      CREDENTIAL_PROXY_SIGNING_KEY: ${CREDENTIAL_PROXY_SIGNING_KEY:-}
-      NODE_ENV: production
+      CREDENTIAL_PROXY_INTERNAL_TOKEN: ${CREDENTIAL_PROXY_INTERNAL_TOKEN:-dev-internal-token}
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT:-0123456789abcdef}
+      NODE_ENV: development
+      ALLOW_DEV_AUTH_BYPASS: 'true'
     ports:
       - '${CREDENTIAL_PROXY_PORT:-4000}:4000'
     depends_on:
@@ -185,6 +211,17 @@ services:
       - '${DASHBOARD_PORT:-80}:80'
     depends_on:
       - api
+    restart: unless-stopped
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost
+    ports:
+      - '${TEMPORAL_UI_PORT:-8088}:8080'
+    depends_on:
+      - temporal
     restart: unless-stopped
 
 volumes:

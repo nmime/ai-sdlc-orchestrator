@@ -26,9 +26,19 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint
-      - run: pnpm run build
-      - run: pnpm run test
+
+      - uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            nx-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            nx-${{ runner.os }}-
+
+      - run: NX_DAEMON=false npx nx affected -t lint --base=origin/main --head=HEAD
+      - run: NX_DAEMON=false npx nx affected -t build --base=origin/main --head=HEAD
+      - run: NX_DAEMON=false npx nx affected -t typecheck --base=origin/main --head=HEAD
+      - run: NX_DAEMON=false npx nx affected -t test --base=origin/main --head=HEAD
 
   helm-lint:
     runs-on: ubuntu-latest
@@ -47,7 +57,7 @@ jobs:
     needs: [lint-and-test]
     strategy:
       matrix:
-        service: [api, worker, credential-proxy, dashboard]
+        service: [api, worker, agent, credential-proxy, dashboard]
     steps:
       - uses: actions/checkout@v4
 
@@ -60,7 +70,7 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ai-sdlc/${{ matrix.service }}:${{ github.sha }}
+          tags: opwerf/${{ matrix.service }}:${{ github.sha }}
 
   security-scan:
     runs-on: ubuntu-latest
