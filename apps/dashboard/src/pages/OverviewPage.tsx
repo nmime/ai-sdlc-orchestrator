@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Card, Chip, Spinner, ProgressBar } from '@heroui/react';
-import { apiFetch, getTenantId } from '../lib/api';
+import { Card, Chip, ProgressBar } from '@heroui/react';
+import { apiFetch, getTenantId, isDemoMode } from '../lib/api';
 import {
   GitBranch, DollarSign, ShieldCheck, Activity, ArrowRight,
   Webhook, Key, FileCode, Terminal, Rocket, ExternalLink, Clock
 } from 'lucide-react';
+import { SkeletonStats, SkeletonCard, Skeleton } from '../components/Skeleton';
 
 export function OverviewPage() {
   const tenantId = getTenantId();
@@ -34,15 +35,22 @@ export function OverviewPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-default-500 mt-1">Overview of your Opwerf platform</p>
+        <p className="text-sm text-default-500 mt-1">
+          Overview of your Opwerf platform
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
       </div>
 
+      {wfLoading ? (
+        <SkeletonStats count={4} />
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={GitBranch} label="Total Workflows" value={String(workflows?.total ?? 0)} color="primary" sub={`${runningCount} running`} />
         <StatCard icon={DollarSign} label="Monthly Cost" value={`$${(costs?.totalCostUsd ?? 0).toFixed(2)}`} color="success" sub={`of $${(costs?.limitUsd ?? 0).toFixed(0)} limit`} />
         <StatCard icon={ShieldCheck} label="Pending Gates" value={String(gates?.data?.length ?? 0)} color="warning" sub="awaiting approval" />
         <StatCard icon={Activity} label="AI Cost" value={`$${(costs?.aiCostUsd ?? 0).toFixed(2)}`} color="accent" sub="this month" />
       </div>
+      )}
 
       {!wfLoading && !hasWorkflows && (
         <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
@@ -97,7 +105,7 @@ export function OverviewPage() {
               </div>
             </Card.Header>
             {wfLoading ? (
-              <Card.Content><div className="flex justify-center py-8"><Spinner /></div></Card.Content>
+              <Card.Content><div className="space-y-3 py-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div></Card.Content>
             ) : (
               <div className="divide-y divide-divider">
                 {(workflows?.data ?? []).map((wf) => (

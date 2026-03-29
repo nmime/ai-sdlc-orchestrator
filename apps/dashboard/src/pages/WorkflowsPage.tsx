@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Card, Chip, Spinner, EmptyState } from '@heroui/react';
-import { apiFetch } from '../lib/api';
+import { Card, Chip } from '@heroui/react';
+import { apiFetch, isDemoMode } from '../lib/api';
 import { Pagination } from '../components/Pagination';
 import { RelativeTime } from '../components/RelativeTime';
+import { SkeletonTable } from '../components/Skeleton';
 import { GitBranch, Search, ExternalLink, Plus } from 'lucide-react';
 
 interface Workflow {
@@ -49,7 +50,10 @@ export function WorkflowsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Workflows</h1>
-          <p className="text-sm text-default-500 mt-1">{data?.total ?? 0} total workflows</p>
+          <p className="text-sm text-default-500 mt-1">
+            {data?.total ?? 0} total workflows
+            {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+          </p>
         </div>
         <a
           href={`${import.meta.env.VITE_API_URL || '/api/v1'}/docs`}
@@ -87,31 +91,29 @@ export function WorkflowsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <SkeletonTable rows={6} cols={5} />
       ) : error ? (
         <Card><Card.Content><p className="text-danger text-sm">Error: {(error as Error).message}</p></Card.Content></Card>
       ) : workflows.length === 0 ? (
         <Card>
           <Card.Content className="py-16">
-            <EmptyState>
-              <div className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-default-100">
-                  <GitBranch size={28} className="text-default-400" />
-                </div>
-                <h3 className="text-lg font-medium text-foreground">No workflows found</h3>
-                <p className="mt-1 text-sm text-default-500 max-w-sm mx-auto">
-                  Workflows are created when triggered by webhooks or the API. Set up a webhook integration to get started.
-                </p>
-                <div className="mt-6 flex items-center justify-center gap-3">
-                  <Link to="/app/webhooks" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors">
-                    Configure Webhooks
-                  </Link>
-                  <Link to="/app/dsl" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-divider text-sm font-medium text-foreground hover:bg-default-100 transition-colors">
-                    Create DSL
-                  </Link>
-                </div>
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-default-100">
+                <GitBranch size={28} className="text-default-400" />
               </div>
-            </EmptyState>
+              <h3 className="text-lg font-medium text-foreground">No workflows found</h3>
+              <p className="mt-1 text-sm text-default-500 max-w-sm mx-auto">
+                Workflows are created when triggered by webhooks or the API. Set up a webhook integration to get started.
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <Link to="/app/webhooks" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover transition-colors">
+                  Configure Webhooks
+                </Link>
+                <Link to="/app/dsl" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-divider text-sm font-medium text-foreground hover:bg-default-100 transition-colors">
+                  Create DSL
+                </Link>
+              </div>
+            </div>
           </Card.Content>
         </Card>
       ) : (

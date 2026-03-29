@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, Chip, Spinner, ProgressBar } from '@heroui/react';
-import { apiFetch, getTenantId } from '../lib/api';
+import { Card, Chip, ProgressBar } from '@heroui/react';
+import { apiFetch, getTenantId, isDemoMode } from '../lib/api';
 import { DollarSign, AlertTriangle, BarChart3, Cpu, Monitor } from 'lucide-react';
+import { SkeletonStats, SkeletonCard } from '../components/Skeleton';
 
 interface CostData {
   totalCostUsd: number;
@@ -20,7 +21,19 @@ export function CostsPage() {
     refetchInterval: 30000,
   });
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (isLoading) return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Cost Management</h1>
+        <p className="text-sm text-default-500 mt-1">Monitor and control your AI spending</p>
+      </div>
+      <SkeletonStats count={4} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    </div>
+  );
   if (!costs) return null;
 
   const usagePercent = costs.limitUsd > 0 ? (costs.totalCostUsd / costs.limitUsd) * 100 : 0;
@@ -30,7 +43,10 @@ export function CostsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Cost Management</h1>
-        <p className="text-sm text-default-500 mt-1">Monitor and control your AI spending</p>
+        <p className="text-sm text-default-500 mt-1">
+          Monitor and control your AI spending
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

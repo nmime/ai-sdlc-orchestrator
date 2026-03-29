@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Chip, Spinner } from '@heroui/react';
-import { apiFetch, getTenantId } from '../lib/api';
+import { Card, Chip } from '@heroui/react';
+import { apiFetch, getTenantId, isDemoMode } from '../lib/api';
 import { Pagination } from '../components/Pagination';
 import { RelativeTime } from '../components/RelativeTime';
 import { Webhook, RefreshCw } from 'lucide-react';
+import { SkeletonTable } from '../components/Skeleton';
 
 interface WebhookDelivery {
   id: string;
@@ -44,11 +45,14 @@ export function WebhooksPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Webhook Deliveries</h1>
-        <p className="text-sm text-default-500 mt-1">{data?.total ?? 0} total deliveries</p>
+        <p className="text-sm text-default-500 mt-1">
+          {data?.total ?? 0} total deliveries
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <SkeletonTable rows={5} cols={4} />
       ) : deliveries.length === 0 ? (
         <Card>
           <Card.Content className="py-16 text-center">

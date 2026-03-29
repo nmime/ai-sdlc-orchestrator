@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Chip, Spinner, EmptyState } from '@heroui/react';
-import { apiFetch, getTenantId } from '../lib/api';
+import { Card, Button, Chip } from '@heroui/react';
+import { apiFetch, getTenantId, isDemoMode } from '../lib/api';
 import { Key, Plus, Trash2, Copy } from 'lucide-react';
+import { SkeletonTable } from '../components/Skeleton';
 
 interface ApiKey {
   id: string;
@@ -50,7 +51,10 @@ export function ApiKeysPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">API Keys</h1>
-          <p className="text-sm text-default-500 mt-1">Manage API keys for programmatic access</p>
+          <p className="text-sm text-default-500 mt-1">
+            Manage API keys for programmatic access
+            {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+          </p>
         </div>
         <Button variant="primary" size="sm" onPress={() => { setShowCreate(!showCreate); setCreatedKey(null); }}>
           <Plus size={14} className="mr-1" /> Create Key
@@ -98,19 +102,17 @@ export function ApiKeysPage() {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <SkeletonTable rows={3} cols={5} />
       ) : !keys || keys.length === 0 ? (
         <Card>
           <Card.Content className="py-16">
-            <EmptyState>
-              <div className="text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
-                  <Key size={24} className="text-default-400" />
-                </div>
-                <h3 className="text-base font-medium text-foreground">No API keys</h3>
-                <p className="mt-1 text-sm text-default-500">Create an API key for programmatic access to the orchestrator.</p>
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
+                <Key size={24} className="text-default-400" />
               </div>
-            </EmptyState>
+              <h3 className="text-base font-medium text-foreground">No API keys</h3>
+              <p className="mt-1 text-sm text-default-500">Create an API key for programmatic access to the orchestrator.</p>
+            </div>
           </Card.Content>
         </Card>
       ) : (
