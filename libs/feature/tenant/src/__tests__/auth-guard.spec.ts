@@ -225,6 +225,7 @@ describe('AuthGuard', () => {
           isOk: () => true,
           value: { id: 'key-1', name: 'ci-key', role: 'operator', tenant: { id: 'tenant-1' } },
         }),
+        touchLastUsed: vi.fn().mockResolvedValue(undefined),
       };
       const guard = new AuthGuard({ get: () => undefined } as any, mockApiKeyService as any);
       const ctx = mockContext({ authorization: 'ApiKey asdlc_abc123' });

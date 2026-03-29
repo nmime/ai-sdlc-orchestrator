@@ -2,7 +2,10 @@ import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { HealthCheckService, HealthCheck, MikroOrmHealthIndicator } from '@nestjs/terminus';
 import { TemporalClientService, MINIO_CLIENT } from '@app/common';
+import { ConfigService } from '@nestjs/config';
+import type { AppConfig } from '@app/common';
 import type { Client as MinioClient } from 'minio';
+import { createConnection } from 'net';
 
 @ApiTags('health')
 @Controller('health')
@@ -12,6 +15,7 @@ export class HealthController {
     private readonly db: MikroOrmHealthIndicator,
     private readonly temporalClient: TemporalClientService,
     @Inject(MINIO_CLIENT) private readonly minioClient: MinioClient,
+    private readonly configService: ConfigService<AppConfig, true>,
   ) {}
 
   @Get('live')
@@ -25,7 +29,7 @@ export class HealthController {
 
   @Get('ready')
   @HealthCheck()
-  @ApiOperation({ summary: 'Readiness check (DB + Temporal)' })
+  @ApiOperation({ summary: 'Readiness check (DB + Temporal + Redis)' })
   async readiness() {
     return this.health.check([
       () => this.db.pingCheck('database'),
@@ -35,6 +39,14 @@ export class HealthController {
           return { temporal: { status: 'up' as const } };
         } catch {
           return { temporal: { status: 'down' as const } };
+        }
+      },
+      async () => {
+        try {
+          await this.checkRedis();
+          return { redis: { status: 'up' as const } };
+        } catch {
+          return { redis: { status: 'down' as const } };
         }
       },
     ]);
@@ -66,7 +78,36 @@ export class HealthController {
       checks['minio'] = { status: 'down' };
     }
 
+    try {
+      await this.checkRedis();
+      checks['redis'] = { status: 'up' };
+    } catch {
+      checks['redis'] = { status: 'down' };
+    }
+
     const allUp = Object.values(checks).every(c => c.status === 'up');
     return { status: allUp ? 'ok' : 'degraded', checks, timestamp: new Date().toISOString() };
+  }
+
+  private checkRedis(): Promise<void> {
+    const redisUrl = this.configService.get('REDIS_URL');
+    const url = new URL(redisUrl);
+    const host = url.hostname;
+    const port = parseInt(url.port || '6379', 10);
+
+    return new Promise((resolve, reject) => {
+      const socket = createConnection({ host, port, timeout: 3000 }, () => {
+        socket.end();
+        resolve();
+      });
+      socket.on('error', (err) => {
+        socket.destroy();
+        reject(err);
+      });
+      socket.on('timeout', () => {
+        socket.destroy();
+        reject(new Error('Redis connection timeout'));
+      });
+    });
   }
 }

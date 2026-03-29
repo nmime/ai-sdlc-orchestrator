@@ -97,6 +97,9 @@ export class AuthGuard implements CanActivate {
       role: apiKey.role,
       tenantId: apiKey.tenant.id,
     };
+
+    this.apiKeyService.touchLastUsed(apiKey.id).catch(() => {});
+
     return true;
   }
 }

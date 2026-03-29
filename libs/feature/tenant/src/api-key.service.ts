@@ -50,4 +50,8 @@ export class ApiKeyService {
     if (deleted === 0) return ResultUtils.err('NOT_FOUND', 'API key not found');
     return ResultUtils.ok(undefined);
   }
+
+  async touchLastUsed(keyId: string): Promise<void> {
+    await this.em.nativeUpdate(TenantApiKey, { id: keyId }, { lastUsedAt: new Date() });
+  }
 }

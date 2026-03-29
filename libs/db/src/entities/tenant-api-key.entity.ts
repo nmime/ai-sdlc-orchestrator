@@ -30,6 +30,9 @@ export class TenantApiKey {
   @Property({ nullable: true })
   expiresAt?: Date;
 
+  @Property({ nullable: true })
+  lastUsedAt?: Date;
+
   @Property()
   createdAt: Date = new Date();
 }

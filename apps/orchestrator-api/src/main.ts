@@ -22,6 +22,11 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
+  const shutdownTimeout = parseInt(process.env['SHUTDOWN_TIMEOUT_MS'] || '10000', 10);
+  process.on('SIGTERM', () => {
+    setTimeout(() => process.exit(1), shutdownTimeout);
+  });
+
   const fastify = app.getHttpAdapter().getInstance();
   await fastify.register(helmet, {
     contentSecurityPolicy: process.env['NODE_ENV'] !== 'test',
@@ -38,13 +43,16 @@ async function bootstrap() {
 
   const corsOrigins = process.env['CORS_ORIGINS']?.split(',').filter(Boolean);
   app.enableCors({
-    origin: corsOrigins && corsOrigins.length > 0 && !corsOrigins.includes('*')
-      ? corsOrigins
-      : false,
+    origin: corsOrigins && corsOrigins.length > 0
+      ? corsOrigins.includes('*') ? true : corsOrigins
+      : process.env['NODE_ENV'] === 'production' ? false : true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Tenant-Id'],
+    maxAge: 86400,
   });
 
-  if (process.env['ENABLE_SWAGGER'] === 'true') {
+  if (process.env['ENABLE_SWAGGER'] === 'true' || (process.env['ENABLE_SWAGGER'] !== 'false' && process.env['NODE_ENV'] !== 'production')) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('AI SDLC Orchestrator API')
       .setDescription('Orchestrator API for automated SDLC workflows')

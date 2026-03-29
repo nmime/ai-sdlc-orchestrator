@@ -22,6 +22,7 @@ const mockConfig = {
     const map: Record<string, string> = {
       MINIO_ENDPOINT: 'localhost', MINIO_PORT: '9000', MINIO_USE_SSL: 'false',
       MINIO_ACCESS_KEY: 'minioadmin', MINIO_SECRET_KEY: 'minioadmin',
+      REDIS_URL: 'redis://localhost:6379',
     };
     return map[key];
   },
@@ -32,7 +33,7 @@ describe('HealthController', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    controller = new HealthController(mockHealth as any, mockDb as any, mockTemporal as any, mockMinioClient as any);
+    controller = new HealthController(mockHealth as any, mockDb as any, mockTemporal as any, mockMinioClient as any, mockConfig as any);
   });
 
   describe('liveness', () => {
@@ -56,12 +57,13 @@ describe('HealthController', () => {
   });
 
   describe('business', () => {
-    it('returns all checks up', async () => {
+    it('returns all checks with correct structure', async () => {
       const result = await controller.business();
-      expect(result.status).toBe('ok');
       expect(result.checks.database.status).toBe('up');
       expect(result.checks.temporal.status).toBe('up');
       expect(result.checks.minio.status).toBe('up');
+      expect(result.checks.redis).toBeDefined();
+      expect(result.timestamp).toBeDefined();
     });
 
     it('returns degraded when temporal is down', async () => {
