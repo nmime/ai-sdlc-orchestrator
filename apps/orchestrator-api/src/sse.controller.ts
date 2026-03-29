@@ -1,5 +1,5 @@
 import { Controller, Sse, MessageEvent, UseGuards, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowEvent } from '@app/db';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
@@ -23,6 +23,9 @@ export class SseController {
   @Sse('events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Server-Sent Events for workflow updates' })
+  @ApiResponse({ status: 200, description: 'SSE stream of workflow events' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Too many active SSE connections' })
   events(@TenantId() tenantId: string): Observable<MessageEvent> {
     if (activeSseConnections >= MAX_SSE_CONNECTIONS) {
       throw new ForbiddenException('Too many active SSE connections');

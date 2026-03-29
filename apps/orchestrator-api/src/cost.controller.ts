@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query, UseGuards, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { AgentSession, CostAlert, Tenant, WorkflowMirror } from '@app/db';
@@ -14,6 +14,11 @@ export class CostController {
   @Get('tenants/:tenantId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get monthly cost breakdown for tenant' })
+  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  @ApiResponse({ status: 200, description: 'Monthly cost breakdown' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Tenant mismatch' })
+  @ApiResponse({ status: 404, description: 'Tenant not found' })
   async getTenantCosts(@Param('tenantId') tenantId: string, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
     if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 
@@ -47,6 +52,11 @@ export class CostController {
   @Get('tenants/:tenantId/alerts')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost alerts for tenant' })
+  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max number of alerts (default 50, max 200)' })
+  @ApiResponse({ status: 200, description: 'Cost alerts list' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Tenant mismatch' })
   async getTenantAlerts(
     @Param('tenantId') tenantId: string,
     @Query('limit') limit: string | undefined,
@@ -63,6 +73,10 @@ export class CostController {
   @Get('workflows/:workflowId')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get cost breakdown for a workflow' })
+  @ApiParam({ name: 'workflowId', description: 'Workflow ID' })
+  @ApiResponse({ status: 200, description: 'Workflow cost breakdown with session details' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async getWorkflowCost(@TenantId() tenantId: string, @Param('workflowId') workflowId: string): Promise<Record<string, unknown>> {
     const mirror = await this.em.findOne(WorkflowMirror, { temporalWorkflowId: workflowId, tenant: tenantId });
     if (!mirror) throw new NotFoundException(`Workflow ${workflowId} not found`);
@@ -93,6 +107,10 @@ export class CostController {
   @Get('tenants/:tenantId/by-repo')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get costs grouped by repo' })
+  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  @ApiResponse({ status: 200, description: 'Costs grouped by repository' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Tenant mismatch' })
   async getCostsByRepo(@Param('tenantId') tenantId: string, @TenantId() authTenantId: string): Promise<Record<string, unknown>[]> {
     if (authTenantId !== tenantId) throw new ForbiddenException('Tenant mismatch');
 

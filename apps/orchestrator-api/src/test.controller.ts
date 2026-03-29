@@ -1,38 +1,10 @@
 import { Controller, Post, Body, UseGuards, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { TemporalClientService, isInternalUrl } from '@app/common';
 import { TenantMcpServer, TenantRepoConfig } from '@app/db';
-import { IsString, IsOptional, MaxLength } from 'class-validator';
-
-export class TestMcpConnectivityDto {
-  @IsString()
-  @MaxLength(255)
-  tenantId!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  serverName?: string;
-}
-
-export class TestSandboxDto {
-  @IsString()
-  @MaxLength(255)
-  tenantId!: string;
-}
-
-export class TestAgentDryRunDto {
-  @IsString()
-  @MaxLength(255)
-  tenantId!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  repoId?: string;
-}
+import { TestMcpConnectivityDto, TestSandboxDto, TestAgentDryRunDto } from './dto';
 
 @ApiTags('test')
 @Controller('test')
@@ -47,6 +19,10 @@ export class TestController {
   @Post('mcp-connectivity')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test MCP server connectivity' })
+  @ApiBody({ type: TestMcpConnectivityDto })
+  @ApiResponse({ status: 200, description: 'MCP connectivity test results' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Tenant mismatch' })
   async testMcpConnectivity(@Body() body: TestMcpConnectivityDto, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
     if (authTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
@@ -75,6 +51,10 @@ export class TestController {
   @Post('sandbox')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test sandbox boot and health' })
+  @ApiBody({ type: TestSandboxDto })
+  @ApiResponse({ status: 200, description: 'Sandbox test initiated' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Tenant mismatch' })
   async testSandbox(@Body() body: TestSandboxDto, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
     if (authTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 
@@ -103,6 +83,10 @@ export class TestController {
   @Post('agent-dry-run')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Test agent invocation with mock task' })
+  @ApiBody({ type: TestAgentDryRunDto })
+  @ApiResponse({ status: 200, description: 'Agent dry-run initiated' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Tenant mismatch' })
   async testAgentDryRun(@Body() body: TestAgentDryRunDto, @TenantId() authTenantId: string): Promise<Record<string, unknown>> {
     if (authTenantId !== body.tenantId) throw new ForbiddenException('Tenant mismatch');
 

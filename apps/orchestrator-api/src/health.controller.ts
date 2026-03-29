@@ -1,5 +1,5 @@
 import { Controller, Get, Inject } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { HealthCheckService, HealthCheck, MikroOrmHealthIndicator } from '@nestjs/terminus';
 import { TemporalClientService, MINIO_CLIENT } from '@app/common';
 import type { Client as MinioClient } from 'minio';
@@ -17,6 +17,8 @@ export class HealthController {
   @Get('live')
   @HealthCheck()
   @ApiOperation({ summary: 'Liveness check' })
+  @ApiResponse({ status: 200, description: 'Service is alive' })
+  @ApiResponse({ status: 503, description: 'Service unavailable' })
   async liveness() {
     return this.health.check([
       () => this.db.pingCheck('database'),
@@ -26,6 +28,8 @@ export class HealthController {
   @Get('ready')
   @HealthCheck()
   @ApiOperation({ summary: 'Readiness check (DB + Temporal)' })
+  @ApiResponse({ status: 200, description: 'Service is ready' })
+  @ApiResponse({ status: 503, description: 'Service not ready' })
   async readiness() {
     return this.health.check([
       () => this.db.pingCheck('database'),
@@ -42,6 +46,7 @@ export class HealthController {
 
   @Get('business')
   @ApiOperation({ summary: 'Deep business health check' })
+  @ApiResponse({ status: 200, description: 'Business health status with component checks' })
   async business() {
     const checks: Record<string, { status: string }> = {};
 

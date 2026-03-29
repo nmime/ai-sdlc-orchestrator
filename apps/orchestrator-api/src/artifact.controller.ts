@@ -1,41 +1,13 @@
 import { Controller, Post, Get, Param, UseGuards, Body, HttpCode, HttpStatus, ForbiddenException, BadRequestException, Inject } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { WorkflowArtifact, ArtifactKind, ArtifactStatus, WorkflowMirror, Tenant } from '@app/db';
-import { IsString, IsOptional, IsEnum, MaxLength, Matches } from 'class-validator';
+import { UploadArtifactDto } from './dto';
 import type { Client as MinioClient } from 'minio';
 import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '@app/common';
 import { MINIO_CLIENT } from '@app/common';
-
-class UploadArtifactDto {
-  @IsString()
-  @Matches(/^[a-zA-Z0-9_-]+$/, { message: 'workflowId must be alphanumeric with hyphens/underscores' })
-  @MaxLength(255)
-  workflowId!: string;
-
-  @IsString()
-  @MaxLength(255)
-  tenantId!: string;
-
-  @IsEnum(ArtifactKind)
-  kind!: ArtifactKind;
-
-  @IsString()
-  @MaxLength(255)
-  title!: string;
-
-  @IsString()
-  @Matches(/^[a-zA-Z0-9._-]+$/, { message: 'filename must not contain path separators or special characters' })
-  @MaxLength(255)
-  filename!: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  mimeType?: string;
-}
 
 @ApiTags('artifacts')
 @Controller('artifacts')
@@ -55,6 +27,11 @@ export class ArtifactController {
   @Post('presigned-upload')
   @Roles('admin', 'operator')
   @ApiOperation({ summary: 'Get presigned upload URL for artifact' })
+  @ApiBody({ type: UploadArtifactDto })
+  @ApiResponse({ status: 201, description: 'Presigned upload URL generated' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Cannot create artifacts for another tenant' })
   async getPresignedUpload(@TenantId() authTenantId: string, @Body() body: UploadArtifactDto): Promise<{ uploadUrl: string; artifactId: string }> {
     if (body.tenantId !== authTenantId) throw new ForbiddenException('Cannot create artifacts for another tenant');
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: body.workflowId, tenant: authTenantId });
@@ -78,6 +55,10 @@ export class ArtifactController {
   @Roles('admin', 'operator')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish artifact after upload' })
+  @ApiParam({ name: 'id', description: 'Artifact ID' })
+  @ApiResponse({ status: 200, description: 'Artifact published' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Artifact not found' })
   async publishArtifact(@TenantId() tenantId: string, @Param('id') id: string): Promise<{ status: string }> {
     const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id, tenant: tenantId });
     artifact.status = ArtifactStatus.PUBLISHED;
@@ -88,6 +69,10 @@ export class ArtifactController {
   @Get(':id/download')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get presigned download URL for artifact' })
+  @ApiParam({ name: 'id', description: 'Artifact ID' })
+  @ApiResponse({ status: 200, description: 'Presigned download URL returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Artifact not found' })
   async getDownloadUrl(@TenantId() tenantId: string, @Param('id') id: string): Promise<{ downloadUrl: string }> {
     const artifact = await this.em.findOneOrFail(WorkflowArtifact, { id, tenant: tenantId });
     const objectKey = artifact.uri.replace(`s3://${this.bucket}/`, '');

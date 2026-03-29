@@ -1,5 +1,5 @@
 import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { EntityManager } from '@mikro-orm/postgresql';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { WorkflowMirror, WorkflowEvent, AgentSession, WorkflowArtifact } from '@app/db';
@@ -15,6 +15,8 @@ export class WorkflowsController {
   @Get()
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'List workflows with pagination and filters' })
+  @ApiResponse({ status: 200, description: 'Paginated list of workflows' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async list(
     @TenantId() tenantId: string,
     @Query() query: WorkflowListQueryDto,
@@ -35,6 +37,10 @@ export class WorkflowsController {
   @Get(':id')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow detail' })
+  @ApiParam({ name: 'id', description: 'Temporal workflow ID' })
+  @ApiResponse({ status: 200, description: 'Workflow detail with events, sessions, and artifacts' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async detail(@TenantId() tenantId: string, @Param('id') id: string): Promise<{ workflow: WorkflowMirror; events: WorkflowEvent[]; sessions: AgentSession[]; artifacts: WorkflowArtifact[] }> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const events: WorkflowEvent[] = await this.em.find(WorkflowEvent, { workflow: mirror.id }, { orderBy: { createdAt: 'ASC' } });
@@ -47,6 +53,10 @@ export class WorkflowsController {
   @Get(':id/events')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow events timeline' })
+  @ApiParam({ name: 'id', description: 'Temporal workflow ID' })
+  @ApiResponse({ status: 200, description: 'Workflow events list' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async events(@TenantId() tenantId: string, @Param('id') id: string): Promise<WorkflowEvent[]> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     return this.em.find(WorkflowEvent, { workflow: mirror.id }, { orderBy: { createdAt: 'ASC' }, limit: 500 });
@@ -55,6 +65,10 @@ export class WorkflowsController {
   @Get(':id/sessions')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get agent sessions for workflow' })
+  @ApiParam({ name: 'id', description: 'Temporal workflow ID' })
+  @ApiResponse({ status: 200, description: 'Agent sessions with tool calls' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async sessions(@TenantId() tenantId: string, @Param('id') id: string): Promise<Record<string, unknown>[]> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id }, {
@@ -72,6 +86,10 @@ export class WorkflowsController {
   @Get(':id/artifacts')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow artifacts' })
+  @ApiParam({ name: 'id', description: 'Temporal workflow ID' })
+  @ApiResponse({ status: 200, description: 'Workflow artifacts list' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async artifacts(@TenantId() tenantId: string, @Param('id') id: string): Promise<WorkflowArtifact[]> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     return this.em.find(WorkflowArtifact, { workflow: mirror.id });
@@ -80,6 +98,10 @@ export class WorkflowsController {
   @Get(':id/cost')
   @Roles('admin', 'operator', 'viewer')
   @ApiOperation({ summary: 'Get workflow cost breakdown' })
+  @ApiParam({ name: 'id', description: 'Temporal workflow ID' })
+  @ApiResponse({ status: 200, description: 'Workflow cost breakdown' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Workflow not found' })
   async cost(@TenantId() tenantId: string, @Param('id') id: string): Promise<Record<string, unknown>> {
     const mirror = await this.em.findOneOrFail(WorkflowMirror, { temporalWorkflowId: id, tenant: tenantId });
     const sessions: AgentSession[] = await this.em.find(AgentSession, { workflow: mirror.id });

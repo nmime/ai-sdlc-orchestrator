@@ -1,53 +1,8 @@
 import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthGuard, RbacGuard, Roles, TenantId } from '@app/feature-tenant';
 import { TemporalClientService } from '@app/common';
-import { IsString, IsArray, ValidateNested, IsOptional, IsIn, ArrayMaxSize, MaxLength } from 'class-validator';
-import { Type } from 'class-transformer';
-
-class RepoInput {
-  @IsString()
-  @MaxLength(255)
-  repoId!: string;
-
-  @IsString()
-  @MaxLength(2048)
-  repoUrl!: string;
-
-  @IsString()
-  @MaxLength(255)
-  taskId!: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  @ArrayMaxSize(50)
-  labels?: string[];
-}
-
-class StartMultiRepoDto {
-  @IsString()
-  @MaxLength(255)
-  tenantId!: string;
-
-  @IsString()
-  @MaxLength(255)
-  parentTaskId!: string;
-
-  @IsString()
-  @MaxLength(255)
-  taskProvider!: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => RepoInput)
-  @ArrayMaxSize(50)
-  repos!: RepoInput[];
-
-  @IsOptional()
-  @IsIn(['wait_all', 'fail_fast'])
-  failureStrategy?: 'wait_all' | 'fail_fast';
-}
+import { StartMultiRepoDto } from './dto';
 
 @ApiTags('multi-repo')
 @Controller('multi-repo')
@@ -60,6 +15,11 @@ export class MultiRepoController {
   @Roles('admin', 'operator')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Start a multi-repo workflow' })
+  @ApiBody({ type: StartMultiRepoDto })
+  @ApiResponse({ status: 202, description: 'Multi-repo workflow started' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Cannot start workflows for another tenant' })
   async startMultiRepo(@TenantId() authTenantId: string, @Body() body: StartMultiRepoDto): Promise<{ workflowId: string }> {
     if (body.tenantId !== authTenantId) throw new ForbiddenException('Cannot start workflows for another tenant');
     const client = await this.temporalClient.getClient();
