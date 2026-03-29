@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Chip, Spinner, EmptyState } from '@heroui/react';
-import { apiFetch, mutationOptions } from '../lib/api';
+import { Card, Button, Chip } from '@heroui/react';
+import { apiFetch, mutationOptions, isDemoMode } from '../lib/api';
 import { RelativeTime } from '../components/RelativeTime';
 import { ShieldCheck, GitBranch, MessageSquare } from 'lucide-react';
+import { SkeletonCard } from '../components/Skeleton';
 
 interface Workflow {
   id: string;
@@ -47,23 +48,27 @@ export function GatesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Gate Approvals</h1>
-        <p className="text-sm text-default-500 mt-1">{workflows.length} pending approval{workflows.length !== 1 ? 's' : ''}</p>
+        <p className="text-sm text-default-500 mt-1">
+          {workflows.length} pending approval{workflows.length !== 1 ? 's' : ''}
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       ) : workflows.length === 0 ? (
         <Card>
           <Card.Content className="py-16">
-            <EmptyState>
-              <div className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/10">
-                  <ShieldCheck size={28} className="text-success" />
-                </div>
-                <h3 className="text-lg font-medium text-foreground">All clear</h3>
-                <p className="mt-1 text-sm text-default-500">No workflows are awaiting gate approval.</p>
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success/10">
+                <ShieldCheck size={28} className="text-success" />
               </div>
-            </EmptyState>
+              <h3 className="text-lg font-medium text-foreground">All clear</h3>
+              <p className="mt-1 text-sm text-default-500">No workflows are awaiting gate approval.</p>
+            </div>
           </Card.Content>
         </Card>
       ) : (

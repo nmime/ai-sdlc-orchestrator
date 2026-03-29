@@ -33,7 +33,7 @@ if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(pre
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 5000, retry: 1, refetchOnWindowFocus: false },
+    queries: { staleTime: 5000, retry: 0, refetchOnWindowFocus: false },
   },
 });
 

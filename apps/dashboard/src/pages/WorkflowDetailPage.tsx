@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { Card, Chip, Spinner, Button } from '@heroui/react';
-import { apiFetch, mutationOptions } from '../lib/api';
+import { Card, Chip, Button } from '@heroui/react';
+import { apiFetch, mutationOptions, isDemoMode } from '../lib/api';
 import { RelativeTime } from '../components/RelativeTime';
 import {
   ArrowLeft, GitBranch, Clock, DollarSign, Cpu, Monitor,
   ShieldCheck, XCircle, CheckCircle2, Coins, RefreshCw, RotateCcw, ExternalLink,
   FileText, FileCode, FileImage, FileBarChart, FileArchive, File, GitPullRequest, Download
 } from 'lucide-react';
+import { SkeletonStats, SkeletonCard, Skeleton } from '../components/Skeleton';
 
 interface WorkflowDetail {
   id: string;
@@ -130,7 +131,20 @@ export function WorkflowDetailPage() {
     },
   });
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (isLoading) return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-10 w-10 rounded-lg" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+      </div>
+      <SkeletonStats count={4} />
+      <SkeletonCard />
+      <SkeletonCard />
+    </div>
+  );
   if (!wf) return <div className="text-center py-16 text-default-500">Workflow not found</div>;
 
   const status = STATUS_MAP[wf.status] ?? { color: 'default' as const, label: wf.status };

@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Chip, Spinner } from '@heroui/react';
-import { apiFetch } from '../lib/api';
+import { Card, Chip } from '@heroui/react';
+import { apiFetch, isDemoMode } from '../lib/api';
 import { Monitor, Cpu, Coins, Clock, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SkeletonCard } from '../components/Skeleton';
 
 interface Workflow {
   id: string;
@@ -107,7 +108,21 @@ export function SessionsPage() {
     setPage(0);
   };
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (isLoading) return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Agent Sessions</h1>
+        <p className="text-sm text-default-500 mt-1">
+          Inspect agent sessions per workflow
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
+      </div>
+      <div className="flex gap-6 h-[calc(100vh-14rem)]">
+        <SkeletonCard className="w-1/3 h-full" />
+        <SkeletonCard className="w-2/3 h-full" />
+      </div>
+    </div>
+  );
 
   const wfList = workflows?.data ?? [];
 
@@ -115,7 +130,10 @@ export function SessionsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Agent Sessions</h1>
-        <p className="text-sm text-default-500 mt-1">Inspect agent sessions per workflow</p>
+        <p className="text-sm text-default-500 mt-1">
+          Inspect agent sessions per workflow
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
       </div>
 
       <div className="flex gap-6 h-[calc(100vh-14rem)]">

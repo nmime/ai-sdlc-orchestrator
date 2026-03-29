@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, Button, Chip, ProgressBar } from '@heroui/react';
-import { apiFetch, getTenantId } from '../lib/api';
+import { apiFetch, getTenantId, isDemoMode } from '../lib/api';
 import { CreditCard, Zap, Building2, Crown, Check, ArrowUpRight } from 'lucide-react';
 
 interface CostData {
@@ -56,7 +56,10 @@ export function BillingPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Billing & Subscription</h1>
-        <p className="text-sm text-default-500 mt-1">Manage your plan, usage, and payment methods</p>
+        <p className="text-sm text-default-500 mt-1">
+          Manage your plan, usage, and payment methods
+          {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -144,7 +147,7 @@ export function BillingPage() {
               <Card.Header>
                 <div className="flex items-center justify-between w-full">
                   <Card.Title>{plan.name}</Card.Title>
-                  {plan.current && <Chip color="primary" variant="soft" size="sm">Current</Chip>}
+                  {plan.current && <Chip color="accent" variant="soft" size="sm">Current</Chip>}
                 </div>
                 <Card.Description>{plan.description}</Card.Description>
               </Card.Header>

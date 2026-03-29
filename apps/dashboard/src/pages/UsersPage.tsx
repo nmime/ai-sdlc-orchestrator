@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Chip, Spinner, EmptyState } from '@heroui/react';
-import { apiFetch, getTenantId, mutationOptions } from '../lib/api';
+import { Card, Button, Chip } from '@heroui/react';
+import { apiFetch, getTenantId, mutationOptions, isDemoMode } from '../lib/api';
 import { Users, Plus, Mail, Shield, Clock } from 'lucide-react';
+import { SkeletonTable } from '../components/Skeleton';
 
 interface TenantUser {
   id: string;
@@ -14,8 +15,8 @@ interface TenantUser {
   createdAt: string;
 }
 
-const ROLE_COLOR: Record<string, 'primary' | 'warning' | 'default'> = {
-  admin: 'primary',
+const ROLE_COLOR: Record<string, 'default' | 'warning' | 'accent'> = {
+  admin: 'accent',
   operator: 'warning',
   viewer: 'default',
 };
@@ -52,7 +53,10 @@ export function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Team Members</h1>
-          <p className="text-sm text-default-500 mt-1">Manage users and their roles within your tenant</p>
+          <p className="text-sm text-default-500 mt-1">
+            Manage users and their roles within your tenant
+            {isDemoMode() && <span className="ml-2 text-xs text-warning">(demo)</span>}
+          </p>
         </div>
         <Button variant="primary" size="sm" onPress={() => setShowInvite(!showInvite)}>
           <Plus size={14} className="mr-1" /> Add User
@@ -96,19 +100,17 @@ export function UsersPage() {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <SkeletonTable rows={3} cols={4} />
       ) : !users || users.length === 0 ? (
         <Card>
           <Card.Content className="py-16">
-            <EmptyState>
-              <div className="text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
-                  <Users size={24} className="text-default-400" />
-                </div>
-                <h3 className="text-base font-medium text-foreground">No team members</h3>
-                <p className="mt-1 text-sm text-default-500">Add users to collaborate on workflows and manage your tenant.</p>
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-default-100">
+                <Users size={24} className="text-default-400" />
               </div>
-            </EmptyState>
+              <h3 className="text-base font-medium text-foreground">No team members</h3>
+              <p className="mt-1 text-sm text-default-500">Add users to collaborate on workflows and manage your tenant.</p>
+            </div>
           </Card.Content>
         </Card>
       ) : (
